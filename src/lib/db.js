@@ -1,5 +1,40 @@
 import { supabase } from "./supabase";
+// 内部用：IDを架空のメールアドレスに変換するヘルパー関数
+function idToFakeEmail(id) {
+  // トリミングして小文字にし、記号などを除いた安全なアドレスを生成
+  const safeId = id.trim().toLowerCase().replace(/[^a-z0-9_.-]/g, "");
+  return `${safeId}@nekko.local`;
+}
 
+// ── Auth ──────────────────────────────────────────
+export async function signUp({ email, password, username, displayName }) {
+  // 修正：email 引数ではなく、username(ID) から架空のメールアドレスを自動生成する
+  const fakeEmail = idToFakeEmail(username);
+
+  const { data, error } = await supabase.auth.signUp({
+    email: fakeEmail, 
+    password,
+    options: { 
+      data: { 
+        username: username.trim(), 
+        display_name: displayName || username 
+      } 
+    },
+  });
+  return { data, error };
+}
+
+export async function signIn({ email, password }) {
+  // 修正：引数名が email になっていますが、実質IDが渡されるため、
+  // IDから架空のメールアドレスを復元してログインを試みます
+  const fakeEmail = idToFakeEmail(email); 
+
+  const { data, error } = await supabase.auth.signInWithPassword({ 
+    email: fakeEmail, 
+    password 
+  });
+  return { data, error };
+}
 // ── Auth ──────────────────────────────────────────
 export async function signUp({ email, password, username, displayName }) {
   const { data, error } = await supabase.auth.signUp({
