@@ -1,14 +1,14 @@
 import { supabase } from "./supabase";
+
 // 内部用：IDを架空のメールアドレスに変換するヘルパー関数
 function idToFakeEmail(id) {
-  // トリミングして小文字にし、記号などを除いた安全なアドレスを生成
   const safeId = id.trim().toLowerCase().replace(/[^a-z0-9_.-]/g, "");
   return `${safeId}@nekko.local`;
 }
 
 // ── Auth ──────────────────────────────────────────
 export async function signUp({ email, password, username, displayName }) {
-  // 修正：email 引数ではなく、username(ID) から架空のメールアドレスを自動生成する
+  // username から架空のメールアドレスを自動生成して登録
   const fakeEmail = idToFakeEmail(username);
 
   const { data, error } = await supabase.auth.signUp({
@@ -25,27 +25,13 @@ export async function signUp({ email, password, username, displayName }) {
 }
 
 export async function signIn({ email, password }) {
-  // 修正：引数名が email になっていますが、実質IDが渡されるため、
-  // IDから架空のメールアドレスを復元してログインを試みます
+  // email 引数に渡された ID から架空のメールアドレスを復元してログイン
   const fakeEmail = idToFakeEmail(email); 
 
   const { data, error } = await supabase.auth.signInWithPassword({ 
     email: fakeEmail, 
     password 
   });
-  return { data, error };
-}
-// ── Auth ──────────────────────────────────────────
-export async function signUp({ email, password, username, displayName }) {
-  const { data, error } = await supabase.auth.signUp({
-    email, password,
-    options: { data: { username, display_name: displayName } },
-  });
-  return { data, error };
-}
-
-export async function signIn({ email, password }) {
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   return { data, error };
 }
 
@@ -126,14 +112,13 @@ export async function createNode({ treeId, userId, parentId, label, status = "to
 }
 
 export async function updateNode(nodeId, patch) {
-  // map camelCase to snake_case for DB
   const dbPatch = {};
-  if (patch.label       !== undefined) dbPatch.label        = patch.label;
-  if (patch.status      !== undefined) dbPatch.status       = patch.status;
+  if (patch.label    !== undefined) dbPatch.label    = patch.label;
+  if (patch.status   !== undefined) dbPatch.status   = patch.status;
   if (patch.approachType!== undefined) dbPatch.approach_type= patch.approachType;
-  if (patch.board       !== undefined) dbPatch.board        = patch.board;
-  if (patch.stamps      !== undefined) dbPatch.stamps       = patch.stamps;
-  if (patch.memo        !== undefined) dbPatch.memo         = patch.memo;
+  if (patch.board    !== undefined) dbPatch.board    = patch.board;
+  if (patch.stamps   !== undefined) dbPatch.stamps   = patch.stamps;
+  if (patch.memo     !== undefined) dbPatch.memo     = patch.memo;
   if (patch.isMergeTarget !== undefined) dbPatch.is_merge_target = patch.isMergeTarget;
   const { data, error } = await supabase
     .from("nodes").update(dbPatch).eq("id", nodeId).select().single();
@@ -146,7 +131,6 @@ export async function deleteNode(nodeId) {
 
 // ── Assemble tree from flat nodes ─────────────────
 export function buildTreeFromNodes(treeRow, flatNodes) {
-  // convert DB rows to app format
   const nodeMap = {};
   flatNodes.forEach(n => {
     nodeMap[n.id] = {
@@ -163,7 +147,6 @@ export function buildTreeFromNodes(treeRow, flatNodes) {
       childIds: [],
     };
   });
-  // wire up childIds
   flatNodes.forEach(n => {
     if (n.parent_id && nodeMap[n.parent_id]) {
       nodeMap[n.parent_id].childIds.push(n.id);
