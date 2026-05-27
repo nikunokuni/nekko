@@ -47,7 +47,6 @@ export default function NewNode({ tree, parentNodeId, onComplete, onCancel }) {
     // id フィールドは除去し、App 側の createNode に任せる。
     const finalName = name.trim() || suggestion;
     const newNode = {
-      // id は App 側の createNode が DB で生成するため渡さない
       label: finalName,
       status,
       approachType: approach,
@@ -55,8 +54,11 @@ export default function NewNode({ tree, parentNodeId, onComplete, onCancel }) {
       board: boardData,
       stamps,
       memo,
-      childIds: [],
     };
+      const realId = await onComplete(newNode);
+    if (realId) {
+      setCreatedRealId(realId);
+    }
     onComplete(newNode);
     setDone(true);
   };
@@ -104,11 +106,27 @@ export default function NewNode({ tree, parentNodeId, onComplete, onCancel }) {
               background:'#faf4e8',color:'rgba(26,15,0,0.5)',
               border:'0.5px solid rgba(26,15,0,0.18)',fontFamily:"'Noto Serif JP',serif",
             }}>ツリーに戻る</button>
-            <button onClick={onCancel} style={{
-              flex:2,padding:10,borderRadius:10,fontSize:13,cursor:'pointer',
-              background:'#a07840',color:'#faf4e8',border:'none',
-              fontFamily:"'Noto Serif JP',serif",fontWeight:600,
-            }}>ノードを開く</button>
+            <button 
+              onClick={() => {
+                if (createdRealId) {
+                  onCancel(); // 新規作成画面を閉じ、
+                  // nodeDetail詳細画面に直接飛ぶ
+                  setTimeout(() => {
+                    tree.nodes[createdRealId] && onCancel(createdRealId); 
+                    // 親に選択を伝播
+                  }, 50);
+                } else {
+                  onCancel();
+                }
+              }} 
+              style={{
+                flex:2,padding:10,borderRadius:10,fontSize:13,cursor:'pointer',
+                background:'#a07840',color:'#faf4e8',border:'none',
+                fontFamily:"'Noto Serif JP',serif",fontWeight:600,
+              }}
+            >
+              ノードを開く
+            </button>
           </div>
         </div>
       </div>
