@@ -3,16 +3,15 @@ import { signIn, signUp } from "../lib/db";
 
 export default function AuthScreen({ onAuth }) {
   const [mode, setMode] = useState("login"); // login | signup
-  const [username, setUsername] = useState(""); // これをログイン/登録の共通「ID」として使用
+  const [username, setUsername] = useState(""); 
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const handleSubmit = async (e) => {
-    e.preventDefault(); // フォームのデフォルトのページリロードを防ぐ
+    e.preventDefault(); 
     setError(""); 
-    setLoading(false);
 
     if (!username.trim() || !password) {
       setError("IDとパスワードを入力してください");
@@ -22,7 +21,6 @@ export default function AuthScreen({ onAuth }) {
     setLoading(true);
 
     if (mode === "login") {
-      // ログイン時は username を db.js の第一引数(emailにマッピングされる)に渡す
       const { data, error: err } = await signIn({ email: username, password });
       if (err) { 
         setError(err.message === "Invalid login credentials" ? "IDまたはパスワードが違います" : err.message); 
@@ -31,7 +29,6 @@ export default function AuthScreen({ onAuth }) {
       }
       onAuth(data.user, data.session);
     } else {
-      // 新規登録
       const { data, error: err } = await signUp({ 
         username: username.trim(), 
         password, 
@@ -43,10 +40,9 @@ export default function AuthScreen({ onAuth }) {
         return; 
       }
       
-      // メール認証はOFFを前提としているため、登録成功後にそのままログイン処理を走らせる
       const { data: loginData, error: loginErr } = await signIn({ email: username, password });
       if (loginErr) {
-        setError("アカウント作成後の自動ログインに失敗しました。ログイン画面からお試しください。");
+        setError("自動ログインに失敗しました。ログイン画面からお試しください。");
         setMode("login");
       } else {
         onAuth(loginData.user, loginData.session);
@@ -63,7 +59,7 @@ export default function AuthScreen({ onAuth }) {
       <input
         type={type} 
         value={value}
-        name={nameAttr} // ブラウザの自動補完・自動保存に必須
+        name={nameAttr} 
         onChange={e => setter(e.target.value)}
         placeholder={placeholder}
         required
@@ -101,7 +97,6 @@ export default function AuthScreen({ onAuth }) {
       </div>
 
       {/* Card Form */}
-      {/* onSubmit を設定した form タグにすることで、キーボードの「Go」「Enter」や送信時に自動保存ポップアップが出るようになります */}
       <form 
         onSubmit={handleSubmit} 
         style={{
@@ -148,7 +143,7 @@ export default function AuthScreen({ onAuth }) {
         )}
 
         <button
-          type="submit" // 自動保存ポップアップのトリガーに必須
+          type="submit" 
           disabled={loading || !username || !password}
           style={{
             width: "100%", padding: "13px", borderRadius: 12,
