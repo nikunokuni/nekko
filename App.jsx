@@ -31,11 +31,39 @@ export default function App() {
   const [loading, setLoading]                   = useState(false);
 
   // ─── auth bootstrap ───────────────────────────────────────────
+  // auth bootstrap
   useEffect(() => {
-    getSession().then(s => setSession(s ?? null)); // undefined→null でローディング抜け
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => setSession(s ?? null));
-    return () => subscription.unsubscribe();
+    getSession().then(s => setSession(s));
+    // 修正：subscriptionを正しく格納し、アンマウント時に購読解除
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
+
+  // 修正：新規ノードの作成が完了した際、登録した新しい実ノードのIDを返すように変更
+  const handleNewNodeComplete = async (newNodeData) => {
+    if (!activeTree || !session) return null;
+    const { data: createdNode, error } = await createNode({
+      treeId: activeTree.id, 
+      userId: session.user.id,
+      parentId: newNodeParentId,
+      label: newNodeData.label, 
+      status: newNodeData.status,
+      approachType: newNodeData.approachType,
+      board: newNodeData.board, 
+      stamps: newNodeData.stamps, 
+      memo: newNodeData.memo,
+    });
+    
+    if (error) {
+      console.error("ノード作成失敗:", error);
+      return null;
+    }
+
+    await loadTree(activeTree.id);
+    return createdNode?.id || null; // 新しくDBで発行された実UUIDを返す
+  };
 
   // BUG FIX ①: session が変わるたびに loadMyTrees/loadPublicTrees を
   // 呼ぶが、loadMyTrees 自体が session に依存する useCallback のため
