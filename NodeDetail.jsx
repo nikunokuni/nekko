@@ -6,24 +6,23 @@ import { STATUS_META, INITIAL_BOARD } from "../data/treeData";
 export default function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUpdate }) {
   const node = tree.nodes[nodeId];
 
-  // BUG FIX ①: nodeId が変わっても useState の初期値は再評価されないため
-  // 別ノードに遷移しても前ノードのメモ・ステータスが残り続ける。
-  // useEffect で nodeId 変化を検知してリセットする。
-  const [memo, setMemo]               = useState(node?.memo || '');
-  const [status, setStatus]           = useState(node?.status || 'todo');
-  const [boardVisible, setBoardVisible] = useState(!!node?.board);
-  const [boardData, setBoardData]     = useState(node?.board || null);
-  const [stamps, setStamps]           = useState(node?.stamps || []);
-  const [saving, setSaving]           = useState(false);
+  // stateを初期化
+  const [memo, setMemo] = useState('');
+  const [status, setStatus] = useState('todo');
+  const [boardVisible, setBoardVisible] = useState(false);
+  const [boardData, setBoardData] = useState(null);
+  const [stamps, setStamps] = useState([]);
 
+  // ノードが切り替わった時に状態をリセット
   useEffect(() => {
-    if (!node) return;
-    setMemo(node.memo || '');
-    setStatus(node.status || 'todo');
-    setBoardVisible(!!node.board);
-    setBoardData(node.board || null);
-    setStamps(node.stamps || []);
-  }, [nodeId]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (node) {
+      setMemo(node.memo || '');
+      setStatus(node.status || 'todo');
+      setBoardVisible(!!node.board);
+      setBoardData(node.board || null);
+      setStamps(node.stamps || []);
+    }
+  }, [nodeId, node]);
 
   if (!node) return null;
 
@@ -46,44 +45,31 @@ export default function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNo
   };
 
   const handleToggleBoard = () => {
-    if (!boardVisible && !boardData) {
-      const parentBoard = parent?.board || null;
-      setBoardData(parentBoard
-        ? JSON.parse(JSON.stringify(parentBoard))
-        : JSON.parse(JSON.stringify(INITIAL_BOARD)));
+    if (!boardVisible) {
+      if (!boardData) {
+        const parentBoard = parent?.board || null;
+        setBoardData(parentBoard ? JSON.parse(JSON.stringify(parentBoard)) : JSON.parse(JSON.stringify(INITIAL_BOARD)));
+      }
     }
-    // BUG FIX ②: 「盤面を削除」ボタンが handleToggleBoard を再利用しているが、
-    // boardData をクリアせずに boardVisible だけ false にするため、
-    // 再度「追加」すると前の boardData が残る（削除されない）。
-    // 非表示 → 表示への切り替えと、削除は別関数に分ける。
     setBoardVisible(v => !v);
   };
 
-  const handleDeleteBoard = () => {
-    setBoardData(null);
-    setStamps([]);
-    setBoardVisible(false);
-  };
-
-  // BUG FIX ③: onUpdate が呼ばれていない（保存ボタンがなく編集が揮発する）。
-  // 保存ボタンを追加し、memo・status・board の変更を永続化する。
-  const handleSave = async () => {
-    setSaving(true);
+  // 戻るボタンを押したときに自動セーブ
+  const handleSaveAndBack = async () => {
     await onUpdate(nodeId, {
-      memo,
       status,
+      memo,
       board: boardVisible ? boardData : null,
       stamps: boardVisible ? stamps : [],
     });
-    setSaving(false);
+    onBack();
   };
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', background:'#faf4e8' }}>
-
       {/* topbar */}
       <div style={{display:'flex',alignItems:'center',gap:8,padding:'4px 14px 10px',borderBottom:'0.5px solid rgba(26,15,0,0.18)'}}>
-        <BackBtn onClick={onBack}/>
+        <BackBtn onClick={handleSaveAndBack}/> {/* 修正：セーブしてから戻る */}
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontSize:14,fontWeight:600,color:'#1a0f00',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
             {node.label}
@@ -95,20 +81,11 @@ export default function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNo
           )}
         </div>
         {node.isMergeTarget && <MergeTag/>}
-        {/* 保存ボタン */}
-        <button onClick={handleSave} disabled={saving} style={{
-          fontSize:11, padding:'5px 12px', borderRadius:8,
-          border:'none', background: saving ? '#B4B2A9' : '#a07840',
-          color:'#faf4e8', cursor: saving ? 'default' : 'pointer',
-          fontFamily:"'Noto Serif JP',serif", flexShrink:0,
-        }}>
-          {saving ? '保存中...' : '保存'}
-        </button>
       </div>
 
       {/* scrollable body */}
       <div style={{flex:1,overflowY:'auto'}}>
-
+        {/* approach tag */}
         {node.approachType && (
           <div style={{padding:'8px 16px 0'}}>
             <ApproachTag type={node.approachType}/>
@@ -163,12 +140,16 @@ export default function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNo
           </div>
 
           {!boardVisible ? (
-            <div onClick={handleToggleBoard} style={{
-              display:'flex', flexDirection:'column', alignItems:'center',
-              justifyContent:'center', gap:8, padding:20,
-              border:'0.5px dashed rgba(26,15,0,0.18)', borderRadius:10,
-              cursor:'pointer', background:'rgba(26,15,0,0.04)', marginBottom:12,
-            }}>
+            <div
+              onClick={handleToggleBoard}
+              style={{
+                display:'flex', flexDirection:'column', alignItems:'center',
+                justifyContent:'center', gap:8, padding:20,
+                border:'0.5px dashed rgba(26,15,0,0.18)', borderRadius:10,
+                cursor:'pointer', background:'rgba(26,15,0,0.04)',
+                marginBottom:12,
+              }}
+            >
               <i className="ti ti-chess" style={{fontSize:24,color:'#a07840'}}/>
               <span style={{fontSize:12,color:'rgba(26,15,0,0.5)'}}>タップして盤面を追加</span>
             </div>
@@ -185,8 +166,12 @@ export default function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNo
                   親ノード「{parent.label}」の盤面を引き継いでいます
                 </div>
               )}
-              <ShogiBoard board={boardData} stamps={stamps} onChange={handleBoardChange}/>
-              <button onClick={handleDeleteBoard} style={{
+              <ShogiBoard
+                board={boardData}
+                stamps={stamps}
+                onChange={handleBoardChange}
+              />
+              <button onClick={() => { setBoardData(null); setStamps([]); setBoardVisible(false); }} style={{
                 fontSize:11, color:'#B4B2A9', background:'none', border:'none',
                 cursor:'pointer', fontFamily:"'Noto Serif JP',serif",
                 display:'flex', alignItems:'center', gap:4, marginTop:6,
@@ -206,12 +191,23 @@ export default function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNo
             {children.map(child => {
               const m = STATUS_META[child.status] || STATUS_META.todo;
               return (
-                <div key={child.id} onClick={() => onNodeSelect(child.id)} style={{
-                  display:'flex', alignItems:'center', gap:10,
-                  padding:'9px 12px', borderRadius:8,
-                  border:'0.5px solid rgba(26,15,0,0.18)',
-                  background:'#faf4e8', cursor:'pointer',
-                }}
+                <div key={child.id}
+                  onClick={async () => {
+                    // 他のノードに移動する前にも自動セーブを走らせる
+                    await onUpdate(nodeId, {
+                      status,
+                      memo,
+                      board: boardVisible ? boardData : null,
+                      stamps: boardVisible ? stamps : [],
+                    });
+                    onNodeSelect(child.id);
+                  }}
+                  style={{
+                    display:'flex', alignItems:'center', gap:10,
+                    padding:'9px 12px', borderRadius:8,
+                    border:'0.5px solid rgba(26,15,0,0.18)',
+                    background:'#faf4e8', cursor:'pointer',
+                  }}
                   onMouseEnter={e => e.currentTarget.style.background='#f0e8d4'}
                   onMouseLeave={e => e.currentTarget.style.background='#faf4e8'}
                 >
@@ -227,12 +223,22 @@ export default function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNo
                 </div>
               );
             })}
-            <div onClick={() => onNewNode(nodeId)} style={{
-              display:'flex', alignItems:'center', gap:8,
-              padding:'8px 12px', borderRadius:8,
-              border:'0.5px dashed rgba(26,15,0,0.18)',
-              cursor:'pointer', color:'#a07840', fontSize:12,
-            }}
+            <div
+              onClick={async () => {
+                await onUpdate(nodeId, {
+                  status,
+                  memo,
+                  board: boardVisible ? boardData : null,
+                  stamps: boardVisible ? stamps : [],
+                });
+                onNewNode(nodeId);
+              }}
+              style={{
+                display:'flex', alignItems:'center', gap:8,
+                padding:'8px 12px', borderRadius:8,
+                border:'0.5px dashed rgba(26,15,0,0.18)',
+                cursor:'pointer', color:'#a07840', fontSize:12,
+              }}
               onMouseEnter={e => e.currentTarget.style.background='#f0e8d4'}
               onMouseLeave={e => e.currentTarget.style.background='transparent'}
             >
