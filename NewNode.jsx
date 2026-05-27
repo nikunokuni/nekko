@@ -34,14 +34,13 @@ export default function NewNode({ tree, parentNodeId, onComplete, onCancel }) {
     return true;
   };
 
-  const handleNext = () => {
+    const handleNext = async () => {
     if (step === 1 && suggestion && !name.trim()) setName(suggestion);
     if (step === 2 && !boardData) {
       const pb = parentNode?.board || null;
       setBoardData(pb ? JSON.parse(JSON.stringify(pb)) : JSON.parse(JSON.stringify(INITIAL_BOARD)));
     }
     if (step < STEPS.length - 1) { setStep(s => s + 1); return; }
-
     // BUG FIX ①: newId() が treeData からインポートされているが、
     // createNode は App 側で DB の UUID を発行するため、
     // フロント側で id を生成して onComplete に渡しても DB では別の id になる。
