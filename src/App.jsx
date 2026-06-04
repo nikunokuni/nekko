@@ -3,10 +3,8 @@
 //   セッション管理 / 画面遷移 / DB 操作の統括
 // ══════════════════════════════════════════════════
 import { useState, useEffect, useCallback } from "react";
-import {
-  AuthScreen, TreeList, MindMap,
-  NodeDetail, NewNode, PublicTrees,
-} from "./screens";
+import { AuthScreen, PublicTrees } from "./screensPublic";
+import { TreeList, MindMap, NodeDetail, NewNode } from "./screensTree";
 import {
   supabase,
   getSession, getProfile, signOut,
