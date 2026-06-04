@@ -232,8 +232,8 @@ const handleOpenTree = async (treeId) => {
 
   // ── レンダリング ─────────────────────────────
   return (
-    <div style={{ minHeight:"100dvh", background:"#faf4e8", display:"flex", flexDirection:"column" }}>
-      <div style={{ flex:1, overflow:"hidden", position:"relative" }}>
+    <div style={{ height:"100dvh", background:"#faf4e8", display:"flex", flexDirection:"column" }}>
+  <div style={{ flex:1, overflow:"hidden", position:"relative", minHeight:0 }}>
         {loading && (
           <div style={{ position:"absolute", inset:0, background:"rgba(250,244,232,0.8)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:100 }}>
             <div style={{ color:"#a07840", fontSize:13, letterSpacing:"0.15em" }}>読み込み中...</div>
