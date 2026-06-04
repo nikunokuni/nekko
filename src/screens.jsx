@@ -173,7 +173,6 @@ function TreeCard({ tree, onOpen, onEdit, onDelete }) {
           {tree.is_public && (
             <span style={{ fontSize:10, padding:"3px 8px", borderRadius:10, background:"#EAF3DE", color:"#3B6D11", fontFamily:"'Noto Serif JP',serif" }}>公開中</span>
           )}
-          {/* 3点メニューボタン */}
           <button onClick={handleMenuToggle} style={{
             background:"none", border:"none", cursor:"pointer",
             color:"rgba(26,15,0,0.35)", fontSize:16, padding:"2px 4px",
@@ -192,7 +191,6 @@ function TreeCard({ tree, onOpen, onEdit, onDelete }) {
         </div>
       </div>
 
-      {/* ドロップダウンメニュー */}
       {menuOpen && (
         <>
           <div style={{ position:"fixed", inset:0, zIndex:40 }} onClick={() => setMenuOpen(false)}/>
@@ -211,8 +209,7 @@ function TreeCard({ tree, onOpen, onEdit, onDelete }) {
               onMouseEnter={e => e.currentTarget.style.background="#f0e8d4"}
               onMouseLeave={e => e.currentTarget.style.background="transparent"}
             >
-              <i className="ti ti-pencil" style={{fontSize:14, color:"#a07840"}}/>
-              編集
+              <i className="ti ti-pencil" style={{fontSize:14, color:"#a07840"}}/>編集
             </div>
             <div style={{height:"0.5px", background:"rgba(26,15,0,0.08)"}}/>
             <div onClick={handleDelete} style={{
@@ -223,8 +220,7 @@ function TreeCard({ tree, onOpen, onEdit, onDelete }) {
               onMouseEnter={e => e.currentTarget.style.background="#fdedec"}
               onMouseLeave={e => e.currentTarget.style.background="transparent"}
             >
-              <i className="ti ti-trash" style={{fontSize:14}}/>
-              削除
+              <i className="ti ti-trash" style={{fontSize:14}}/>削除
             </div>
           </div>
         </>
@@ -234,20 +230,16 @@ function TreeCard({ tree, onOpen, onEdit, onDelete }) {
 }
 
 export function TreeList({ trees, profile, onOpen, onPublic, onNewTree, onSignOut, onDeleteTree, onEditTree }) {
-  const [showModal,   setShowModal]   = useState(false);
-  const [newName,     setNewName]     = useState("");
-  const [newTags,     setNewTags]     = useState("");
-
-  // 削除確認モーダル
-  const [deleteTarget, setDeleteTarget] = useState(null); // tree オブジェクト
+  const [showModal,    setShowModal]    = useState(false);
+  const [newName,      setNewName]      = useState("");
+  const [newTags,      setNewTags]      = useState("");
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting,     setDeleting]     = useState(false);
-
-  // 編集モーダル
-  const [editTarget,  setEditTarget]  = useState(null);  // tree オブジェクト
-  const [editName,    setEditName]    = useState("");
-  const [editTags,    setEditTags]    = useState("");
-  const [editActive,  setEditActive]  = useState(true);
-  const [saving,      setSaving]      = useState(false);
+  const [editTarget,   setEditTarget]   = useState(null);
+  const [editName,     setEditName]     = useState("");
+  const [editTags,     setEditTags]     = useState("");
+  const [editActive,   setEditActive]   = useState(true);
+  const [saving,       setSaving]       = useState(false);
 
   const active   = trees.filter(t =>  t.active);
   const inactive = trees.filter(t => !t.active);
@@ -262,7 +254,7 @@ export function TreeList({ trees, profile, onOpen, onPublic, onNewTree, onSignOu
   const openEdit = (tree) => {
     setEditTarget(tree);
     setEditName(tree.name);
-    setEditTags((tree.tags || []).join("、"));
+    setEditTags((tree.tags||[]).join("、"));
     setEditActive(tree.active);
   };
   const handleEditSave = async () => {
@@ -274,7 +266,6 @@ export function TreeList({ trees, profile, onOpen, onPublic, onNewTree, onSignOu
     setEditTarget(null);
   };
 
-  const openDelete = (tree) => setDeleteTarget(tree);
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -283,7 +274,6 @@ export function TreeList({ trees, profile, onOpen, onPublic, onNewTree, onSignOu
     setDeleteTarget(null);
   };
 
-  // 共通インプットスタイル
   const inputStyle = { width:"100%", border:"0.5px solid rgba(26,15,0,0.2)", borderRadius:10, padding:"11px 14px", fontSize:14, color:"#1a0f00", background:"#fff8ee", fontFamily:"'Noto Serif JP',serif", outline:"none" };
 
   return (
@@ -323,11 +313,11 @@ export function TreeList({ trees, profile, onOpen, onPublic, onNewTree, onSignOu
           <>
             {active.length > 0 && <>
               <div style={{fontSize:10,color:"rgba(26,15,0,0.4)",letterSpacing:"0.1em",marginBottom:8}}>使用中</div>
-              {active.map(t => <TreeCard key={t.id} tree={t} onOpen={onOpen} onEdit={openEdit} onDelete={openDelete}/>)}
+              {active.map(t => <TreeCard key={t.id} tree={t} onOpen={onOpen} onEdit={openEdit} onDelete={setDeleteTarget}/>)}
             </>}
             {inactive.length > 0 && <>
               <div style={{fontSize:10,color:"rgba(26,15,0,0.4)",letterSpacing:"0.1em",marginBottom:8,marginTop:active.length>0?16:0}}>休止中</div>
-              {inactive.map(t => <TreeCard key={t.id} tree={t} onOpen={onOpen} onEdit={openEdit} onDelete={openDelete}/>)}
+              {inactive.map(t => <TreeCard key={t.id} tree={t} onOpen={onOpen} onEdit={openEdit} onDelete={setDeleteTarget}/>)}
             </>}
           </>
         )}
@@ -343,8 +333,7 @@ export function TreeList({ trees, profile, onOpen, onPublic, onNewTree, onSignOu
             {[["戦法名",newName,setNewName,"例：中飛車"],["タグ（カンマ区切り）",newTags,setNewTags,"例：振り飛車, 中飛車"]].map(([lbl,val,setter,ph]) => (
               <div key={lbl} style={{marginBottom:14}}>
                 <div style={{fontSize:11,color:"rgba(26,15,0,0.5)",marginBottom:5}}>{lbl}</div>
-                <input value={val} onChange={e=>setter(e.target.value)} placeholder={ph}
-                  style={inputStyle}
+                <input value={val} onChange={e=>setter(e.target.value)} placeholder={ph} style={inputStyle}
                   onFocus={e=>e.target.style.borderColor="#a07840"} onBlur={e=>e.target.style.borderColor="rgba(26,15,0,0.2)"}/>
               </div>
             ))}
@@ -365,14 +354,12 @@ export function TreeList({ trees, profile, onOpen, onPublic, onNewTree, onSignOu
             <div style={{ fontFamily:"'Shippori Mincho B1',serif", fontSize:16, color:"#1a0f00", marginBottom:20 }}>ツリーを編集</div>
             <div style={{marginBottom:14}}>
               <div style={{fontSize:11,color:"rgba(26,15,0,0.5)",marginBottom:5}}>戦法名</div>
-              <input value={editName} onChange={e=>setEditName(e.target.value)} placeholder="例：中飛車"
-                style={inputStyle}
+              <input value={editName} onChange={e=>setEditName(e.target.value)} placeholder="例：中飛車" style={inputStyle}
                 onFocus={e=>e.target.style.borderColor="#a07840"} onBlur={e=>e.target.style.borderColor="rgba(26,15,0,0.2)"}/>
             </div>
             <div style={{marginBottom:14}}>
               <div style={{fontSize:11,color:"rgba(26,15,0,0.5)",marginBottom:5}}>タグ（カンマ区切り）</div>
-              <input value={editTags} onChange={e=>setEditTags(e.target.value)} placeholder="例：振り飛車, 中飛車"
-                style={inputStyle}
+              <input value={editTags} onChange={e=>setEditTags(e.target.value)} placeholder="例：振り飛車, 中飛車" style={inputStyle}
                 onFocus={e=>e.target.style.borderColor="#a07840"} onBlur={e=>e.target.style.borderColor="rgba(26,15,0,0.2)"}/>
             </div>
             <div style={{marginBottom:20}}>
@@ -497,7 +484,8 @@ export function MindMap({ tree, onNodeSelect, onBack }) {
   const dragStart = useRef(null);
 
   const { nodes } = tree;
-  const { positions, edges } = layoutTree(nodes, 'root');
+  const rootId = tree.rootId ?? Object.values(nodes).find(n => n.isRoot)?.id ?? null;
+  const { positions, edges } = rootId ? layoutTree(nodes, rootId) : { positions:{}, edges:[] };
   const posValues = Object.values(positions);
   const totalW = posValues.length ? Math.max(...posValues.map(p=>p.x))+NODE_W+40 : NODE_W+40;
   const totalH = posValues.length ? Math.max(...posValues.map(p=>p.y))+NODE_H+40 : NODE_H+40;
@@ -531,7 +519,7 @@ export function MindMap({ tree, onNodeSelect, onBack }) {
     setCanvasOffset({ x: 140-pos.x-NODE_W/2, y: 200-pos.y-NODE_H/2 });
   }, [positions]);
 
-  const rootNode = nodes['root'];
+  const rootNode = rootId ? nodes[rootId] : null;
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', background:'#faf4e8', position:'relative' }}>
@@ -574,7 +562,7 @@ export function MindMap({ tree, onNodeSelect, onBack }) {
               const node = nodes[id];
               if (!node) return null;
               const s = STATUS_NODE[node.status] || STATUS_NODE.todo;
-              const isRoot = id === 'root';
+              const isRoot = id === rootId;
               return (
                 <g key={id} className="node-g" onClick={() => onNodeSelect(id)} style={{cursor:'pointer'}}>
                   <rect x={pos.x} y={pos.y} width={NODE_W} height={NODE_H} rx={isRoot?9:6}
