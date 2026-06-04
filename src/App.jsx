@@ -143,21 +143,22 @@ export default function App() {
   };
 
   const handleNewNodeComplete = async (newNodeData) => {
-    if (!activeTree || !session) return;
-    await createNode({
-      treeId:      activeTree.id,
-      userId:      session.user.id,
-      parentId:    newNodeParentId,
-      label:       newNodeData.label,
-      status:      newNodeData.status,
-      approachType:newNodeData.approachType,
-      board:       newNodeData.board,
-      stamps:      newNodeData.stamps,
-      memo:        newNodeData.memo,
-    });
-    await loadTree(activeTree.id);
-    setScreen("map");
-  };
+  if (!activeTree || !session) return;
+  const { data: newNode } = await createNode({
+    treeId:      activeTree.id,
+    userId:      session.user.id,
+    parentId:    newNodeParentId,
+    label:       newNodeData.label,
+    status:      newNodeData.status,
+    approachType:newNodeData.approachType,
+    board:       newNodeData.board,
+    stamps:      newNodeData.stamps,
+    memo:        newNodeData.memo,
+  });
+  await loadTree(activeTree.id);
+  setScreen("map");
+  return newNode?.id ?? null;  // ← 追加：IDを返す
+};
 
   // ── 公開ツリーのコピー（BFS 順で parent_id を解決）──
   const handleCopyTree = async (pubTreeId) => {
@@ -230,10 +231,11 @@ export default function App() {
             onNewNode={handleNewNode} onUpdate={handleNodeUpdate}/>
         )}
         {screen==="new" && activeTree && newNodeParentId && (
-          <NewNode tree={activeTree} parentNodeId={newNodeParentId}
-            onComplete={handleNewNodeComplete}
-            onCancel={() => setScreen(activeNodeId ? "node" : "map")}/>
-        )}
+  <NewNode tree={activeTree} parentNodeId={newNodeParentId}
+    onComplete={handleNewNodeComplete}
+    onCancel={() => setScreen(activeNodeId ? "node" : "map")}
+    onOpenNode={(id) => { setActiveNodeId(id); setScreen("node"); }}/>
+)}
         {screen==="public" && (
           <PublicTrees trees={pubTrees} profile={profile}
             onBack={() => setScreen("list")}
