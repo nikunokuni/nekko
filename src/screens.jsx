@@ -482,7 +482,7 @@ export function MindMap({ tree, onNodeSelect, onBack }) {
   const [canvasOffset, setCanvasOffset] = useState({ x:20, y:20 });
   const [dragging,     setDragging]     = useState(false);
   const dragStart = useRef(null);
-
+console.log('MindMap tree:', tree); 
   const { nodes } = tree;
   const rootId = tree.rootId ?? Object.values(nodes).find(n => n.isRoot)?.id ?? null;
   const { positions, edges } = rootId ? layoutTree(nodes, rootId) : { positions:{}, edges:[] };
