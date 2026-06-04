@@ -74,6 +74,8 @@ export default function App() {
 
       const { data: nodes } = await fetchNodes(treeId);
       const assembled = buildTreeFromNodes(treeRow, nodes || []);
+      console.log('nodes from DB:', nodes);        // ← 追加
+      console.log('assembled tree:', assembled);   // ← 追加
       setActiveTree(assembled);
       return assembled;
     } finally {
