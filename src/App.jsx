@@ -93,10 +93,12 @@ export default function App() {
   };
 
   // ── ツリー操作 ───────────────────────────────
-  const handleOpenTree = async (treeId) => {
-    const tree = await loadTree(treeId);
-    if (tree) setScreen("map");
-  };
+ const handleOpenTree = async (treeId) => {
+  console.log('handleOpenTree called, treeId:', treeId);  // ← 追加
+  const tree = await loadTree(treeId);
+  console.log('loadTree result:', tree);                   // ← 追加
+  if (tree) setScreen("map");
+};
 
  const handleNewTree = async (name, tags = []) => {
   const { data } = await createTree({ userId: session.user.id, name, tags });
