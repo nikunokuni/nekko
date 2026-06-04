@@ -49,12 +49,12 @@ export default function App() {
   }, [session]);
 
   // ── ツリー一覧の取得 ─────────────────────────
-  const loadMyTrees = useCallback(async () => {
-    if (!session) return;
-    const { data } = await fetchMyTrees(session.user.id);
-    setMyTrees(data || []);
-  }, [session]);
-
+ const loadMyTrees = useCallback(async () => {
+  if (!session) return;
+  const { data } = await fetchMyTrees(session.user.id);
+  alert('myTrees: ' + JSON.stringify(data?.length));  // ← 追加
+  setMyTrees(data || []);
+}, [session]);
   const loadPublicTrees = useCallback(async () => {
     const { data } = await fetchPublicTrees();
     setPubTrees(data || []);
