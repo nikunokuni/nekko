@@ -52,7 +52,6 @@ export default function App() {
  const loadMyTrees = useCallback(async () => {
   if (!session) return;
   const { data } = await fetchMyTrees(session.user.id);
-  alert('myTrees: ' + JSON.stringify(data?.length));  // ← 追加
   setMyTrees(data || []);
 }, [session]);
   const loadPublicTrees = useCallback(async () => {
@@ -74,8 +73,6 @@ export default function App() {
 
       const { data: nodes } = await fetchNodes(treeId);
       const assembled = buildTreeFromNodes(treeRow, nodes || []);
-      console.log('nodes from DB:', nodes);        // ← 追加
-      console.log('assembled tree:', assembled);   // ← 追加
       setActiveTree(assembled);
       return assembled;
     } finally {
@@ -122,7 +119,6 @@ const handleOpenTree = async (treeId) => {
     treeId: data.id, userId: session.user.id,
     parentId: null, label: name, isRoot: true, status: "todo"
   });
-  console.log('createNode result:', nodeResult); // ← 追加
   await loadMyTrees();
 };
 
@@ -180,7 +176,6 @@ const handleOpenTree = async (treeId) => {
   });
   await loadTree(activeTree.id);
   setScreen("map");
-    console.log('tree:', JSON.stringify(tree, null, 2));
   return newNode?.id ?? null;  // ← 追加：IDを返す
 };
 
