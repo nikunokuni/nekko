@@ -94,10 +94,25 @@ export default function App() {
 
   // ── ツリー操作 ───────────────────────────────
 const handleOpenTree = async (treeId) => {
-  alert('開く: ' + treeId);   // ← alertなら必ず出る
   const tree = await loadTree(treeId);
-  alert('tree取得: ' + (tree ? 'OK' : 'null'));
-  if (tree) setScreen("map");
+  if (!tree) return;
+
+  // ルートノードがなければ自動作成
+  if (!tree.rootId) {
+    const treeRow = myTrees.find(t => t.id === treeId);
+    await createNode({
+      treeId,
+      userId: session.user.id,
+      parentId: null,
+      label: treeRow?.name || "戦法",
+      isRoot: true,
+      status: "todo",
+    });
+    const fixed = await loadTree(treeId);
+    if (fixed) setScreen("map");
+  } else {
+    setScreen("map");
+  }
 };
 
  const handleNewTree = async (name, tags = []) => {
