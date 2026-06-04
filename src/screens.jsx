@@ -800,7 +800,7 @@ const APPROACHES = [
   { key:'局面の状況', icon:'ti-chart-dots', iconColor:'#854F0B', bg:'#FAEEDA', title:'局面の状況', sub:'銀が間に合った / 穴熊に組まれた\n局面の条件によって分岐する' },
 ];
 
-export function NewNode({ tree, parentNodeId, onComplete, onCancel }) {
+export function NewNode({ tree, parentNodeId, onComplete, onCancel, onOpenNode }) {
   const parentNode = tree.nodes[parentNodeId];
   const [step,       setStep]       = useState(0);
   const [approach,   setApproach]   = useState(null);
@@ -811,6 +811,7 @@ export function NewNode({ tree, parentNodeId, onComplete, onCancel }) {
   const [boardData,  setBoardData]  = useState(null);
   const [stamps,     setStamps]     = useState([]);
   const [done,       setDone]       = useState(false);
+  const [newNodeId,  setNewNodeId]  = useState(null);
 
   const displayName = name || suggestion || '新しいノード';
   const canNext = () => {
@@ -827,14 +828,14 @@ export function NewNode({ tree, parentNodeId, onComplete, onCancel }) {
     }
     if (step < STEPS.length - 1) { setStep(s => s+1); return; }
 
-    await onComplete({
-      label: name.trim() || suggestion,
-      status, approachType: approach,
-      parentId: parentNodeId,
-      board: boardData, stamps, memo,
-    });
-    setDone(true);
-  };
+    const createdId = await onComplete({
+  label: name.trim() || suggestion,
+  status, approachType: approach,
+  parentId: parentNodeId,
+  board: boardData, stamps, memo,
+});
+setNewNodeId(createdId);
+setDone(true);
 
   const pct = ((step+1) / STEPS.length) * 100;
 
@@ -857,12 +858,12 @@ export function NewNode({ tree, parentNodeId, onComplete, onCancel }) {
               <StatusChip status={status} style={{fontSize:10}}/>
             </div>
           </div>
-          <div style={{display:'flex',gap:8,width:'100%'}}>
-            <button onClick={onCancel} style={{ flex:1, padding:10, borderRadius:10, fontSize:12, cursor:'pointer', background:'#faf4e8', color:'rgba(26,15,0,0.5)', border:'0.5px solid rgba(26,15,0,0.18)', fontFamily:"'Noto Serif JP',serif" }}>ツリーに戻る</button>
-            <button onClick={onCancel} style={{ flex:2, padding:10, borderRadius:10, fontSize:13, cursor:'pointer', background:'#a07840', color:'#faf4e8', border:'none', fontFamily:"'Noto Serif JP',serif", fontWeight:600 }}>ノードを開く</button>
-          </div>
-        </div>
-      </div>
+          const onOpenNew = () => { if (newNodeId) onOpenNode(newNodeId); else onCancel(); };
+
+<div style={{display:'flex',gap:8,width:'100%'}}>
+  <button onClick={onCancel} style={{ flex:1, padding:10, borderRadius:10, fontSize:12, cursor:'pointer', background:'#faf4e8', color:'rgba(26,15,0,0.5)', border:'0.5px solid rgba(26,15,0,0.18)', fontFamily:"'Noto Serif JP',serif" }}>ツリーに戻る</button>
+  <button onClick={onOpenNew} style={{ flex:2, padding:10, borderRadius:10, fontSize:13, cursor:'pointer', background:'#a07840', color:'#faf4e8', border:'none', fontFamily:"'Noto Serif JP',serif", fontWeight:600 }}>ノードを開く</button>
+</div>
     );
   }
 
