@@ -157,6 +157,7 @@ export default function App() {
   });
   await loadTree(activeTree.id);
   setScreen("map");
+    console.log('tree:', JSON.stringify(tree, null, 2));
   return newNode?.id ?? null;  // ← 追加：IDを返す
 };
 
