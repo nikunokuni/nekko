@@ -11,7 +11,7 @@ import {
   supabase,
   getSession, getProfile, signOut,
   fetchMyTrees, fetchPublicTrees, fetchNodes,
-  createTree, createNode, updateNode,
+  createTree, createNode, updateNode, updateTree, deleteTree,
   buildTreeFromNodes,
 } from "./db";
 
@@ -100,6 +100,16 @@ export default function App() {
     const { data } = await createTree({ userId: session.user.id, name, tags });
     if (!data) return;
     await createNode({ treeId: data.id, userId: session.user.id, parentId: null, label: name, isRoot: true, status: "todo" });
+    await loadMyTrees();
+  };
+
+  const handleDeleteTree = async (treeId) => {
+    await deleteTree(treeId);
+    await loadMyTrees();
+  };
+
+  const handleEditTree = async (treeId, patch) => {
+    await updateTree(treeId, patch);
     await loadMyTrees();
   };
 
@@ -208,7 +218,8 @@ export default function App() {
         {screen==="list" && (
           <TreeList trees={myTrees} profile={profile}
             onOpen={handleOpenTree} onPublic={() => setScreen("public")}
-            onNewTree={handleNewTree} onSignOut={handleSignOut}/>
+            onNewTree={handleNewTree} onSignOut={handleSignOut}
+            onDeleteTree={handleDeleteTree} onEditTree={handleEditTree}/>
         )}
         {screen==="map" && activeTree && (
           <MindMap tree={activeTree} onNodeSelect={handleNodeSelect} onBack={() => setScreen("list")}/>
