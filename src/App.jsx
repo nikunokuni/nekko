@@ -93,10 +93,10 @@ export default function App() {
   };
 
   // ── ツリー操作 ───────────────────────────────
- const handleOpenTree = async (treeId) => {
-  console.log('handleOpenTree called, treeId:', treeId);  // ← 追加
+const handleOpenTree = async (treeId) => {
+  alert('開く: ' + treeId);   // ← alertなら必ず出る
   const tree = await loadTree(treeId);
-  console.log('loadTree result:', tree);                   // ← 追加
+  alert('tree取得: ' + (tree ? 'OK' : 'null'));
   if (tree) setScreen("map");
 };
 
