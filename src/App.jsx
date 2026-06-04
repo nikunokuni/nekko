@@ -96,12 +96,16 @@ export default function App() {
     if (tree) setScreen("map");
   };
 
-  const handleNewTree  = async (name, tags = []) => {
-    const { data } = await createTree({ userId: session.user.id, name, tags });
-    if (!data) return;
-    await createNode({ treeId: data.id, userId: session.user.id, parentId: null, label: name, isRoot: true, status: "todo" });
-    await loadMyTrees();
-  };
+ const handleNewTree = async (name, tags = []) => {
+  const { data } = await createTree({ userId: session.user.id, name, tags });
+  if (!data) return;
+  const nodeResult = await createNode({
+    treeId: data.id, userId: session.user.id,
+    parentId: null, label: name, isRoot: true, status: "todo"
+  });
+  console.log('createNode result:', nodeResult); // ← 追加
+  await loadMyTrees();
+};
 
   const handleDeleteTree = async (treeId) => {
     await deleteTree(treeId);
