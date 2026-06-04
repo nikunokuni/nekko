@@ -482,7 +482,6 @@ export function MindMap({ tree, onNodeSelect, onBack }) {
   const [canvasOffset, setCanvasOffset] = useState({ x:20, y:20 });
   const [dragging,     setDragging]     = useState(false);
   const dragStart = useRef(null);
-console.log('MindMap tree:', tree); 
   const { nodes } = tree;
   const rootId = tree.rootId ?? Object.values(nodes).find(n => n.isRoot)?.id ?? null;
   const { positions, edges } = rootId ? layoutTree(nodes, rootId) : { positions:{}, edges:[] };
@@ -826,19 +825,24 @@ export function NewNode({ tree, parentNodeId, onComplete, onCancel, onOpenNode }
       const pb = parentNode?.board || null;
       setBoardData(pb ? JSON.parse(JSON.stringify(pb)) : JSON.parse(JSON.stringify(INITIAL_BOARD)));
     }
-    if (step < STEPS.length - 1) { setStep(s => s+1); return; }
+    if (step < STEPS.length - 1) { setStep(s => s + 1); return; }
 
     const createdId = await onComplete({
-  label: name.trim() || suggestion,
-  status, approachType: approach,
-  parentId: parentNodeId,
-  board: boardData, stamps, memo,
-});
-setNewNodeId(createdId);
-setDone(true);
+      label: name.trim() || suggestion,
+      status,
+      approachType: approach,
+      parentId: parentNodeId,
+      board: boardData,
+      stamps,
+      memo,
+    });
+    setNewNodeId(createdId);
+    setDone(true);
+  };
 
-  const pct = ((step+1) / STEPS.length) * 100;
+  const pct = ((step + 1) / STEPS.length) * 100;
 
+  // 作成完了画面
   if (done) {
     return (
       <div style={{ display:'flex', flexDirection:'column', height:'100%', background:'#faf4e8' }}>
@@ -859,9 +863,11 @@ setDone(true);
             </div>
           </div>
           <div style={{display:'flex',gap:8,width:'100%'}}>
-  <button onClick={onCancel} style={{ flex:1, padding:10, borderRadius:10, fontSize:12, cursor:'pointer', background:'#faf4e8', color:'rgba(26,15,0,0.5)', border:'0.5px solid rgba(26,15,0,0.18)', fontFamily:"'Noto Serif JP',serif" }}>ツリーに戻る</button>
-  <button onClick={() => newNodeId ? onOpenNode(newNodeId) : onCancel()} style={{ flex:2, padding:10, borderRadius:10, fontSize:13, cursor:'pointer', background:'#a07840', color:'#faf4e8', border:'none', fontFamily:"'Noto Serif JP',serif", fontWeight:600 }}>ノードを開く</button>
-</div>
+            <button onClick={onCancel} style={{ flex:1, padding:10, borderRadius:10, fontSize:12, cursor:'pointer', background:'#faf4e8', color:'rgba(26,15,0,0.5)', border:'0.5px solid rgba(26,15,0,0.18)', fontFamily:"'Noto Serif JP',serif" }}>ツリーに戻る</button>
+            <button onClick={() => newNodeId ? onOpenNode(newNodeId) : onCancel()} style={{ flex:2, padding:10, borderRadius:10, fontSize:13, cursor:'pointer', background:'#a07840', color:'#faf4e8', border:'none', fontFamily:"'Noto Serif JP',serif", fontWeight:600 }}>ノードを開く</button>
+          </div>
+        </div>
+      </div>
     );
   }
 
