@@ -858,11 +858,9 @@ setDone(true);
               <StatusChip status={status} style={{fontSize:10}}/>
             </div>
           </div>
-          const onOpenNew = () => { if (newNodeId) onOpenNode(newNodeId); else onCancel(); };
-
-<div style={{display:'flex',gap:8,width:'100%'}}>
+          <div style={{display:'flex',gap:8,width:'100%'}}>
   <button onClick={onCancel} style={{ flex:1, padding:10, borderRadius:10, fontSize:12, cursor:'pointer', background:'#faf4e8', color:'rgba(26,15,0,0.5)', border:'0.5px solid rgba(26,15,0,0.18)', fontFamily:"'Noto Serif JP',serif" }}>ツリーに戻る</button>
-  <button onClick={onOpenNew} style={{ flex:2, padding:10, borderRadius:10, fontSize:13, cursor:'pointer', background:'#a07840', color:'#faf4e8', border:'none', fontFamily:"'Noto Serif JP',serif", fontWeight:600 }}>ノードを開く</button>
+  <button onClick={() => newNodeId ? onOpenNode(newNodeId) : onCancel()} style={{ flex:2, padding:10, borderRadius:10, fontSize:13, cursor:'pointer', background:'#a07840', color:'#faf4e8', border:'none', fontFamily:"'Noto Serif JP',serif", fontWeight:600 }}>ノードを開く</button>
 </div>
     );
   }
