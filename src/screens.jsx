@@ -132,46 +132,122 @@ export function AuthScreen({ onAuth }) {
 // ══════════════════════════════════════════════════
 // TreeList
 // ══════════════════════════════════════════════════
-function TreeCard({ tree, onOpen }) {
+function TreeCard({ tree, onOpen, onEdit, onDelete }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const handleMenuToggle = (e) => {
+    e.stopPropagation();
+    setMenuOpen(v => !v);
+  };
+  const handleEdit = (e) => {
+    e.stopPropagation();
+    setMenuOpen(false);
+    onEdit(tree);
+  };
+  const handleDelete = (e) => {
+    e.stopPropagation();
+    setMenuOpen(false);
+    onDelete(tree);
+  };
+
   return (
-    <div onClick={() => onOpen(tree.id)} style={{
-      padding:"14px 16px", borderRadius:12,
-      border:"0.5px solid rgba(200,169,110,0.35)",
-      background: tree.active ? "#f5edd8" : "#f0e8d4",
-      cursor:"pointer", transition:"all 0.15s", marginBottom:10,
-    }}
-      onMouseEnter={e => e.currentTarget.style.borderColor="#a07840"}
-      onMouseLeave={e => e.currentTarget.style.borderColor="rgba(200,169,110,0.35)"}
-    >
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
-        <span style={{ fontSize:15, fontWeight:600, color:"#1a0f00", fontFamily:"'Shippori Mincho B1',serif", flex:1 }}>{tree.name}</span>
-        <span style={{
-          fontSize:10, padding:"3px 9px", borderRadius:10,
-          background: tree.active ? "#d6eaf8" : "#e8dcc4",
-          color: tree.active ? "#1a5276" : "#7a5c2e",
-          border:`0.5px solid ${tree.active ? "rgba(26,82,118,0.2)" : "rgba(160,120,64,0.3)"}`,
-          fontFamily:"'Noto Serif JP',serif",
-        }}>{tree.active ? "使用中" : "休止中"}</span>
-        {tree.is_public && (
-          <span style={{ fontSize:10, padding:"3px 8px", borderRadius:10, background:"#EAF3DE", color:"#3B6D11", fontFamily:"'Noto Serif JP',serif" }}>公開中</span>
-        )}
+    <div style={{ position:"relative", marginBottom:10 }}>
+      <div onClick={() => onOpen(tree.id)} style={{
+        padding:"14px 16px", borderRadius:12,
+        border:"0.5px solid rgba(200,169,110,0.35)",
+        background: tree.active ? "#f5edd8" : "#f0e8d4",
+        cursor:"pointer", transition:"all 0.15s",
+      }}
+        onMouseEnter={e => e.currentTarget.style.borderColor="#a07840"}
+        onMouseLeave={e => e.currentTarget.style.borderColor="rgba(200,169,110,0.35)"}
+      >
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+          <span style={{ fontSize:15, fontWeight:600, color:"#1a0f00", fontFamily:"'Shippori Mincho B1',serif", flex:1 }}>{tree.name}</span>
+          <span style={{
+            fontSize:10, padding:"3px 9px", borderRadius:10,
+            background: tree.active ? "#d6eaf8" : "#e8dcc4",
+            color: tree.active ? "#1a5276" : "#7a5c2e",
+            border:`0.5px solid ${tree.active ? "rgba(26,82,118,0.2)" : "rgba(160,120,64,0.3)"}`,
+            fontFamily:"'Noto Serif JP',serif",
+          }}>{tree.active ? "使用中" : "休止中"}</span>
+          {tree.is_public && (
+            <span style={{ fontSize:10, padding:"3px 8px", borderRadius:10, background:"#EAF3DE", color:"#3B6D11", fontFamily:"'Noto Serif JP',serif" }}>公開中</span>
+          )}
+          {/* 3点メニューボタン */}
+          <button onClick={handleMenuToggle} style={{
+            background:"none", border:"none", cursor:"pointer",
+            color:"rgba(26,15,0,0.35)", fontSize:16, padding:"2px 4px",
+            borderRadius:6, lineHeight:1,
+          }}>
+            <i className="ti ti-dots-vertical"/>
+          </button>
+        </div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+          {(tree.tags||[]).map(t => (
+            <span key={t} style={{ fontSize:10, padding:"2px 7px", borderRadius:8, background:"rgba(26,15,0,0.06)", color:"rgba(26,15,0,0.5)", fontFamily:"'Noto Serif JP',serif" }}>{t}</span>
+          ))}
+          <span style={{fontSize:10,color:"rgba(26,15,0,0.3)",marginLeft:"auto"}}>
+            {new Date(tree.updated_at).toLocaleDateString("ja-JP")}
+          </span>
+        </div>
       </div>
-      <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
-        {(tree.tags||[]).map(t => (
-          <span key={t} style={{ fontSize:10, padding:"2px 7px", borderRadius:8, background:"rgba(26,15,0,0.06)", color:"rgba(26,15,0,0.5)", fontFamily:"'Noto Serif JP',serif" }}>{t}</span>
-        ))}
-        <span style={{fontSize:10,color:"rgba(26,15,0,0.3)",marginLeft:"auto"}}>
-          {new Date(tree.updated_at).toLocaleDateString("ja-JP")}
-        </span>
-      </div>
+
+      {/* ドロップダウンメニュー */}
+      {menuOpen && (
+        <>
+          <div style={{ position:"fixed", inset:0, zIndex:40 }} onClick={() => setMenuOpen(false)}/>
+          <div style={{
+            position:"absolute", top:10, right:0, zIndex:50,
+            background:"#faf4e8", borderRadius:10,
+            border:"0.5px solid rgba(200,169,110,0.5)",
+            boxShadow:"0 6px 24px rgba(26,15,0,0.15)",
+            overflow:"hidden", minWidth:140,
+          }}>
+            <div onClick={handleEdit} style={{
+              display:"flex", alignItems:"center", gap:8,
+              padding:"11px 16px", fontSize:13, cursor:"pointer",
+              color:"#1a0f00", fontFamily:"'Noto Serif JP',serif",
+            }}
+              onMouseEnter={e => e.currentTarget.style.background="#f0e8d4"}
+              onMouseLeave={e => e.currentTarget.style.background="transparent"}
+            >
+              <i className="ti ti-pencil" style={{fontSize:14, color:"#a07840"}}/>
+              編集
+            </div>
+            <div style={{height:"0.5px", background:"rgba(26,15,0,0.08)"}}/>
+            <div onClick={handleDelete} style={{
+              display:"flex", alignItems:"center", gap:8,
+              padding:"11px 16px", fontSize:13, cursor:"pointer",
+              color:"#A93226", fontFamily:"'Noto Serif JP',serif",
+            }}
+              onMouseEnter={e => e.currentTarget.style.background="#fdedec"}
+              onMouseLeave={e => e.currentTarget.style.background="transparent"}
+            >
+              <i className="ti ti-trash" style={{fontSize:14}}/>
+              削除
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
-export function TreeList({ trees, profile, onOpen, onPublic, onNewTree, onSignOut }) {
-  const [showModal, setShowModal] = useState(false);
-  const [newName,   setNewName]   = useState("");
-  const [newTags,   setNewTags]   = useState("");
+export function TreeList({ trees, profile, onOpen, onPublic, onNewTree, onSignOut, onDeleteTree, onEditTree }) {
+  const [showModal,   setShowModal]   = useState(false);
+  const [newName,     setNewName]     = useState("");
+  const [newTags,     setNewTags]     = useState("");
+
+  // 削除確認モーダル
+  const [deleteTarget, setDeleteTarget] = useState(null); // tree オブジェクト
+  const [deleting,     setDeleting]     = useState(false);
+
+  // 編集モーダル
+  const [editTarget,  setEditTarget]  = useState(null);  // tree オブジェクト
+  const [editName,    setEditName]    = useState("");
+  const [editTags,    setEditTags]    = useState("");
+  const [editActive,  setEditActive]  = useState(true);
+  const [saving,      setSaving]      = useState(false);
 
   const active   = trees.filter(t =>  t.active);
   const inactive = trees.filter(t => !t.active);
@@ -182,6 +258,33 @@ export function TreeList({ trees, profile, onOpen, onPublic, onNewTree, onSignOu
     onNewTree(newName.trim(), tags);
     setNewName(""); setNewTags(""); setShowModal(false);
   };
+
+  const openEdit = (tree) => {
+    setEditTarget(tree);
+    setEditName(tree.name);
+    setEditTags((tree.tags || []).join("、"));
+    setEditActive(tree.active);
+  };
+  const handleEditSave = async () => {
+    if (!editName.trim() || !editTarget) return;
+    setSaving(true);
+    const tags = editTags.split(/[,、\s]+/).map(s=>s.trim()).filter(Boolean);
+    await onEditTree(editTarget.id, { name: editName.trim(), tags, active: editActive });
+    setSaving(false);
+    setEditTarget(null);
+  };
+
+  const openDelete = (tree) => setDeleteTarget(tree);
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    await onDeleteTree(deleteTarget.id);
+    setDeleting(false);
+    setDeleteTarget(null);
+  };
+
+  // 共通インプットスタイル
+  const inputStyle = { width:"100%", border:"0.5px solid rgba(26,15,0,0.2)", borderRadius:10, padding:"11px 14px", fontSize:14, color:"#1a0f00", background:"#fff8ee", fontFamily:"'Noto Serif JP',serif", outline:"none" };
 
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100%", background:"#faf4e8" }}>
@@ -220,33 +323,105 @@ export function TreeList({ trees, profile, onOpen, onPublic, onNewTree, onSignOu
           <>
             {active.length > 0 && <>
               <div style={{fontSize:10,color:"rgba(26,15,0,0.4)",letterSpacing:"0.1em",marginBottom:8}}>使用中</div>
-              {active.map(t => <TreeCard key={t.id} tree={t} onOpen={onOpen}/>)}
+              {active.map(t => <TreeCard key={t.id} tree={t} onOpen={onOpen} onEdit={openEdit} onDelete={openDelete}/>)}
             </>}
             {inactive.length > 0 && <>
               <div style={{fontSize:10,color:"rgba(26,15,0,0.4)",letterSpacing:"0.1em",marginBottom:8,marginTop:active.length>0?16:0}}>休止中</div>
-              {inactive.map(t => <TreeCard key={t.id} tree={t} onOpen={onOpen}/>)}
+              {inactive.map(t => <TreeCard key={t.id} tree={t} onOpen={onOpen} onEdit={openEdit} onDelete={openDelete}/>)}
             </>}
           </>
         )}
       </div>
 
+      {/* 新規作成モーダル */}
       {showModal && (
         <div style={{ position:"absolute", inset:0, background:"rgba(26,15,0,0.5)", display:"flex", alignItems:"flex-end", zIndex:50 }}
           onClick={() => setShowModal(false)}>
           <div style={{ width:"100%", background:"#faf4e8", borderRadius:"20px 20px 0 0", padding:"24px 20px 32px" }}
             onClick={e => e.stopPropagation()}>
             <div style={{ fontFamily:"'Shippori Mincho B1',serif", fontSize:16, color:"#1a0f00", marginBottom:20 }}>新しいツリーを作成</div>
-            {[["戦法名","newName",newName,setNewName,"例：中飛車"],["タグ（カンマ区切り）","newTags",newTags,setNewTags,"例：振り飛車, 中飛車"]].map(([lbl,,val,setter,ph]) => (
+            {[["戦法名",newName,setNewName,"例：中飛車"],["タグ（カンマ区切り）",newTags,setNewTags,"例：振り飛車, 中飛車"]].map(([lbl,val,setter,ph]) => (
               <div key={lbl} style={{marginBottom:14}}>
                 <div style={{fontSize:11,color:"rgba(26,15,0,0.5)",marginBottom:5}}>{lbl}</div>
                 <input value={val} onChange={e=>setter(e.target.value)} placeholder={ph}
-                  style={{ width:"100%", border:"0.5px solid rgba(26,15,0,0.2)", borderRadius:10, padding:"11px 14px", fontSize:14, color:"#1a0f00", background:"#fff8ee", fontFamily:"'Noto Serif JP',serif", outline:"none" }}
+                  style={inputStyle}
                   onFocus={e=>e.target.style.borderColor="#a07840"} onBlur={e=>e.target.style.borderColor="rgba(26,15,0,0.2)"}/>
               </div>
             ))}
             <div style={{display:"flex",gap:10}}>
               <button onClick={()=>setShowModal(false)} style={{ flex:1, padding:12, borderRadius:12, border:"0.5px solid rgba(26,15,0,0.18)", background:"transparent", fontSize:13, cursor:"pointer", fontFamily:"'Noto Serif JP',serif", color:"rgba(26,15,0,0.5)" }}>キャンセル</button>
               <button onClick={handleCreate} disabled={!newName.trim()} style={{ flex:2, padding:12, borderRadius:12, border:"none", fontSize:13, fontWeight:600, cursor:newName.trim()?"pointer":"default", background:newName.trim()?"#a07840":"#B4B2A9", color:"#faf4e8", fontFamily:"'Noto Serif JP',serif" }}>作成する</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 編集モーダル */}
+      {editTarget && (
+        <div style={{ position:"absolute", inset:0, background:"rgba(26,15,0,0.5)", display:"flex", alignItems:"flex-end", zIndex:50 }}
+          onClick={() => setEditTarget(null)}>
+          <div style={{ width:"100%", background:"#faf4e8", borderRadius:"20px 20px 0 0", padding:"24px 20px 32px" }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontFamily:"'Shippori Mincho B1',serif", fontSize:16, color:"#1a0f00", marginBottom:20 }}>ツリーを編集</div>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:11,color:"rgba(26,15,0,0.5)",marginBottom:5}}>戦法名</div>
+              <input value={editName} onChange={e=>setEditName(e.target.value)} placeholder="例：中飛車"
+                style={inputStyle}
+                onFocus={e=>e.target.style.borderColor="#a07840"} onBlur={e=>e.target.style.borderColor="rgba(26,15,0,0.2)"}/>
+            </div>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:11,color:"rgba(26,15,0,0.5)",marginBottom:5}}>タグ（カンマ区切り）</div>
+              <input value={editTags} onChange={e=>setEditTags(e.target.value)} placeholder="例：振り飛車, 中飛車"
+                style={inputStyle}
+                onFocus={e=>e.target.style.borderColor="#a07840"} onBlur={e=>e.target.style.borderColor="rgba(26,15,0,0.2)"}/>
+            </div>
+            <div style={{marginBottom:20}}>
+              <div style={{fontSize:11,color:"rgba(26,15,0,0.5)",marginBottom:8}}>ステータス</div>
+              <div style={{display:"flex",gap:8}}>
+                {[["使用中",true],["休止中",false]].map(([lbl,val]) => (
+                  <div key={lbl} onClick={()=>setEditActive(val)} style={{
+                    flex:1, textAlign:"center", padding:"9px", borderRadius:10, cursor:"pointer",
+                    fontSize:13, fontFamily:"'Noto Serif JP',serif", transition:"all 0.15s",
+                    border: editActive===val ? "1.5px solid #a07840" : "0.5px solid rgba(26,15,0,0.18)",
+                    background: editActive===val ? "#f5edd8" : "#faf4e8",
+                    color: editActive===val ? "#a07840" : "rgba(26,15,0,0.5)",
+                    fontWeight: editActive===val ? 600 : 400,
+                  }}>{lbl}</div>
+                ))}
+              </div>
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>setEditTarget(null)} style={{ flex:1, padding:12, borderRadius:12, border:"0.5px solid rgba(26,15,0,0.18)", background:"transparent", fontSize:13, cursor:"pointer", fontFamily:"'Noto Serif JP',serif", color:"rgba(26,15,0,0.5)" }}>キャンセル</button>
+              <button onClick={handleEditSave} disabled={!editName.trim()||saving} style={{ flex:2, padding:12, borderRadius:12, border:"none", fontSize:13, fontWeight:600, cursor:editName.trim()&&!saving?"pointer":"default", background:editName.trim()&&!saving?"#a07840":"#B4B2A9", color:"#faf4e8", fontFamily:"'Noto Serif JP',serif" }}>
+                {saving ? "保存中..." : "保存する"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 削除確認モーダル */}
+      {deleteTarget && (
+        <div style={{ position:"absolute", inset:0, background:"rgba(26,15,0,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:50, padding:"20px" }}
+          onClick={() => setDeleteTarget(null)}>
+          <div style={{ width:"100%", maxWidth:360, background:"#faf4e8", borderRadius:20, padding:"28px 24px" }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display:"flex", justifyContent:"center", marginBottom:16 }}>
+              <div style={{ width:48, height:48, borderRadius:24, background:"#fdedec", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                <i className="ti ti-trash" style={{ fontSize:22, color:"#A93226" }}/>
+              </div>
+            </div>
+            <div style={{ fontFamily:"'Shippori Mincho B1',serif", fontSize:15, color:"#1a0f00", textAlign:"center", marginBottom:8 }}>
+              「{deleteTarget.name}」を削除しますか？
+            </div>
+            <div style={{ fontSize:12, color:"rgba(26,15,0,0.45)", textAlign:"center", marginBottom:24, fontFamily:"'Noto Serif JP',serif", lineHeight:1.7 }}>
+              ツリーと全ノードが完全に削除されます。<br/>この操作は取り消せません。
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>setDeleteTarget(null)} style={{ flex:1, padding:12, borderRadius:12, border:"0.5px solid rgba(26,15,0,0.18)", background:"transparent", fontSize:13, cursor:"pointer", fontFamily:"'Noto Serif JP',serif", color:"rgba(26,15,0,0.5)" }}>キャンセル</button>
+              <button onClick={handleDeleteConfirm} disabled={deleting} style={{ flex:2, padding:12, borderRadius:12, border:"none", fontSize:13, fontWeight:600, cursor:deleting?"default":"pointer", background:deleting?"#B4B2A9":"#A93226", color:"#faf4e8", fontFamily:"'Noto Serif JP',serif" }}>
+                {deleting ? "削除中..." : "削除する"}
+              </button>
             </div>
           </div>
         </div>
