@@ -570,12 +570,12 @@ const totalH = posValues.length ? Math.max(...posValues.map((p) => p.y)) + NODE_
   if (!node) return null;
   const s       = STATUS_NODE[node.status] || STATUS_NODE.todo;
   const isRoot  = id === rootId;
-  const isMine  = node.approachType === "自分の志向" || node.approachType === "自分の選択";
+  const isMine  = node.SUGGESTIONS === "自分の戦法";
   const nodeColor = isRoot
     ? { fill: "#f0e8d4", stroke: "#a07840" }
     : isMine
-    ? { fill: "#fde8cc", stroke: "#c87820" }
-    : { fill: "#d6eaf8", stroke: "#1a5276" };
+    ? { fill: "#d6eaf8", stroke: "#c87820" }
+    : { fill: "#fde8cc", stroke: "#1a5276" };
 
   return ( 
     <g key={id} className="node-g" onClick={() => onNodeSelect(id)} style={{ cursor: "pointer" }}>
