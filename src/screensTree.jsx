@@ -581,7 +581,7 @@ const totalH = posValues.length ? Math.max(...posValues.map((p) => p.y)) + NODE_
     <g key={id} className="node-g" onClick={() => onNodeSelect(id)} style={{ cursor: "pointer" }}>
       <rect
         x={pos.x} y={pos.y} width={NODE_W} height={NODE_H} rx={isRoot ? 9 : 6}
-        fill={node.status === "todo" ? s.fill : nodeColor.fill}
+        fill={nodeColor.fill}
         stroke={node.isMergeTarget ? "#6B3FA0" : nodeColor.stroke}
         strokeWidth={isRoot ? 1.5 : node.isMergeTarget ? 1.5 : 0.9}
         strokeDasharray={s.dashed ? "5 2.5" : "none"}
