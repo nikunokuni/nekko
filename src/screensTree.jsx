@@ -491,12 +491,6 @@ function EditTreeModal({ tree, onClose, onSave, onPublish }) {
           confirmLabel={saving ? "保存中..." : "保存する"}
           disabled={!name.trim() || saving}
         />
-        <ModalActionButtons
-          onCancel={onClose}
-          onConfirm={handleSave}
-          confirmLabel={saving ? "保存中..." : "保存する"}
-          disabled={!name.trim() || saving}
-        />
       </div>
     </div>
   );
