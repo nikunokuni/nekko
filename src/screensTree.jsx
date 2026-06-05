@@ -384,23 +384,42 @@ function CreateTreeModal({ onClose, onCreate }) {
 // ──────────────────────────────────────────
 // EditTreeModal: ツリー編集
 // ──────────────────────────────────────────
-function EditTreeModal({ tree, onClose, onSave, onPublish }) {
-  const [name,       setName]       = useState(tree.name);
-  const [tags,       setTags]       = useState((tree.tags || []).join("、"));
-  const [active,     setActive]     = useState(tree.active);
-  const [saving,     setSaving]     = useState(false);
-  const [publishing, setPublishing] = useState(false);
+function EditTreeModal({ tree, onClose, onSave, onPublish, onUnpublish }) {
+  const [name,         setName]         = useState(tree.name);
+  const [tags,         setTags]         = useState((tree.tags || []).join("、"));
+  const [active,       setActive]       = useState(tree.active);
+  const [saving,       setSaving]       = useState(false);
+  const [publishing,   setPublishing]   = useState(false);
+  const [unpublishing, setUnpublishing] = useState(false);
+  const [publishError, setPublishError] = useState("");
 
   const handlePublish = async () => {
-    if (publishing) return;
+    if (publishing || typeof onPublish !== "function") return;
     setPublishing(true);
+    setPublishError("");
     try {
       await onPublish(tree.id);
       onClose();
     } catch (e) {
       console.error("公開に失敗しました", e);
+      setPublishError("公開に失敗しました。もう一度お試しください。");
     } finally {
       setPublishing(false);
+    }
+  };
+
+  const handleUnpublish = async () => {
+    if (unpublishing || typeof onUnpublish !== "function") return;
+    setUnpublishing(true);
+    setPublishError("");
+    try {
+      await onUnpublish(tree.id);
+      onClose();
+    } catch (e) {
+      console.error("公開取り消しに失敗しました", e);
+      setPublishError("公開取り消しに失敗しました。もう一度お試しください。");
+    } finally {
+      setUnpublishing(false);
     }
   };
 
@@ -453,11 +472,16 @@ function EditTreeModal({ tree, onClose, onSave, onPublish }) {
             })}
           </div>
         </div>
-{/* 公開ボタン */}
+{/* 公開ボタン / 公開取り消しボタン */}
+        {publishError && (
+          <div style={{ fontSize: T.fontSize.sm, color: T.red, marginBottom: 8, textAlign: "center" }}>
+            {publishError}
+          </div>
+        )}
         {!tree.is_public ? (
           <button
             onClick={handlePublish}
-            disabled={publishing}
+            disabled={publishing || typeof onPublish !== "function"}
             style={{
               width:          "100%",
               padding:        11,
@@ -480,8 +504,32 @@ function EditTreeModal({ tree, onClose, onSave, onPublish }) {
             {publishing ? "公開中..." : "このツリーを公開する"}
           </button>
         ) : (
-          <div style={{ textAlign: "center", fontSize: T.fontSize.md, color: T.green, marginBottom: 10, padding: "8px 0" }}>
-            <i className="ti ti-world-check" style={{ fontSize: 13 }} /> 公開中
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: T.fontSize.md, color: T.green, padding: "4px 0 8px" }}>
+              <i className="ti ti-world-check" style={{ fontSize: 13 }} /> 公開中
+            </div>
+            <button
+              onClick={handleUnpublish}
+              disabled={unpublishing || typeof onUnpublish !== "function"}
+              style={{
+                width:          "100%",
+                padding:        9,
+                borderRadius:   T.radius.lg,
+                border:         `0.5px solid ${T.inkLine}`,
+                background:     "transparent",
+                color:          T.inkMid,
+                fontSize:       T.fontSize.base,
+                fontFamily:     T.fontSerif,
+                cursor:         unpublishing ? "default" : "pointer",
+                display:        "flex",
+                alignItems:     "center",
+                justifyContent: "center",
+                gap:            6,
+              }}
+            >
+              <i className="ti ti-world-off" style={{ fontSize: 13 }} />
+              {unpublishing ? "取り消し中..." : "公開を取り消す"}
+            </button>
           </div>
         )}
 
@@ -672,7 +720,7 @@ export function TreeCard({ tree, onOpen, onEdit, onDelete }) {
 // ══════════════════════════════════════════════════════════════════
 // TreeList: ツリー一覧画面
 // ══════════════════════════════════════════════════════════════════
-export function TreeList({ trees, profile, onOpen, onPublic, onNewTree, onSignOut, onDeleteTree, onEditTree, onPublish }) {
+export function TreeList({ trees, profile, onOpen, onPublic, onNewTree, onSignOut, onDeleteTree, onEditTree, onPublish, onUnpublish }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editTarget,      setEditTarget]      = useState(null);
   const [deleteTarget,    setDeleteTarget]    = useState(null);
@@ -754,6 +802,7 @@ export function TreeList({ trees, profile, onOpen, onPublic, onNewTree, onSignOu
           onClose={() => setEditTarget(null)}
           onSave={onEditTree}
           onPublish={onPublish}
+          onUnpublish={onUnpublish}
         />
       )}
       {deleteTarget && (
