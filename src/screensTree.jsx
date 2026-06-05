@@ -428,8 +428,9 @@ const STATUS_NODE = {
 };
 
 const APPROACH_LINE = {
-  "自分の選択": "#1a5276", "相手の戦法": "#7B3010",
-  "自分の志向": "#1a5276", "局面の状況": "#854F0B",
+  "自分の戦法": "#1a5276", 
+  "相手の戦法": "#7B3010",
+  "局面の状況": "#854F0B",
 };
 
 // ── 変更点：x/yを入れ替えて縦向きレイアウトに ──
@@ -448,7 +449,7 @@ function layoutTree(nodes, rootId) {
     const start = xCounter;
     children.forEach((cid) => assign(cid, depth + 1));
     const end = xCounter - 1;
-    const midX = ((start + Math.max(start, end)) / 2) * (NODE_W + 16);
+    const midX = ((start + end) / 2) * (NODE_W + 16);
     positions[id] = { x: midX, y: depth * (NODE_H + 40) };
     return xCounter - start;
   }
@@ -569,22 +570,23 @@ const totalH = posValues.length ? Math.max(...posValues.map((p) => p.y)) + NODE_
               if (!node) return null;
               const s      = STATUS_NODE[node.status] || STATUS_NODE.todo;
               const isRoot = id === rootId;
-              return (
-                <g key={id} className="node-g" onClick={() => onNodeSelect(id)} style={{ cursor: "pointer" }}>
-                 const isMine  = node.approachType === "自分の志向" || node.approachType === "自分の選択";
-const nodeColor = isRoot
-  ? { fill: "#f0e8d4", stroke: "#a07840" }
-  : isMine
-    ? { fill: "#fde8cc", stroke: "#c87820" }   // オレンジ
-    : { fill: "#d6eaf8", stroke: "#1a5276" };  // 青（相手の戦法）
+             return (() => {
+  const isMine = node.approachType === "自分の志向" || node.approachType === "自分の選択";
+  const nodeColor = isRoot
+    ? { fill: "#f0e8d4", stroke: "#a07840" }
+    : isMine
+    ? { fill: "#fde8cc", stroke: "#c87820" }
+    : { fill: "#d6eaf8", stroke: "#1a5276" };
 
-<rect
-  x={pos.x} y={pos.y} width={NODE_W} height={NODE_H} rx={isRoot ? 9 : 6}
-  fill={node.status === "todo" ? s.fill : nodeColor.fill}
-  stroke={node.isMergeTarget ? "#6B3FA0" : nodeColor.stroke}
-  strokeWidth={isRoot ? 1.5 : node.isMergeTarget ? 1.5 : 0.9}
-  strokeDasharray={s.dashed ? "5 2.5" : "none"}
-/>
+  return (
+    <g key={id} className="node-g" onClick={() => onNodeSelect(id)} style={{ cursor: "pointer" }}>
+      <rect
+        x={pos.x} y={pos.y} width={NODE_W} height={NODE_H} rx={isRoot ? 9 : 6}
+        fill={node.status === "todo" ? s.fill : nodeColor.fill}
+        stroke={node.isMergeTarget ? "#6B3FA0" : nodeColor.stroke}
+        strokeWidth={isRoot ? 1.5 : node.isMergeTarget ? 1.5 : 0.9}
+        strokeDasharray={s.dashed ? "5 2.5" : "none"}
+      />
                   {!isRoot && node.status !== "todo" && (
                     <circle cx={pos.x + NODE_W - 8} cy={pos.y + 7} r={3.5} fill={STATUS_META[node.status]?.dot || "#B4B2A9"} />
                   )}
