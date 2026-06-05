@@ -337,11 +337,44 @@ function CreateTreeModal({ onClose, onCreate }) {
         </div>
         <InputField label="戦法名"              value={name} onChange={setName} placeholder="例：中飛車" />
         <InputField label="タグ（カンマ区切り）" value={tags} onChange={setTags} placeholder="例：振り飛車, 中飛車" />
+       {/* 公開ボタン */}
+        {!tree.is_public && (
+          <button
+            onClick={handlePublish}
+            disabled={publishing}
+            style={{
+              width:        "100%",
+              padding:      11,
+              borderRadius: T.radius.lg,
+              border:       `0.5px solid ${T.green}`,
+              background:   T.greenBg,
+              color:        T.green,
+              fontSize:     T.fontSize.lg,
+              fontFamily:   T.fontSerif,
+              fontWeight:   600,
+              cursor:       publishing ? "default" : "pointer",
+              marginBottom: 10,
+              display:      "flex",
+              alignItems:   "center",
+              justifyContent: "center",
+              gap:          6,
+            }}
+          >
+            <i className="ti ti-world" style={{ fontSize: 14 }} />
+            {publishing ? "公開中..." : "このツリーを公開する"}
+          </button>
+        )}
+        {tree.is_public && (
+          <div style={{ textAlign: "center", fontSize: T.fontSize.md, color: T.green, marginBottom: 10, padding: "8px 0" }}>
+            <i className="ti ti-world-check" style={{ fontSize: 13 }} /> 公開中
+          </div>
+        )}
+
         <ModalActionButtons
           onCancel={onClose}
-          onConfirm={handleCreate}
-          confirmLabel="作成する"
-          disabled={!name.trim()}
+          onConfirm={handleSave}
+          confirmLabel={saving ? "保存中..." : "保存する"}
+          disabled={!name.trim() || saving}
         />
       </div>
     </div>
@@ -351,11 +384,25 @@ function CreateTreeModal({ onClose, onCreate }) {
 // ──────────────────────────────────────────
 // EditTreeModal: ツリー編集
 // ──────────────────────────────────────────
-function EditTreeModal({ tree, onClose, onSave }) {
-  const [name,   setName]   = useState(tree.name);
-  const [tags,   setTags]   = useState((tree.tags || []).join("、"));
-  const [active, setActive] = useState(tree.active);
-  const [saving, setSaving] = useState(false);
+function EditTreeModal({ tree, onClose, onSave, onPublish }) {
+  const [name,       setName]       = useState(tree.name);
+  const [tags,       setTags]       = useState((tree.tags || []).join("、"));
+  const [active,     setActive]     = useState(tree.active);
+  const [saving,     setSaving]     = useState(false);
+  const [publishing, setPublishing] = useState(false);
+
+  const handlePublish = async () => {
+    if (publishing) return;
+    setPublishing(true);
+    try {
+      await onPublish(tree.id);
+      onClose();
+    } catch (e) {
+      console.error("公開に失敗しました", e);
+    } finally {
+      setPublishing(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!name.trim()) return;
@@ -675,6 +722,7 @@ export function TreeList({ trees, profile, onOpen, onPublic, onNewTree, onSignOu
           tree={editTarget}
           onClose={() => setEditTarget(null)}
           onSave={onEditTree}
+          onPublish={onPublic}
         />
       )}
       {deleteTarget && (
@@ -1031,7 +1079,7 @@ export function MindMap({ tree, onNodeSelect, onBack }) {
 // ══════════════════════════════════════════════════════════════════
 // NodeDetail: ノード詳細編集画面
 // ══════════════════════════════════════════════════════════════════
-export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUpdate }) {
+export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUpdate, onDeleteNode }) {
   const node = tree.nodes[nodeId];
 
   const [memo,         setMemo]         = useState("");
@@ -1075,7 +1123,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
   };
 
   /** 変更を保存してから画面遷移する（保存忘れ防止） */
-  const saveAndNavigate = async (navigateFn) => {
+ const saveAndNavigate = async (navigateFn) => {
     await onUpdate(nodeId, {
       status,
       memo,
@@ -1083,6 +1131,24 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
       stamps: boardVisible ? stamps    : [],
     });
     navigateFn();
+  };
+
+  /** 子孫IDを再帰的に収集してノード削除 */
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+
+  const collectDescendantIds = (id) => {
+    const n = tree.nodes[id];
+    if (!n) return [];
+    return (n.childIds || []).flatMap((cid) => [cid, ...collectDescendantIds(cid)]);
+  };
+
+  const handleDeleteNode = async () => {
+    const idsToDelete = [nodeId, ...collectDescendantIds(nodeId)];
+    try {
+      await onDeleteNode(idsToDelete, node.parentId);
+    } catch (e) {
+      console.error("ノード削除に失敗しました", e);
+    }
   };
 
   return (
@@ -1174,7 +1240,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
               );
             })}
 
-            {/* 分岐追加ボタン */}
+           {/* 分岐追加ボタン */}
             <div
               onClick={() => saveAndNavigate(() => onNewNode(nodeId))}
               style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: T.radius.sm, border: `0.5px dashed ${T.inkLine}`, cursor: "pointer", color: T.gold, fontSize: T.fontSize.base }}
@@ -1184,6 +1250,41 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
               <i className="ti ti-git-branch" style={{ fontSize: 14 }} />ここから分岐を追加
             </div>
           </div>
+
+          {/* ── ノード削除 ── */}
+          {!node.isRoot && onDeleteNode && (
+            <div style={{ padding: "16px 16px 8px", borderTop: `0.5px solid ${T.inkLineFaint}` }}>
+              {!deleteConfirm ? (
+                <button
+                  onClick={() => setDeleteConfirm(true)}
+                  style={{ width: "100%", padding: "9px", borderRadius: T.radius.md, border: `0.5px solid ${T.red}`, background: T.redBg, color: T.red, fontSize: T.fontSize.base, fontFamily: T.fontSerif, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                >
+                  <i className="ti ti-trash" style={{ fontSize: 13 }} />
+                  このノードを削除する
+                </button>
+              ) : (
+                <div>
+                  <div style={{ fontSize: T.fontSize.md, color: T.red, marginBottom: 10, textAlign: "center", lineHeight: 1.6 }}>
+                    「{node.label}」と子ノードをすべて削除します。<br />元に戻せません。
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      onClick={() => setDeleteConfirm(false)}
+                      style={{ flex: 1, padding: 9, borderRadius: T.radius.md, border: `0.5px solid ${T.inkLine}`, background: "transparent", fontSize: T.fontSize.base, fontFamily: T.fontSerif, cursor: "pointer", color: T.inkMid }}
+                    >
+                      キャンセル
+                    </button>
+                    <button
+                      onClick={handleDeleteNode}
+                      style={{ flex: 2, padding: 9, borderRadius: T.radius.md, border: "none", background: T.red, color: T.cream, fontSize: T.fontSize.base, fontFamily: T.fontSerif, fontWeight: 600, cursor: "pointer" }}
+                    >
+                      削除する
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -1360,12 +1461,18 @@ export function NewNode({ tree, parentNodeId, onComplete, onCancel, onOpenNode }
       </div>
 
       {/* STEP 1: 分岐元→入力中ノード名のブレッドクラム */}
-      {step === 1 && (
+     {step === 1 && (
         <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 16px 6px", borderBottom: `0.5px solid ${T.inkLineFaint}` }}>
           <span style={{ fontSize: T.fontSize.sm, color: T.inkMid }}>分岐元：</span>
           <span style={{ fontSize: T.fontSize.md, color: T.ink, fontWeight: 600 }}>{parentNode?.label}</span>
           <i className="ti ti-arrow-right" style={{ fontSize: 10, color: T.gray }} />
-          <span style={{ fontSize: T.fontSize.md, color: T.gold }}>{displayName}</span>
+          <span style={{ fontSize: T.fontSize.md, color: T.gold, flex: 1 }}>{displayName}</span>
+          {/* ステータスを右端に移動 */}
+          <div style={{ display: "flex", gap: 4 }}>
+            {["todo", "wip", "done"].map((s) => (
+              <StatusChip key={s} status={s} active={status === s} onClick={() => setStatus(s)} />
+            ))}
+          </div>
         </div>
       )}
 
@@ -1406,11 +1513,10 @@ export function NewNode({ tree, parentNodeId, onComplete, onCancel, onOpenNode }
             ))}
           </div>
         )}
-
         {/* ── STEP 1: 詳細入力 ── */}
         {step === 1 && (
           <div>
-            {/* 候補タグ */}
+            {/* 候補タグ（自分の戦法から選ぶ） */}
             <SectionLabel style={{ padding: "14px 16px 8px" }}>
               {approach === "相手の戦法" ? "相手の戦法から選ぶ" : approach === "自分の戦法" ? "自分の戦法から選ぶ" : "局面の状況から選ぶ"}
             </SectionLabel>
@@ -1438,6 +1544,21 @@ export function NewNode({ tree, parentNodeId, onComplete, onCancel, onOpenNode }
                   </div>
                 );
               })}
+            </div>
+
+            <div style={{ height: "0.5px", background: T.inkLineFaint }} />
+
+            {/* ノード名（自由入力）← 志向の前に移動 */}
+            <div style={{ padding: "12px 16px 14px" }}>
+              <SectionLabel style={{ marginBottom: 5 }}>ノード名（自由入力）</SectionLabel>
+              <input
+                value={name}
+                onChange={(e) => { setName(e.target.value); setSuggestion(""); }}
+                placeholder="例：▲４六銀型"
+                style={{ width: "100%", border: `0.5px solid ${T.inkLine}`, borderRadius: T.radius.sm, padding: "9px 12px", fontSize: T.fontSize.lg, color: T.ink, background: T.cream, fontFamily: T.fontSerif, outline: "none" }}
+                onFocus={(e) => (e.target.style.borderColor = T.gold)}
+                onBlur={(e)  => (e.target.style.borderColor = T.inkLine)}
+              />
             </div>
 
             {/* 自分の志向（「自分の戦法」選択時のみ） */}
@@ -1483,43 +1604,6 @@ export function NewNode({ tree, parentNodeId, onComplete, onCancel, onOpenNode }
                 </div>
               </div>
             )}
-
-            {/* ノード名（自由入力） */}
-            <div style={{ padding: "0 16px 14px" }}>
-              <SectionLabel style={{ marginBottom: 5 }}>ノード名（自由入力）</SectionLabel>
-              <input
-                value={name}
-                onChange={(e) => { setName(e.target.value); setSuggestion(""); }}
-                placeholder="例：▲４六銀型"
-                style={{ width: "100%", border: `0.5px solid ${T.inkLine}`, borderRadius: T.radius.sm, padding: "9px 12px", fontSize: T.fontSize.lg, color: T.ink, background: T.cream, fontFamily: T.fontSerif, outline: "none" }}
-                onFocus={(e) => (e.target.style.borderColor = T.gold)}
-                onBlur={(e)  => (e.target.style.borderColor = T.inkLine)}
-              />
-            </div>
-
-            <div style={{ height: "0.5px", background: T.inkLineFaint }} />
-
-            {/* ステータス */}
-            <SectionLabel style={{ padding: "12px 16px 8px" }}>ステータス</SectionLabel>
-            <div style={{ display: "flex", gap: 6, padding: "0 16px 14px" }}>
-              {["todo", "wip", "done"].map((s) => (
-                <StatusChip key={s} status={s} active={status === s} onClick={() => setStatus(s)} />
-              ))}
-            </div>
-
-            <div style={{ height: "0.5px", background: T.inkLineFaint }} />
-
-            {/* 盤面 */}
-            <BoardSection
-              boardVisible={boardVisible}
-              boardData={boardData}
-              stamps={stamps}
-              parentBoard={parentNode?.board}
-              parentLabel={parentNode?.label}
-              onToggle={handleToggleBoard}
-              onChange={(board, s) => { setBoardData(board); setStamps(s); }}
-              onDelete={() => { setBoardData(null); setStamps([]); setBoardVisible(false); }}
-            />
 
             <div style={{ height: "0.5px", background: T.inkLineFaint }} />
 
