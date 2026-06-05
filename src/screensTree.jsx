@@ -845,7 +845,7 @@ export function NewNode({ tree, parentNodeId, onComplete, onCancel, onOpenNode }
   const [boardVisible, setBoardVisible] = useState(false);
   const [done,       setDone]       = useState(false);
   const [newNodeId,  setNewNodeId]  = useState(null);
-
+  const [tendency, setTendency] = useState(""); 
   const displayName = name || suggestion || "新しいノード";
   const pct = ((step + 1) / STEPS.length) * 100;
 
@@ -873,6 +873,7 @@ export function NewNode({ tree, parentNodeId, onComplete, onCancel, onOpenNode }
       label:        name.trim() || suggestion,
       status,
       approachType: approach,
+      tendency,  
       parentId:     parentNodeId,
       board:        finalBoard,
       stamps:       finalStamps,
@@ -1012,7 +1013,43 @@ export function NewNode({ tree, parentNodeId, onComplete, onCancel, onOpenNode }
                 </div>
               ))}
             </div>
-
+{/* 自分の志向（自分の戦法を選んだときだけ表示） */}
+{approach === "自分の戦法" && (
+  <div>
+    <div style={{ height: "0.5px", background: "rgba(26,15,0,0.08)" }} />
+    <div style={{ fontSize: 11, color: "rgba(26,15,0,0.5)", padding: "12px 16px 8px" }}>
+      自分の志向
+    </div>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 7, padding: "0 16px 10px" }}>
+      {["攻め重視", "守り重視", "バランス", "速攻", "持久戦"].map((t) => (
+        <div
+          key={t}
+          onClick={() => setTendency(t)}
+          style={{
+            padding: "7px 12px", borderRadius: 20, cursor: "pointer",
+            border:     tendency === t ? "0.5px solid #a07840" : "0.5px solid rgba(26,15,0,0.18)",
+            fontSize:   12, color: "#1a0f00",
+            background: tendency === t ? "#f0e8d4" : "#faf4e8",
+            fontWeight: tendency === t ? 600 : 400,
+            fontFamily: "'Noto Serif JP',serif", transition: "all 0.15s",
+          }}
+        >
+          {t}
+        </div>
+      ))}
+    </div>
+    <div style={{ padding: "0 16px 12px" }}>
+      <input
+        value={tendency}
+        onChange={(e) => setTendency(e.target.value)}
+        placeholder="例：穴熊志向、急戦好き"
+        style={{ width: "100%", border: "0.5px solid rgba(26,15,0,0.18)", borderRadius: 8, padding: "9px 12px", fontSize: 13, color: "#1a0f00", background: "#faf4e8", fontFamily: "'Noto Serif JP',serif", outline: "none" }}
+        onFocus={(e) => (e.target.style.borderColor = "#a07840")}
+        onBlur={(e)  => (e.target.style.borderColor = "rgba(26,15,0,0.18)")}
+      />
+    </div>
+  </div>
+)}
             {/* ノード名 */}
             <div style={{ padding: "0 16px 14px" }}>
               <div style={{ fontSize: 11, color: "rgba(26,15,0,0.5)", marginBottom: 5 }}>ノード名（自由入力）</div>
