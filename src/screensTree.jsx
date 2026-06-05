@@ -641,7 +641,7 @@ export function TreeCard({ tree, onOpen, onEdit, onDelete }) {
 // ══════════════════════════════════════════════════════════════════
 // TreeList: ツリー一覧画面
 // ══════════════════════════════════════════════════════════════════
-export function TreeList({ trees, profile, onOpen, onPublic, onNewTree, onSignOut, onDeleteTree, onEditTree }) {
+export function TreeList({ trees, profile, onOpen, onPublic, onNewTree, onSignOut, onDeleteTree, onEditTree, onPublish }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editTarget,      setEditTarget]      = useState(null);
   const [deleteTarget,    setDeleteTarget]    = useState(null);
