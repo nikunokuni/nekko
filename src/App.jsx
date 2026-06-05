@@ -130,6 +130,17 @@ const handleOpenTree = async (treeId) => {
     await loadMyTrees();
   };
 
+  const handlePublishTree = async (treeId) => {
+    try {
+      await publishTree(treeId);
+      setMyTrees((prev) =>
+        prev.map((t) => (t.id === treeId ? { ...t, is_public: true } : t))
+      );
+    } catch (e) {
+      console.error("公開失敗", e);
+    }
+  };
+
   // ── ノード操作 ───────────────────────────────
   const handleNodeSelect = (nodeId) => {
     if (nodeId === "new") {
@@ -154,11 +165,38 @@ const handleOpenTree = async (treeId) => {
     }));
   };
 
-  const handleNewNode = (parentId) => {
+ const handleNewNode = (parentId) => {
     setNewNodeParentId(parentId);
     setScreen("new");
   };
 
+  const handleDeleteNode = async (idsToDelete, parentId) => {
+    try {
+      await deleteNodes(idsToDelete, parentId, activeTree.id);
+      setActiveTree((prev) => {
+        const newNodes = { ...prev.nodes };
+        idsToDelete.forEach((id) => delete newNodes[id]);
+        if (parentId && newNodes[parentId]) {
+          newNodes[parentId] = {
+            ...newNodes[parentId],
+            childIds: (newNodes[parentId].childIds || []).filter(
+              (id) => !idsToDelete.includes(id)
+            ),
+          };
+        }
+        return { ...prev, nodes: newNodes };
+      });
+      // 削除後、親ノードか（なければ）マップに戻る
+      if (parentId) {
+        setActiveNodeId(parentId);
+        setScreen("node");
+      } else {
+        setScreen("map");
+      }
+    } catch (e) {
+      console.error("ノード削除失敗", e);
+    }
+  };
   const handleNewNodeComplete = async (newNodeData) => {
   if (!activeTree || !session) return;
   const { data: newNode } = await createNode({
@@ -235,7 +273,7 @@ const handleOpenTree = async (treeId) => {
 
         {screen==="list" && (
           <TreeList trees={myTrees} profile={profile}
-            onOpen={handleOpenTree} onPublic={() => setScreen("public")}
+            onOpen={handleOpenTree} onPublic={handlePublishTree}
             onNewTree={handleNewTree} onSignOut={handleSignOut}
             onDeleteTree={handleDeleteTree} onEditTree={handleEditTree}/>
         )}
@@ -245,7 +283,8 @@ const handleOpenTree = async (treeId) => {
         {screen==="node" && activeTree && activeNodeId && (
           <NodeDetail tree={activeTree} nodeId={activeNodeId}
             onBack={() => setScreen("map")} onNodeSelect={handleNodeSelect}
-            onNewNode={handleNewNode} onUpdate={handleNodeUpdate}/>
+            onNewNode={handleNewNode} onUpdate={handleNodeUpdate}
+            onDeleteNode={handleDeleteNode}/>
         )}
         {screen==="new" && activeTree && newNodeParentId && (
   <NewNode tree={activeTree} parentNodeId={newNodeParentId}
