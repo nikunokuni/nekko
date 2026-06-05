@@ -432,24 +432,25 @@ const APPROACH_LINE = {
   "自分の志向": "#1a5276", "局面の状況": "#854F0B",
 };
 
+// ── 変更点：x/yを入れ替えて縦向きレイアウトに ──
 function layoutTree(nodes, rootId) {
   const positions = {}, edges = [];
-  let yCounter = 0;
+  let xCounter = 0;
 
   function assign(id, depth) {
     const node = nodes[id];
     if (!node) return 0;
     const children = (node.childIds || []).filter((c) => nodes[c]);
     if (children.length === 0) {
-      positions[id] = { x: depth * (NODE_W + 40), y: yCounter * (NODE_H + 22) };
-      yCounter++; return 1;
+      positions[id] = { x: xCounter * (NODE_W + 16), y: depth * (NODE_H + 40) };
+      xCounter++; return 1;
     }
-    const start = yCounter;
+    const start = xCounter;
     children.forEach((cid) => assign(cid, depth + 1));
-    const end = yCounter - 1;
-    const midY = ((start + Math.max(start, end)) / 2) * (NODE_H + 22);
-    positions[id] = { x: depth * (NODE_W + 40), y: midY };
-    return yCounter - start;
+    const end = xCounter - 1;
+    const midX = ((start + Math.max(start, end)) / 2) * (NODE_W + 16);
+    positions[id] = { x: midX, y: depth * (NODE_H + 40) };
+    return xCounter - start;
   }
   assign(rootId, 0);
 
@@ -465,8 +466,9 @@ function layoutTree(nodes, rootId) {
       const dashed    = child.approachType === "相手の戦法" || child.approachType === "局面の状況";
       edges.push({
         from: id, to: cid,
-        x1: fromPos.x + NODE_W, y1: fromPos.y + NODE_H / 2,
-        x2: toPos.x,            y2: toPos.y   + NODE_H / 2,
+        // ── 変更：縦方向の接続点に ──
+        x1: fromPos.x + NODE_W / 2, y1: fromPos.y + NODE_H,
+        x2: toPos.x   + NODE_W / 2, y2: toPos.y,
         color: lineColor, dashed, isMerge: false,
       });
       buildEdges(cid);
@@ -486,8 +488,8 @@ export function MindMap({ tree, onNodeSelect, onBack }) {
   const rootId = tree.rootId ?? Object.values(nodes).find((n) => n.isRoot)?.id ?? null;
   const { positions, edges } = rootId ? layoutTree(nodes, rootId) : { positions: {}, edges: [] };
   const posValues = Object.values(positions);
-  const totalW = posValues.length ? Math.max(...posValues.map((p) => p.x)) + NODE_W + 40 : NODE_W + 40;
-  const totalH = posValues.length ? Math.max(...posValues.map((p) => p.y)) + NODE_H + 40 : NODE_H + 40;
+  const totalW = posValues.length ? Math.max(...posValues.map((p) => p.x)) + NODE_W + 60 : NODE_W + 60;
+const totalH = posValues.length ? Math.max(...posValues.map((p) => p.y)) + NODE_H + 80 : NODE_H + 80;
 
   const onMouseDown  = useCallback((e) => {
     if (e.target.closest(".node-g")) return;
@@ -556,8 +558,8 @@ export function MindMap({ tree, onNodeSelect, onBack }) {
             </defs>
 
             {edges.map((e, i) => {
-              const mid = (e.x1 + e.x2) / 2;
-              const d   = `M${e.x1},${e.y1} C${mid},${e.y1} ${mid},${e.y2} ${e.x2},${e.y2}`;
+              const mid = (e.y1 + e.y2) / 2;
+　　　　　　　　const d   = `M${e.x1},${e.y1} C${e.x1},${mid} ${e.x2},${mid} ${e.x2},${e.y2}`;
               const mIdx = e.color === "#1a5276" ? 0 : e.color === "#7B3010" ? 1 : e.color === "#854F0B" ? 2 : 3;
               return <path key={i} d={d} fill="none" stroke={e.color} strokeWidth={1.2} strokeDasharray={e.dashed ? "5 2.5" : "none"} markerEnd={`url(#arr${mIdx})`} />;
             })}
@@ -569,13 +571,20 @@ export function MindMap({ tree, onNodeSelect, onBack }) {
               const isRoot = id === rootId;
               return (
                 <g key={id} className="node-g" onClick={() => onNodeSelect(id)} style={{ cursor: "pointer" }}>
-                  <rect
-                    x={pos.x} y={pos.y} width={NODE_W} height={NODE_H} rx={isRoot ? 9 : 6}
-                    fill={isRoot ? "#f0e8d4" : s.fill}
-                    stroke={node.isMergeTarget ? "#6B3FA0" : isRoot ? "#a07840" : s.stroke}
-                    strokeWidth={isRoot ? 1.5 : node.isMergeTarget ? 1.5 : 0.9}
-                    strokeDasharray={s.dashed ? "5 2.5" : "none"}
-                  />
+                 const isMine  = node.approachType === "自分の志向" || node.approachType === "自分の選択";
+const nodeColor = isRoot
+  ? { fill: "#f0e8d4", stroke: "#a07840" }
+  : isMine
+    ? { fill: "#fde8cc", stroke: "#c87820" }   // オレンジ
+    : { fill: "#d6eaf8", stroke: "#1a5276" };  // 青（相手の戦法）
+
+<rect
+  x={pos.x} y={pos.y} width={NODE_W} height={NODE_H} rx={isRoot ? 9 : 6}
+  fill={node.status === "todo" ? s.fill : nodeColor.fill}
+  stroke={node.isMergeTarget ? "#6B3FA0" : nodeColor.stroke}
+  strokeWidth={isRoot ? 1.5 : node.isMergeTarget ? 1.5 : 0.9}
+  strokeDasharray={s.dashed ? "5 2.5" : "none"}
+/>
                   {!isRoot && node.status !== "todo" && (
                     <circle cx={pos.x + NODE_W - 8} cy={pos.y + 7} r={3.5} fill={STATUS_META[node.status]?.dot || "#B4B2A9"} />
                   )}
@@ -818,7 +827,7 @@ const STEPS = ["切り口", "詳細入力"];
 
 const APPROACHES = [
   { key: "相手の戦法", icon: "ti-swords",     iconColor: "#7B3010", bg: "#fadbd8", title: "相手の戦法", sub: "居飛車 / 三間飛車 / 穴熊 など\n相手の出方によって分岐する" },
-  { key: "自分の志向", icon: "ti-user",       iconColor: "#1a5276", bg: "#d6eaf8", title: "自分の志向", sub: "受け志向 / 攻め志向 / バランス型\n自分のスタイルで分岐する" },
+  { key: "自分の戦法", icon: "ti-user", iconColor: "#c87820", bg: "#fde8cc", title: "自分の戦法", sub: "四間飛車 / 角換わり / 矢倉 など\n自分が指す戦法で分岐する" },
   { key: "局面の状況", icon: "ti-chart-dots", iconColor: "#854F0B", bg: "#FAEEDA", title: "局面の状況", sub: "銀が間に合った / 穴熊に組まれた\n局面の条件によって分岐する" },
 ];
 
@@ -982,7 +991,7 @@ export function NewNode({ tree, parentNodeId, onComplete, onCancel, onOpenNode }
           <div>
             {/* 候補タグ */}
             <div style={{ fontSize: 11, color: "rgba(26,15,0,0.5)", padding: "14px 16px 8px" }}>
-              {approach === "相手の戦法" ? "相手の戦法から選ぶ" : approach === "自分の志向" ? "志向から選ぶ" : "局面の状況から選ぶ"}
+              {approach === "相手の戦法" ? "相手の戦法から選ぶ" : approach === "自分の戦法" ? "自分の戦法から選ぶ" : "局面の状況から選ぶ"}
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 7, padding: "0 16px 12px" }}>
               {(SUGGESTIONS[approach] || []).map((s) => (
