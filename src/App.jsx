@@ -150,6 +150,16 @@ const handleOpenTree = async (treeId) => {
     console.error("公開取り消し失敗", e);
   }
 };
+  const handleUnpublishTree = async (treeId) => {
+  try {
+    await unpublishTree(treeId);
+    setMyTrees((prev) =>
+      prev.map((t) => (t.id === treeId ? { ...t, is_public: false } : t))
+    );
+  } catch (e) {
+    console.error("公開取り消し失敗", e);
+  }
+};
 
   // ── ノード操作 ───────────────────────────────
   const handleNodeSelect = (nodeId) => {
