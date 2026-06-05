@@ -211,7 +211,7 @@ function ModalActionButtons({ onCancel, onConfirm, confirmLabel, disabled, dange
 // ──────────────────────────────────────────
 // BoardSection: 将棋盤の表示/追加エリア
 // ──────────────────────────────────────────
-function BoardSection({ boardVisible, boardData, stamps, parentBoard, parentLabel, onToggle, onChange, onDelete }) {
+function BoardSection({ boardVisible, boardData, stamps, handSente, handGote, parentBoard, parentLabel, onToggle, onChange, onDelete }){
   return (
     <div style={{ padding: "8px 16px 0" }}>
       {/* ヘッダー行 */}
@@ -283,12 +283,12 @@ function BoardSection({ boardVisible, boardData, stamps, parentBoard, parentLabe
           )}
 
           <ShogiBoard
-            board={boardData}
-            stamps={stamps}
-              handSente={record.handSente ?? {p:0,l:0,n:0,s:0,g:0,b:0,r:0}}
-              handGote={record.handGote   ?? {p:0,l:0,n:0,s:0,g:0,b:0,r:0}}
-            onChange={({ board, stamps: s }) => onChange(board, s)}
-          />
+  board={boardData}
+  stamps={stamps}
+  handSente={handSente}
+  handGote={handGote}
+  onChange={({ board, stamps: s, handSente: hs, handGote: hg }) => onChange(board, s, hs, hg)}
+/>
 
           <button
             onClick={onDelete}
@@ -1169,6 +1169,8 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
   const [boardVisible, setBoardVisible] = useState(false);
   const [boardData,    setBoardData]    = useState(null);
   const [stamps,       setStamps]       = useState([]);
+  const [handSente,   setHandSente]   = useState({p:0,l:0,n:0,s:0,g:0,b:0,r:0});
+  const [handGote,    setHandGote]    = useState({p:0,l:0,n:0,s:0,g:0,b:0,r:0});
 
   // nodeId が変わったらフォームをリセット
   useEffect(() => {
@@ -1293,7 +1295,9 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
           parentBoard={parent?.board}
           parentLabel={parent?.label}
           onToggle={handleToggleBoard}
-          onChange={(board, s) => { setBoardData(board); setStamps(s); }}
+          handSente={handSente}
+          handGote={handGote}
+          onChange={(board, s, hs, hg) => { setBoardData(board); setStamps(s); setHandSente(hs); setHandGote(hg); }}
           onDelete={() => { setBoardData(null); setStamps([]); setBoardVisible(false); }}
         />
 
