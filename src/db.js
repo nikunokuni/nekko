@@ -172,3 +172,55 @@ export async function likeTree(userId, treeId) {
 export async function unlikeTree(userId, treeId) {
   await supabase.from("likes").delete().eq("user_id", userId).eq("tree_id", treeId);
 }
+/** ツリーを公開状態にする */
+export async function publishTree(treeId) {
+  try {
+    const { error } = await supabase
+      .from("trees")
+      .update({ is_public: true })
+      .eq("id", treeId);
+    if (error) throw error;
+  } catch (e) {
+    console.error("publishTree error:", e);
+    throw e;
+  }
+}
+
+/**
+ * ノードを複数まとめて削除し、親ノードの childIds からも除く
+ * @param {string[]} idsToDelete - 削除するノードIDの配列（対象 + 子孫）
+ * @param {string|null} parentId - 対象ノードの親ID（childIds更新用）
+ * @param {string} treeId
+ */
+export async function deleteNodes(idsToDelete, parentId, treeId) {
+  try {
+    // 1. ノードレコードを削除
+    const { error: delError } = await supabase
+      .from("nodes")
+      .delete()
+      .in("id", idsToDelete);
+    if (delError) throw delError;
+
+    // 2. 親ノードの childIds から削除対象を除く
+    if (parentId) {
+      const { data: parentData, error: fetchError } = await supabase
+        .from("nodes")
+        .select("child_ids")
+        .eq("id", parentId)
+        .single();
+      if (fetchError) throw fetchError;
+
+      const newChildIds = (parentData.child_ids || []).filter(
+        (id) => !idsToDelete.includes(id)
+      );
+      const { error: updateError } = await supabase
+        .from("nodes")
+        .update({ child_ids: newChildIds })
+        .eq("id", parentId);
+      if (updateError) throw updateError;
+    }
+  } catch (e) {
+    console.error("deleteNodes error:", e);
+    throw e;
+  }
+}
