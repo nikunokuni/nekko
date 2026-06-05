@@ -140,16 +140,7 @@ const handleOpenTree = async (treeId) => {
       console.error("公開失敗", e);
     }
   };
-  const handleUnpublishTree = async (treeId) => {
-  try {
-    await publishTree(treeId, false); // ← falseを渡して非公開に
-    setMyTrees((prev) =>
-      prev.map((t) => (t.id === treeId ? { ...t, is_public: false } : t))
-    );
-  } catch (e) {
-    console.error("公開取り消し失敗", e);
-  }
-};
+  
   const handleUnpublishTree = async (treeId) => {
   try {
     await unpublishTree(treeId);
