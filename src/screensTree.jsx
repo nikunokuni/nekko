@@ -285,6 +285,8 @@ function BoardSection({ boardVisible, boardData, stamps, parentBoard, parentLabe
           <ShogiBoard
             board={boardData}
             stamps={stamps}
+              handSente={record.handSente ?? {p:0,l:0,n:0,s:0,g:0,b:0,r:0}}
+              handGote={record.handGote   ?? {p:0,l:0,n:0,s:0,g:0,b:0,r:0}}
             onChange={({ board, stamps: s }) => onChange(board, s)}
           />
 
