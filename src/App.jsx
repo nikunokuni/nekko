@@ -10,7 +10,7 @@ import {
   getSession, getProfile, signOut,
   fetchMyTrees, fetchPublicTrees, fetchNodes,
   createTree, createNode, updateNode, updateTree, deleteTree,
-  buildTreeFromNodes, publishTree, deleteNodes,
+  buildTreeFromNodes, publishTree, deleteNodes, unpublishTree 
 } from "./db";
 
 const NAV_TABS = [
