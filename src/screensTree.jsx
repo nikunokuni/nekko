@@ -565,20 +565,19 @@ const totalH = posValues.length ? Math.max(...posValues.map((p) => p.y)) + NODE_
               return <path key={i} d={d} fill="none" stroke={e.color} strokeWidth={1.2} strokeDasharray={e.dashed ? "5 2.5" : "none"} markerEnd={`url(#arr${mIdx})`} />;
             })}
 
-            {Object.entries(positions).map(([id, pos]) => {
-              const node   = nodes[id];
-              if (!node) return null;
-              const s      = STATUS_NODE[node.status] || STATUS_NODE.todo;
-              const isRoot = id === rootId;
-             return (() => {
-  const isMine = node.approachType === "自分の志向" || node.approachType === "自分の選択";
+           {Object.entries(positions).map(([id, pos]) => {
+  const node = nodes[id];
+  if (!node) return null;
+  const s       = STATUS_NODE[node.status] || STATUS_NODE.todo;
+  const isRoot  = id === rootId;
+  const isMine  = node.approachType === "自分の志向" || node.approachType === "自分の選択";
   const nodeColor = isRoot
     ? { fill: "#f0e8d4", stroke: "#a07840" }
     : isMine
     ? { fill: "#fde8cc", stroke: "#c87820" }
     : { fill: "#d6eaf8", stroke: "#1a5276" };
 
-  return (
+  return ( 
     <g key={id} className="node-g" onClick={() => onNodeSelect(id)} style={{ cursor: "pointer" }}>
       <rect
         x={pos.x} y={pos.y} width={NODE_W} height={NODE_H} rx={isRoot ? 9 : 6}
