@@ -7,6 +7,11 @@ export const PIECE_LABEL = {
   k:'玉', r:'飛', b:'角', g:'金', s:'銀', n:'桂', l:'香', p:'歩',
   K:'王', R:'龍', B:'馬', G:'金', S:'全', N:'圭', L:'杏', P:'と',
 };
+export const PROMOTED_LABEL = {
+  p: 'と', l: '杏', n: '圭', s: '全', b: '馬', r: '龍',
+};
+// 成れる駒の種類（小文字baseKeyで判定）
+export const PROMOTABLE = new Set(['p', 'l', 'n', 's', 'b', 'r']);
 
 // ── 初期盤面（平手）──────────────────────────────
 export const INITIAL_BOARD = [
