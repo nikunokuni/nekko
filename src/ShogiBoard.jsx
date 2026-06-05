@@ -1,9 +1,9 @@
 // ══════════════════════════════════════════════════
 // ShogiBoard.jsx  ―  将棋盤ウィジェット
-//   Canvas 描画 / 駒の移動 / スタンプ操作
+//   Canvas描画 / 駒移動 / 持ち駒 / 成り / スタンプ
 // ══════════════════════════════════════════════════
 import { useRef, useEffect, useState, useCallback } from "react";
-import { PIECE_LABEL } from "./data";
+import { PIECE_LABEL, PROMOTED_LABEL, PROMOTABLE } from "./data";
 
 const CELL = 32;
 const COLS = 9, ROWS = 9;
@@ -11,6 +11,23 @@ const COLS = 9, ROWS = 9;
 const STAMP_COLOR = { maru:'#2471A3', ya:'#6B3FA0', hoshi:'#B7950B', tri:'#A93226', q:'#5F5E5A' };
 const STAMP_CHAR  = { maru:'○', ya:'→', hoshi:'★', tri:'△', q:'？' };
 
+// ── 駒ユーティリティ ──────────────────────────────
+const isSentePiece     = (p) => /^\+?[a-z]$/.test(p);          // 先手判定
+const isPromoted       = (p) => p.startsWith('+');              // 成り済み判定
+const baseKey          = (p) => p.replace('+', '').toLowerCase(); // 基本キー取得
+
+const getPieceLabel = (p) => {
+  if (isPromoted(p)) return PROMOTED_LABEL[baseKey(p)] ?? p;
+  return PIECE_LABEL[p] ?? p;
+};
+
+// 成りゾーン判定（先手:row0〜2、後手:row6〜8）
+const inPromotionZone = (row, isSente) => isSente ? row <= 2 : row >= 6;
+
+// 持ち駒の空オブジェクト
+const emptyHand = () => ({ p:0, l:0, n:0, s:0, g:0, b:0, r:0 });
+
+// ── roundRect ────────────────────────────────────
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
   ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y);
@@ -24,31 +41,89 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-// 先手判定：小文字アルファベットのみ先手（大文字=後手）
-const isSentePiece = (p) => /^[a-z]$/.test(p);
+// ── 持ち駒UIパーツ ────────────────────────────────
+const HAND_ORDER = ['r','b','g','s','n','l','p'];
+const HAND_LABEL = { r:'飛',b:'角',g:'金',s:'銀',n:'桂',l:'香',p:'歩' };
 
-export default function ShogiBoard({ board: boardProp, stamps: stampsProp = [], onChange, readOnly = false }) {
+function HandArea({ hand, isSente, selectedHand, onSelectPiece, readOnly }) {
+  const label = isSente ? '自分の持ち駒' : '相手の持ち駒';
+  const pieces = HAND_ORDER.filter(k => hand[k] > 0);
+
+  return (
+    <div style={{
+      minHeight: 36,
+      background: '#f5efe0',
+      borderRadius: 6,
+      padding: '4px 8px',
+      marginBottom: 4,
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6,
+      flexWrap: 'wrap',
+      border: '1px solid rgba(26,15,0,0.12)',
+    }}>
+      <span style={{ fontSize:10, color:'rgba(26,15,0,0.45)', minWidth:60 }}>{label}</span>
+      {pieces.length === 0 && (
+        <span style={{ fontSize:11, color:'rgba(26,15,0,0.3)' }}>なし</span>
+      )}
+      {pieces.map(k => {
+        const isSelected = selectedHand?.piece === k && selectedHand?.isSente === isSente;
+        return (
+          <div
+            key={k}
+            onClick={() => !readOnly && onSelectPiece(k, isSente)}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexDirection: 'column',
+              width: 28, height: 32,
+              background: isSelected ? '#f0e8d4' : '#faf4e8',
+              border: isSelected ? '1.5px solid #a07840' : '1px solid rgba(26,15,0,0.2)',
+              borderRadius: 4,
+              cursor: readOnly ? 'default' : 'pointer',
+              fontFamily: "'Noto Serif JP',serif",
+              transform: isSente ? 'none' : 'rotate(180deg)',
+            }}
+          >
+            <span style={{ fontSize: 11, color: '#1a0f00', lineHeight: 1 }}>{HAND_LABEL[k]}</span>
+            <span style={{ fontSize: 9,  color: '#a07840', lineHeight: 1 }}>{hand[k]}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── メインコンポーネント ──────────────────────────
+export default function ShogiBoard({
+  board: boardProp,
+  stamps: stampsProp   = [],
+  handSente: hSenteProp = emptyHand(),
+  handGote:  hGoteProp  = emptyHand(),
+  onChange,
+  readOnly = false,
+}) {
   const canvasRef = useRef(null);
+
   const [board,        setBoard]        = useState(() => boardProp ? JSON.parse(JSON.stringify(boardProp)) : null);
   const [stamps,       setStamps]       = useState(stampsProp);
-  const [selected,     setSelected]     = useState(null);
+  const [handSente,    setHandSente]    = useState(hSenteProp);
+  const [handGote,     setHandGote]     = useState(hGoteProp);
+  const [selected,     setSelected]     = useState(null);      // {row,col} | null
+  const [selectedHand, setSelectedHand] = useState(null);      // {piece, isSente} | null
   const [tool,         setTool]         = useState('move');
   const [currentStamp, setCurrentStamp] = useState('maru');
+  const [promoteModal, setPromoteModal] = useState(null);      // {nextBoard,nextHS,nextHG,piece}
 
-  // boardProp が変化したときのみ内部 state を更新（JSON 文字列比較で無限ループ防止）
+  // boardProp 変化時のみ内部 state 更新
   const boardPropStr = boardProp ? JSON.stringify(boardProp) : null;
   useEffect(() => {
     if (boardProp) setBoard(JSON.parse(JSON.stringify(boardProp)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [boardPropStr]);
+  }, [boardPropStr]); // eslint-disable-line
 
   const stampsPropStr = JSON.stringify(stampsProp);
-  useEffect(() => {
-    setStamps(stampsProp);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stampsPropStr]);
+  useEffect(() => { setStamps(stampsProp); }, [stampsPropStr]); // eslint-disable-line
 
-  // ── Canvas 描画 ───────────────────────────────
+  // ── Canvas 描画 ─────────────────────────────────
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas || !board) return;
@@ -78,25 +153,30 @@ export default function ShogiBoard({ board: boardProp, stamps: stampsProp = [], 
         if (!p || p === ' ') continue;
         const x = c*CELL+CELL/2, y = r*CELL+CELL/2;
         const isSente = isSentePiece(p);
+        const promoted = isPromoted(p);
         const pw = CELL*0.72, ph = CELL*0.78;
 
+        // 駒の形
         ctx.save();
         if (!isSente) { ctx.translate(x,y); ctx.rotate(Math.PI); ctx.translate(-x,-y); }
         ctx.fillStyle = '#faf4e8';
         roundRect(ctx, x-pw/2, y-ph/2, pw, ph, 3);
         ctx.fill();
-        ctx.strokeStyle = 'rgba(26,15,0,0.3)'; ctx.lineWidth = 0.5; ctx.stroke();
+        ctx.strokeStyle = promoted ? 'rgba(180,0,0,0.6)' : 'rgba(26,15,0,0.3)';
+        ctx.lineWidth   = promoted ? 1.2 : 0.5;
+        ctx.stroke();
         ctx.restore();
 
+        // 駒の文字
         ctx.save();
         ctx.font = `${CELL*0.38}px 'Noto Serif JP',serif`;
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillStyle = isSente ? '#1a0f00' : '#7B3010';
+        ctx.fillStyle = promoted ? '#c0392b' : (isSente ? '#1a0f00' : '#7B3010');
         if (!isSente) {
           ctx.translate(x,y); ctx.rotate(Math.PI);
-          ctx.fillText(PIECE_LABEL[p.toLowerCase()] || p, 0, 0);
+          ctx.fillText(getPieceLabel(p), 0, 0);
         } else {
-          ctx.fillText(PIECE_LABEL[p] || p, x, y);
+          ctx.fillText(getPieceLabel(p), x, y);
         }
         ctx.restore();
       }
@@ -118,7 +198,35 @@ export default function ShogiBoard({ board: boardProp, stamps: stampsProp = [], 
 
   useEffect(() => { draw(); }, [draw]);
 
-  // ── クリック / タップ処理 ─────────────────────
+  // ── 盤面・持ち駒を onChange に通知 ──────────────
+  const notify = useCallback((nextBoard, nextHS, nextHG, nextStamps) => {
+    onChange?.({
+      board:     nextBoard  ?? board,
+      stamps:    nextStamps ?? stamps,
+      handSente: nextHS     ?? handSente,
+      handGote:  nextHG     ?? handGote,
+    });
+  }, [board, stamps, handSente, handGote, onChange]);
+
+  // ── 成り確認モーダルを経て盤面確定 ──────────────
+  const confirmPromotion = useCallback((doPromote) => {
+    if (!promoteModal) return;
+    const { nextBoard, nextHS, nextHG, movedPiece, toRow, toCol } = promoteModal;
+    const finalBoard = nextBoard.map(r => [...r]);
+
+    if (doPromote) {
+      const p = finalBoard[toRow][toCol];
+      finalBoard[toRow][toCol] = isSentePiece(p) ? '+' + p : '+' + p;
+    }
+
+    setBoard(finalBoard);
+    setHandSente(nextHS);
+    setHandGote(nextHG);
+    setPromoteModal(null);
+    notify(finalBoard, nextHS, nextHG, stamps);
+  }, [promoteModal, stamps, notify]);
+
+  // ── クリック処理 ─────────────────────────────────
   const handleClick = useCallback((e) => {
     if (readOnly || !board) return;
     const canvas = canvasRef.current;
@@ -128,38 +236,94 @@ export default function ShogiBoard({ board: boardProp, stamps: stampsProp = [], 
     const row = Math.floor((e.clientY - rect.top)  * (canvas.height / rect.height) / CELL);
     if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return;
 
+    // ── スタンプ・消しゴムモード ──
     if (tool === 'stamp') {
       const next = stamps.filter(s => !(s.row===row && s.col===col));
       next.push({ row, col, type: currentStamp });
       setStamps(next);
-      onChange?.({ board, stamps: next });
+      notify(board, handSente, handGote, next);
       return;
     }
     if (tool === 'erase') {
       const next = stamps.filter(s => !(s.row===row && s.col===col));
       setStamps(next);
-      onChange?.({ board, stamps: next });
+      notify(board, handSente, handGote, next);
       return;
     }
-    // move モード
+
+    // ── 持ち駒を打つモード（持ち駒が選択済み）──
+    if (selectedHand) {
+      const { piece, isSente } = selectedHand;
+      const target = board[row]?.[col];
+      if (target && target !== ' ') {
+        // 駒がある場所には打てない → 選択解除
+        setSelectedHand(null);
+        return;
+      }
+      const nextBoard = board.map(r => [...r]);
+      nextBoard[row][col] = isSente ? piece : piece.toUpperCase();
+      const nextHS = isSente  ? { ...handSente, [piece]: handSente[piece] - 1 } : handSente;
+      const nextHG = !isSente ? { ...handGote,  [piece]: handGote[piece]  - 1 } : handGote;
+      setBoard(nextBoard);
+      setHandSente(nextHS);
+      setHandGote(nextHG);
+      setSelectedHand(null);
+      notify(nextBoard, nextHS, nextHG, stamps);
+      return;
+    }
+
+    // ── 移動モード ──
     if (selected) {
       const from = selected;
       setSelected(null);
-      if (from.row === row && from.col === col) return;
-      const next = board.map(r => [...r]);
-      next[row][col] = next[from.row][from.col];
-      next[from.row][from.col] = ' ';
-      setBoard(next);
-      onChange?.({ board: next, stamps });
-    } else {
-      if (board[row]?.[col] && board[row][col] !== ' ') setSelected({ row, col });
-    }
-  }, [board, stamps, selected, tool, currentStamp, readOnly, onChange]);
+      if (from.row === row && from.col === col) return; // 同じマスは選択解除のみ
 
-  // タッチ端末で onClick が発火しないブラウザへの対応
+      const movingPiece = board[from.row][from.col];
+      const isSente = isSentePiece(movingPiece);
+      const target  = board[row]?.[col];
+
+      // 相手駒を取る → 持ち駒に加算（成りを剥がしてbaseKeyで）
+      let nextHS = { ...handSente };
+      let nextHG = { ...handGote };
+      if (target && target !== ' ') {
+        const capturedBase = baseKey(target);
+        if (isSente) nextHS = { ...nextHS, [capturedBase]: (nextHS[capturedBase] ?? 0) + 1 };
+        else         nextHG = { ...nextHG, [capturedBase]: (nextHG[capturedBase] ?? 0) + 1 };
+      }
+
+      const nextBoard = board.map(r => [...r]);
+      nextBoard[row][col]       = movingPiece;
+      nextBoard[from.row][from.col] = ' ';
+
+      // 成り判定：未成駒 && 成れる種類 && 成りゾーン
+      const canPromote =
+        !isPromoted(movingPiece) &&
+        PROMOTABLE.has(baseKey(movingPiece)) &&
+        (inPromotionZone(row, isSente) || inPromotionZone(from.row, isSente));
+
+      if (canPromote) {
+        // 成り確認モーダルを表示
+        setPromoteModal({ nextBoard, nextHS, nextHG, movedPiece: movingPiece, toRow: row, toCol: col });
+      } else {
+        setBoard(nextBoard);
+        setHandSente(nextHS);
+        setHandGote(nextHG);
+        notify(nextBoard, nextHS, nextHG, stamps);
+      }
+      return;
+    }
+
+    // 駒を選択
+    if (board[row]?.[col] && board[row][col] !== ' ') {
+      setSelected({ row, col });
+    }
+  }, [board, stamps, selected, selectedHand, tool, currentStamp, readOnly, handSente, handGote, notify]);
+
+  // タッチ対応
   const handleTouchEnd = useCallback((e) => {
     if (readOnly || !board) return;
     if (e.changedTouches.length !== 1) return;
+    e.preventDefault();
     const t = e.changedTouches[0];
     handleClick({ clientX: t.clientX, clientY: t.clientY });
   }, [handleClick, readOnly, board]);
@@ -169,12 +333,28 @@ export default function ShogiBoard({ board: boardProp, stamps: stampsProp = [], 
   const W = COLS * CELL, H = ROWS * CELL;
 
   return (
-    <div>
+    <div style={{ maxWidth: 400 }}>
+
+      {/* 後手の持ち駒（上） */}
+      <HandArea
+        hand={handGote}
+        isSente={false}
+        selectedHand={selectedHand}
+        onSelectPiece={(piece) => {
+          if (tool !== 'move') return;
+          setSelected(null);
+          setSelectedHand(prev =>
+            prev?.piece === piece && !prev?.isSente ? null : { piece, isSente: false }
+          );
+        }}
+        readOnly={readOnly}
+      />
+
       {/* ツールバー */}
       {!readOnly && (
         <div style={{ display:'flex', gap:6, marginBottom:8, flexWrap:'wrap' }}>
           {[['move','動かす','ti-arrows-move'],['stamp','スタンプ','ti-stamp'],['erase','消す','ti-eraser']].map(([t,lbl,icon]) => (
-            <button key={t} onClick={() => setTool(t)} style={{
+            <button key={t} onClick={() => { setTool(t); setSelected(null); setSelectedHand(null); }} style={{
               display:'flex', alignItems:'center', gap:4,
               padding:'4px 9px', borderRadius:8, fontSize:11, cursor:'pointer',
               border:'0.5px solid', fontFamily:"'Noto Serif JP',serif",
@@ -198,12 +378,12 @@ export default function ShogiBoard({ board: boardProp, stamps: stampsProp = [], 
               display:'flex', alignItems:'center', justifyContent:'center',
               fontSize:14, color:STAMP_COLOR[k], background:'#faf4e8',
               border: currentStamp===k ? `1.5px solid ${STAMP_COLOR[k]}` : '1.5px solid transparent',
-              transition:'all 0.15s',
             }}>{ch}</div>
           ))}
         </div>
       )}
 
+      {/* 将棋盤 Canvas */}
       <canvas
         ref={canvasRef}
         width={W} height={H}
@@ -216,11 +396,63 @@ export default function ShogiBoard({ board: boardProp, stamps: stampsProp = [], 
         }}
       />
 
+      {/* 先手の持ち駒（下） */}
+      <HandArea
+        hand={handSente}
+        isSente={true}
+        selectedHand={selectedHand}
+        onSelectPiece={(piece) => {
+          if (tool !== 'move') return;
+          setSelected(null);
+          setSelectedHand(prev =>
+            prev?.piece === piece && prev?.isSente ? null : { piece, isSente: true }
+          );
+        }}
+        readOnly={readOnly}
+      />
+
+      {/* ヒント文 */}
       {!readOnly && (
-        <div style={{fontSize:10,color:'#B4B2A9',marginTop:5,textAlign:'center'}}>
+        <div style={{fontSize:10,color:'#B4B2A9',marginTop:4,textAlign:'center'}}>
           {tool==='move'  ? '駒をタップして選択 → 移動先をタップ' :
            tool==='stamp' ? 'スタンプを選んでマスをタップ' :
                             'スタンプが置かれたマスをタップして消す'}
+        </div>
+      )}
+
+      {/* 成り確認モーダル */}
+      {promoteModal && (
+        <div style={{
+          position:'fixed', inset:0, background:'rgba(0,0,0,0.45)',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          zIndex: 9999,
+        }}>
+          <div style={{
+            background:'#faf4e8', borderRadius:12, padding:'24px 28px',
+            textAlign:'center', fontFamily:"'Noto Serif JP',serif",
+            boxShadow:'0 4px 24px rgba(0,0,0,0.3)', minWidth:200,
+          }}>
+            <div style={{fontSize:15,marginBottom:16,color:'#1a0f00'}}>成りますか？</div>
+            <div style={{display:'flex',gap:12,justifyContent:'center'}}>
+              <button
+                onClick={() => confirmPromotion(true)}
+                style={{
+                  padding:'8px 20px', borderRadius:8, border:'none',
+                  background:'#a07840', color:'#fff', fontSize:13,
+                  cursor:'pointer', fontFamily:"'Noto Serif JP',serif",
+                }}
+              >成る</button>
+              <button
+                onClick={() => confirmPromotion(false)}
+                style={{
+                  padding:'8px 20px', borderRadius:8,
+                  border:'1px solid rgba(26,15,0,0.25)',
+                  background:'#faf4e8', color:'#1a0f00', fontSize:13,
+                  cursor:'pointer', fontFamily:"'Noto Serif JP',serif",
+                }}
+              >成らない</button>
+            </div>
+          </div>
         </div>
       )}
     </div>
