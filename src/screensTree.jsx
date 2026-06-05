@@ -453,7 +453,44 @@ function EditTreeModal({ tree, onClose, onSave, onPublish }) {
             })}
           </div>
         </div>
+{/* 公開ボタン */}
+        {!tree.is_public ? (
+          <button
+            onClick={handlePublish}
+            disabled={publishing}
+            style={{
+              width:          "100%",
+              padding:        11,
+              borderRadius:   T.radius.lg,
+              border:         `0.5px solid ${T.green}`,
+              background:     T.greenBg,
+              color:          T.green,
+              fontSize:       T.fontSize.lg,
+              fontFamily:     T.fontSerif,
+              fontWeight:     600,
+              cursor:         publishing ? "default" : "pointer",
+              marginBottom:   10,
+              display:        "flex",
+              alignItems:     "center",
+              justifyContent: "center",
+              gap:            6,
+            }}
+          >
+            <i className="ti ti-world" style={{ fontSize: 14 }} />
+            {publishing ? "公開中..." : "このツリーを公開する"}
+          </button>
+        ) : (
+          <div style={{ textAlign: "center", fontSize: T.fontSize.md, color: T.green, marginBottom: 10, padding: "8px 0" }}>
+            <i className="ti ti-world-check" style={{ fontSize: 13 }} /> 公開中
+          </div>
+        )}
 
+        <ModalActionButtons
+          onCancel={onClose}
+          onConfirm={handleSave}
+          confirmLabel={saving ? "保存中..." : "保存する"}
+          disabled={!name.trim() || saving}
+        />
         <ModalActionButtons
           onCancel={onClose}
           onConfirm={handleSave}
