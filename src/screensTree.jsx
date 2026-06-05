@@ -722,7 +722,7 @@ export function TreeList({ trees, profile, onOpen, onPublic, onNewTree, onSignOu
           tree={editTarget}
           onClose={() => setEditTarget(null)}
           onSave={onEditTree}
-          onPublish={onPublic}
+          onPublish={onPublish}
         />
       )}
       {deleteTarget && (
