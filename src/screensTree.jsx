@@ -422,9 +422,9 @@ export function TreeList({ trees, profile, onOpen, onPublic, onNewTree, onSignOu
 const NODE_W = 110, NODE_H = 38;
 
 const STATUS_NODE = {
-  done: { fill: "#EAF3DE", stroke: "#3B6D11", text: "#27500A" },
-  wip:  { fill: "#fadbd8", stroke: "#7B3010", text: "#7B3010" },
-  todo: { fill: "#F1EFE8", stroke: "#B4B2A9", text: "#5F5E5A", dashed: true },
+  done: { stroke: "#3B6D11", text: "#27500A" },
+  wip:  { stroke: "#7B3010", text: "#7B3010" },
+  todo: { stroke: "#B4B2A9", text: "#5F5E5A", dashed: true },
 };
 
 const APPROACH_LINE = {
