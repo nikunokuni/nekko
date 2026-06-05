@@ -140,6 +140,16 @@ const handleOpenTree = async (treeId) => {
       console.error("公開失敗", e);
     }
   };
+  const handleUnpublishTree = async (treeId) => {
+  try {
+    await publishTree(treeId, false); // ← falseを渡して非公開に
+    setMyTrees((prev) =>
+      prev.map((t) => (t.id === treeId ? { ...t, is_public: false } : t))
+    );
+  } catch (e) {
+    console.error("公開取り消し失敗", e);
+  }
+};
 
   // ── ノード操作 ───────────────────────────────
   const handleNodeSelect = (nodeId) => {
@@ -271,12 +281,14 @@ const handleOpenTree = async (treeId) => {
           </div>
         )}
 
-        {screen==="list" && (
-          <TreeList trees={myTrees} profile={profile}
-            onOpen={handleOpenTree} onPublic={handlePublishTree}
-            onNewTree={handleNewTree} onSignOut={handleSignOut}
-            onDeleteTree={handleDeleteTree} onEditTree={handleEditTree}/>
-        )}
+       {screen==="list" && (
+  <TreeList trees={myTrees} profile={profile}
+    onOpen={handleOpenTree} onPublic={handlePublishTree}
+    onNewTree={handleNewTree} onSignOut={handleSignOut}
+    onDeleteTree={handleDeleteTree} onEditTree={handleEditTree}
+    onPublish={handlePublishTree}
+    onUnpublish={handleUnpublishTree}/>
+)}
         {screen==="map" && activeTree && (
           <MindMap tree={activeTree} onNodeSelect={handleNodeSelect} onBack={() => setScreen("list")}/>
         )}
