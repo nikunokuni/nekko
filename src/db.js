@@ -192,33 +192,13 @@ export async function publishTree(treeId) {
  * @param {string|null} parentId - 対象ノードの親ID（childIds更新用）
  * @param {string} treeId
  */
-export async function deleteNodes(idsToDelete, parentId, treeId) {
+export async function deleteNodes(idsToDelete) {
   try {
-    // 1. ノードレコードを削除
-    const { error: delError } = await supabase
+    const { error } = await supabase
       .from("nodes")
       .delete()
       .in("id", idsToDelete);
-    if (delError) throw delError;
-
-    // 2. 親ノードの childIds から削除対象を除く
-    if (parentId) {
-      const { data: parentData, error: fetchError } = await supabase
-        .from("nodes")
-        .select("child_ids")
-        .eq("id", parentId)
-        .single();
-      if (fetchError) throw fetchError;
-
-      const newChildIds = (parentData.child_ids || []).filter(
-        (id) => !idsToDelete.includes(id)
-      );
-      const { error: updateError } = await supabase
-        .from("nodes")
-        .update({ child_ids: newChildIds })
-        .eq("id", parentId);
-      if (updateError) throw updateError;
-    }
+    if (error) throw error;
   } catch (e) {
     console.error("deleteNodes error:", e);
     throw e;
