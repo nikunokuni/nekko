@@ -185,7 +185,18 @@ export async function publishTree(treeId) {
     throw e;
   }
 }
-
+export async function unpublishTree(treeId) {
+  try {
+    const { error } = await supabase
+      .from("trees")
+      .update({ is_public: false })
+      .eq("id", treeId);
+    if (error) throw error;
+  } catch (e) {
+    console.error("unpublishTree error:", e);
+    throw e;
+  }
+}
 /**
  * ノードを複数まとめて削除し、親ノードの childIds からも除く
  * @param {string[]} idsToDelete - 削除するノードIDの配列（対象 + 子孫）
