@@ -172,7 +172,7 @@ const handleOpenTree = async (treeId) => {
 
   const handleDeleteNode = async (idsToDelete, parentId) => {
     try {
-      await deleteNodes(idsToDelete, parentId, activeTree.id);
+      await deleteNodes(idsToDelete);
       setActiveTree((prev) => {
         const newNodes = { ...prev.nodes };
         idsToDelete.forEach((id) => delete newNodes[id]);
