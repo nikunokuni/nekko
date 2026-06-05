@@ -602,15 +602,6 @@ export function MindMap({ tree, onNodeSelect, onBack }) {
           </svg>
         </div>
 
-        {/* FAB */}
-        <button
-          onClick={() => onNodeSelect("new")}
-          style={{ position: "absolute", bottom: 14, right: 14, width: 42, height: 42, borderRadius: "50%", background: "#a07840", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#faf4e8", fontSize: 20, zIndex: 5 }}
-          aria-label="ノードを追加"
-        >
-          <i className="ti ti-plus" />
-        </button>
-
         {drawerOpen && <div onClick={() => setDrawerOpen(false)} style={{ position: "absolute", inset: 0, background: "rgba(26,15,0,0.38)", zIndex: 20 }} />}
 
         {/* 目次ドロワー */}
@@ -821,9 +812,9 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
 }
 
 // ══════════════════════════════════════════════════
-// NewNode  ―  ノード追加ウィザード（4ステップ）
+// NewNode  ―  ノード追加ウィザード（2ステップ）
 // ══════════════════════════════════════════════════
-const STEPS = ["切り口", "候補", "盤面", "メモ"];
+const STEPS = ["切り口", "詳細入力"];
 
 const APPROACHES = [
   { key: "相手の戦法", icon: "ti-swords",     iconColor: "#7B3010", bg: "#fadbd8", title: "相手の戦法", sub: "居飛車 / 三間飛車 / 穴熊 など\n相手の出方によって分岐する" },
@@ -841,39 +832,45 @@ export function NewNode({ tree, parentNodeId, onComplete, onCancel, onOpenNode }
   const [memo,       setMemo]       = useState("");
   const [boardData,  setBoardData]  = useState(null);
   const [stamps,     setStamps]     = useState([]);
+  const [boardVisible, setBoardVisible] = useState(false);
   const [done,       setDone]       = useState(false);
   const [newNodeId,  setNewNodeId]  = useState(null);
 
   const displayName = name || suggestion || "新しいノード";
+  const pct = ((step + 1) / STEPS.length) * 100;
 
-  const canNext = () => {
-    if (step === 0) return !!approach;
-    if (step === 1) return !!(name.trim() || suggestion);
-    return true;
+  // 切り口タップで即STEP1へ
+  const handleApproachSelect = (key) => {
+    setApproach(key);
+    setStep(1);
   };
 
-  const handleNext = async () => {
-    if (step === 1 && suggestion && !name.trim()) setName(suggestion);
-    if (step === 2 && !boardData) {
+  const handleToggleBoard = () => {
+    if (!boardVisible && !boardData) {
       const pb = parentNode?.board || null;
       setBoardData(pb ? JSON.parse(JSON.stringify(pb)) : JSON.parse(JSON.stringify(INITIAL_BOARD)));
     }
-    if (step < STEPS.length - 1) { setStep((s) => s + 1); return; }
+    setBoardVisible((v) => !v);
+  };
 
+  const canNext = () => step === 1 && !!(name.trim() || suggestion);
+
+  const handleSubmit = async () => {
+    if (!canNext()) return;
+    const finalBoard = boardVisible ? boardData : null;
+    const finalStamps = boardVisible ? stamps : [];
     const createdId = await onComplete({
-      label:       name.trim() || suggestion,
+      label:        name.trim() || suggestion,
       status,
       approachType: approach,
-      parentId:    parentNodeId,
-      board:       boardData,
-      stamps,
+      parentId:     parentNodeId,
+      board:        finalBoard,
+      stamps:       finalStamps,
       memo,
     });
     setNewNodeId(createdId);
     setDone(true);
   };
-
-  const pct = ((step + 1) / STEPS.length) * 100;
 
   // 作成完了画面
   if (done) {
@@ -914,11 +911,11 @@ export function NewNode({ tree, parentNodeId, onComplete, onCancel, onOpenNode }
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#faf4e8" }}>
       {/* トップバー */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 14px 10px", borderBottom: "0.5px solid rgba(26,15,0,0.18)" }}>
-        <button onClick={() => step === 0 ? onCancel() : setStep((s) => s - 1)} style={{ background: "none", border: "none", cursor: "pointer", color: "#a07840", fontSize: 18, padding: 2, lineHeight: 1 }}>
+        <button onClick={() => step === 0 ? onCancel() : setStep(0)} style={{ background: "none", border: "none", cursor: "pointer", color: "#a07840", fontSize: 18, padding: 2, lineHeight: 1 }}>
           <i className="ti ti-chevron-left" />
         </button>
         <div style={{ flex: 1, fontSize: 14, fontWeight: 600, color: "#1a0f00", textAlign: "center" }}>
-          {["分岐を追加", "候補を選ぶ", "盤面を確認", "メモを追加"][step]}
+          {["分岐を追加", "詳細を入力"][step]}
         </div>
         <button onClick={onCancel} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "rgba(26,15,0,0.5)", fontFamily: "'Noto Serif JP',serif" }}>
           キャンセル
@@ -937,32 +934,35 @@ export function NewNode({ tree, parentNodeId, onComplete, onCancel, onOpenNode }
         </div>
       </div>
 
-      {/* 文脈表示 */}
-      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 16px 6px", borderBottom: "0.5px solid rgba(26,15,0,0.08)" }}>
-        <span style={{ fontSize: 10, color: "rgba(26,15,0,0.5)" }}>分岐元：</span>
-        <span style={{ fontSize: 11, color: "#1a0f00", fontWeight: 600 }}>{parentNode?.label}</span>
-        <i className="ti ti-arrow-right" style={{ fontSize: 10, color: "#B4B2A9" }} />
-        <span style={{ fontSize: 11, color: "#a07840" }}>{displayName}</span>
-      </div>
+      {/* 文脈表示（STEP1のみ） */}
+      {step === 1 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 16px 6px", borderBottom: "0.5px solid rgba(26,15,0,0.08)" }}>
+          <span style={{ fontSize: 10, color: "rgba(26,15,0,0.5)" }}>分岐元：</span>
+          <span style={{ fontSize: 11, color: "#1a0f00", fontWeight: 600 }}>{parentNode?.label}</span>
+          <i className="ti ti-arrow-right" style={{ fontSize: 10, color: "#B4B2A9" }} />
+          <span style={{ fontSize: 11, color: "#a07840" }}>{displayName}</span>
+        </div>
+      )}
 
       {/* ステップ本体 */}
       <div style={{ flex: 1, overflowY: "auto" }}>
 
-        {/* STEP 0: 切り口 */}
+        {/* STEP 0: 切り口（タップで即次へ） */}
         {step === 0 && (
           <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
             <div style={{ fontSize: 11, color: "rgba(26,15,0,0.5)", marginBottom: 4 }}>どの切り口で分岐しますか？</div>
             {APPROACHES.map((a) => (
               <div
                 key={a.key}
-                onClick={() => setApproach(a.key)}
+                onClick={() => handleApproachSelect(a.key)}
                 style={{
                   display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", borderRadius: 10, cursor: "pointer",
-                  border:      approach === a.key ? "0.5px solid #a07840"           : "0.5px solid rgba(26,15,0,0.18)",
-                  background:  approach === a.key ? "#f0e8d4"                        : "#faf4e8",
-                  boxShadow:   approach === a.key ? "0 0 0 1.5px #a07840"            : "none",
+                  border: "0.5px solid rgba(26,15,0,0.18)",
+                  background: "#faf4e8",
                   transition: "all 0.15s",
                 }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "#f0e8d4"; e.currentTarget.style.borderColor = "#a07840"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "#faf4e8"; e.currentTarget.style.borderColor = "rgba(26,15,0,0.18)"; }}
               >
                 <div style={{ width: 36, height: 36, borderRadius: "50%", background: a.bg, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <i className={`ti ${a.icon}`} style={{ fontSize: 18, color: a.iconColor }} />
@@ -971,15 +971,16 @@ export function NewNode({ tree, parentNodeId, onComplete, onCancel, onOpenNode }
                   <div style={{ fontSize: 13, fontWeight: 600, color: "#1a0f00", marginBottom: 2 }}>{a.title}</div>
                   <div style={{ fontSize: 10, color: "rgba(26,15,0,0.5)", lineHeight: 1.4, whiteSpace: "pre-line" }}>{a.sub}</div>
                 </div>
-                <i className="ti ti-check" style={{ fontSize: 16, color: "#a07840", opacity: approach === a.key ? 1 : 0, transition: "opacity 0.15s" }} />
+                <i className="ti ti-chevron-right" style={{ fontSize: 16, color: "#B4B2A9" }} />
               </div>
             ))}
           </div>
         )}
 
-        {/* STEP 1: 候補 */}
-        {step === 1 && approach && (
+        {/* STEP 1: ノード名・候補・ステータス・盤面・メモを1画面で */}
+        {step === 1 && (
           <div>
+            {/* 候補タグ */}
             <div style={{ fontSize: 11, color: "rgba(26,15,0,0.5)", padding: "14px 16px 8px" }}>
               {approach === "相手の戦法" ? "相手の戦法から選ぶ" : approach === "自分の志向" ? "志向から選ぶ" : "局面の状況から選ぶ"}
             </div>
@@ -1001,7 +1002,9 @@ export function NewNode({ tree, parentNodeId, onComplete, onCancel, onOpenNode }
                 </div>
               ))}
             </div>
-            <div style={{ padding: "0 16px 16px" }}>
+
+            {/* ノード名 */}
+            <div style={{ padding: "0 16px 14px" }}>
               <div style={{ fontSize: 11, color: "rgba(26,15,0,0.5)", marginBottom: 5 }}>ノード名（自由入力）</div>
               <input
                 value={name}
@@ -1012,34 +1015,62 @@ export function NewNode({ tree, parentNodeId, onComplete, onCancel, onOpenNode }
                 onBlur={(e)  => (e.target.style.borderColor = "rgba(26,15,0,0.18)")}
               />
             </div>
-          </div>
-        )}
 
-        {/* STEP 2: 盤面 */}
-        {step === 2 && (
-          <div style={{ padding: "14px 16px" }}>
-            {parentNode?.board && (
-              <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 8, background: "#d6eaf8", border: "0.5px solid rgba(26,82,118,0.2)", marginBottom: 10, fontSize: 11, color: "#1a5276" }}>
-                <i className="ti ti-copy" style={{ fontSize: 13 }} />親ノード「{parentNode.label}」の盤面を引き継いでいます
-              </div>
-            )}
-            <ShogiBoard
-              board={boardData || (parentNode?.board || INITIAL_BOARD)}
-              stamps={stamps}
-              onChange={({ board, stamps: s }) => { setBoardData(board); setStamps(s); }}
-            />
-            <div style={{ fontSize: 10, color: "#B4B2A9", marginTop: 6, textAlign: "center" }}>盤面は後から編集できます。スキップも可。</div>
-          </div>
-        )}
+            <div style={{ height: "0.5px", background: "rgba(26,15,0,0.08)" }} />
 
-        {/* STEP 3: ステータス・メモ */}
-        {step === 3 && (
-          <div>
-            <div style={{ fontSize: 11, color: "rgba(26,15,0,0.5)", padding: "14px 16px 8px" }}>ステータスを設定</div>
+            {/* ステータス */}
+            <div style={{ fontSize: 11, color: "rgba(26,15,0,0.5)", padding: "12px 16px 8px" }}>ステータス</div>
             <div style={{ display: "flex", gap: 6, padding: "0 16px 14px" }}>
               {["todo", "wip", "done"].map((s) => <StatusChip key={s} status={s} active={status === s} onClick={() => setStatus(s)} />)}
             </div>
+
             <div style={{ height: "0.5px", background: "rgba(26,15,0,0.08)" }} />
+
+            {/* 盤面 */}
+            <div style={{ padding: "8px 16px 0" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <span style={{ fontSize: 11, color: "rgba(26,15,0,0.5)" }}>盤面</span>
+                <button
+                  onClick={handleToggleBoard}
+                  style={{ fontSize: 11, padding: "4px 10px", borderRadius: 8, border: "0.5px solid #a07840", background: "none", cursor: "pointer", color: "#a07840", fontFamily: "'Noto Serif JP',serif", display: "flex", alignItems: "center", gap: 4 }}
+                >
+                  <i className={`ti ti-${boardVisible ? "minus" : "plus"}`} style={{ fontSize: 12 }} />
+                  {boardVisible ? "非表示" : "追加"}
+                </button>
+              </div>
+              {!boardVisible ? (
+                <div
+                  onClick={handleToggleBoard}
+                  style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, padding: 20, border: "0.5px dashed rgba(26,15,0,0.18)", borderRadius: 10, cursor: "pointer", background: "rgba(26,15,0,0.04)", marginBottom: 12 }}
+                >
+                  <i className="ti ti-chess" style={{ fontSize: 24, color: "#a07840" }} />
+                  <span style={{ fontSize: 12, color: "rgba(26,15,0,0.5)" }}>タップして盤面を追加</span>
+                </div>
+              ) : (
+                <div style={{ marginBottom: 12 }}>
+                  {parentNode?.board && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 8, background: "#d6eaf8", border: "0.5px solid rgba(26,82,118,0.2)", marginBottom: 10, fontSize: 11, color: "#1a5276" }}>
+                      <i className="ti ti-copy" style={{ fontSize: 13 }} />親ノード「{parentNode.label}」の盤面を引き継いでいます
+                    </div>
+                  )}
+                  <ShogiBoard
+                    board={boardData || (parentNode?.board || INITIAL_BOARD)}
+                    stamps={stamps}
+                    onChange={({ board, stamps: s }) => { setBoardData(board); setStamps(s); }}
+                  />
+                  <button
+                    onClick={() => { setBoardData(null); setStamps([]); setBoardVisible(false); }}
+                    style={{ fontSize: 11, color: "#B4B2A9", background: "none", border: "none", cursor: "pointer", fontFamily: "'Noto Serif JP',serif", display: "flex", alignItems: "center", gap: 4, marginTop: 6 }}
+                  >
+                    <i className="ti ti-trash" style={{ fontSize: 11 }} />盤面を削除
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div style={{ height: "0.5px", background: "rgba(26,15,0,0.08)" }} />
+
+            {/* メモ */}
             <div style={{ fontSize: 11, color: "rgba(26,15,0,0.5)", padding: "12px 16px 6px" }}>メモ（任意）</div>
             <div style={{ padding: "0 16px 16px" }}>
               <textarea
@@ -1054,26 +1085,25 @@ export function NewNode({ tree, parentNodeId, onComplete, onCancel, onOpenNode }
         )}
       </div>
 
-      {/* ボトムナビ */}
-      <div style={{ display: "flex", gap: 8, padding: "12px 16px 20px", borderTop: "0.5px solid rgba(26,15,0,0.18)" }}>
-        {step > 0 && (
-          <button onClick={() => setStep((s) => s - 1)} style={{ flex: 1, padding: 10, borderRadius: 10, fontSize: 13, cursor: "pointer", border: "0.5px solid rgba(26,15,0,0.18)", background: "#faf4e8", color: "rgba(26,15,0,0.5)", fontFamily: "'Noto Serif JP',serif" }}>前へ</button>
-        )}
-        <button
-          onClick={handleNext}
-          disabled={!canNext()}
-          style={{
-            flex:       step > 0 ? 2 : 1,
-            padding:    10, borderRadius: 10, fontSize: 13,
-            cursor:     canNext() ? "pointer" : "default",
-            border:     "none",
-            background: canNext() ? "#a07840" : "#B4B2A9",
-            color:      "#faf4e8", fontFamily: "'Noto Serif JP',serif", fontWeight: 600, transition: "background 0.15s",
-          }}
-        >
-          {step === STEPS.length - 1 ? "作成する" : step === 2 ? "次へ（スキップ可）" : "次へ"}
-        </button>
-      </div>
+      {/* ボトムナビ（STEP1のみ表示） */}
+      {step === 1 && (
+        <div style={{ display: "flex", gap: 8, padding: "12px 16px 20px", borderTop: "0.5px solid rgba(26,15,0,0.18)" }}>
+          <button onClick={() => setStep(0)} style={{ flex: 1, padding: 10, borderRadius: 10, fontSize: 13, cursor: "pointer", border: "0.5px solid rgba(26,15,0,0.18)", background: "#faf4e8", color: "rgba(26,15,0,0.5)", fontFamily: "'Noto Serif JP',serif" }}>前へ</button>
+          <button
+            onClick={handleSubmit}
+            disabled={!canNext()}
+            style={{
+              flex: 2, padding: 10, borderRadius: 10, fontSize: 13,
+              cursor:     canNext() ? "pointer" : "default",
+              border:     "none",
+              background: canNext() ? "#a07840" : "#B4B2A9",
+              color: "#faf4e8", fontFamily: "'Noto Serif JP',serif", fontWeight: 600, transition: "background 0.15s",
+            }}
+          >
+            作成する
+          </button>
+        </div>
+      )}
     </div>
   );
 }
