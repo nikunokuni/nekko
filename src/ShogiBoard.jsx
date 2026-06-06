@@ -184,16 +184,29 @@ export default function ShogiBoard({
 
     // スタンプの描画
     for (const st of stamps) {
-      if (!STAMP_COLOR[st.type]) continue;
-      const x = st.col*CELL+CELL/2, y = st.row*CELL+CELL/2;
-      ctx.save();
-      ctx.font = `bold ${CELL*0.52}px 'Noto Serif JP',serif`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillStyle = STAMP_COLOR[st.type];
-      ctx.globalAlpha = 0.88;
-      ctx.fillText(STAMP_CHAR[st.type], x, y);
-      ctx.restore();
-    }
+  if (!STAMP_COLOR[st.type]) continue;
+  const x = st.col * CELL + CELL / 2;
+  const y = st.row * CELL + CELL / 2;
+  const fontSize = `bold ${CELL * 0.62}px 'Noto Serif JP',serif`; // 0.52→0.62 (+1.2倍)
+
+  ctx.save();
+  ctx.font = fontSize;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.globalAlpha = 0.88;
+
+  // 白輪郭（先に描画）
+  ctx.strokeStyle = 'white';
+  ctx.lineWidth = CELL * 0.10;       // 輪郭の太さ
+  ctx.lineJoin = 'round';
+  ctx.strokeText(STAMP_CHAR[st.type], x, y);
+
+  // 本体テキスト（輪郭の上に重ねる）
+  ctx.fillStyle = STAMP_COLOR[st.type];
+  ctx.fillText(STAMP_CHAR[st.type], x, y);
+
+  ctx.restore();
+}
   }, [board, stamps, selected]);
 
   useEffect(() => { draw(); }, [draw]);
