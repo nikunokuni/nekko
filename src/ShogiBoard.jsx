@@ -335,20 +335,7 @@ export default function ShogiBoard({
   return (
     <div style={{ maxWidth: 400 }}>
 
-      {/* 後手の持ち駒（上） */}
-      <HandArea
-        hand={handGote}
-        isSente={false}
-        selectedHand={selectedHand}
-        onSelectPiece={(piece) => {
-          if (tool !== 'move') return;
-          setSelected(null);
-          setSelectedHand(prev =>
-            prev?.piece === piece && !prev?.isSente ? null : { piece, isSente: false }
-          );
-        }}
-        readOnly={readOnly}
-      />
+     
 
       {/* ツールバー */}
       {!readOnly && (
@@ -382,6 +369,20 @@ export default function ShogiBoard({
           ))}
         </div>
       )}
+       {/* 後手の持ち駒（上） */}
+      <HandArea
+        hand={handGote}
+        isSente={false}
+        selectedHand={selectedHand}
+        onSelectPiece={(piece) => {
+          if (tool !== 'move') return;
+          setSelected(null);
+          setSelectedHand(prev =>
+            prev?.piece === piece && !prev?.isSente ? null : { piece, isSente: false }
+          );
+        }}
+        readOnly={readOnly}
+      />
 
       {/* 将棋盤 Canvas */}
       <canvas
