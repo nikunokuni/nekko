@@ -1297,7 +1297,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
           onToggle={handleToggleBoard}
           handSente={handSente}
           handGote={handGote}
-          onChange={(board, s, hs, hg) => {setBoardData(board); setStamps(s); handleNodeUpdate(nodeId, { board, stamps: s, handSente: hs, handGote: hg });}}
+         onChange={(board, s, hs, hg) => {  setBoardData(board); setStamps(s);  onUpdate(nodeId, { board, stamps: s, handSente: hs, handGote: hg });}}
           onDelete={() => { setBoardData(null); setStamps([]); setBoardVisible(false); }}
         />
 
