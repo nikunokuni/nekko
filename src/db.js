@@ -88,7 +88,9 @@ export async function fetchNodes(treeId) {
 export async function createNode({
   treeId, userId, parentId, label,
   status = "todo", approachType, board = null,
-  stamps = [], memo = "", isRoot = false, sortOrder = 0,
+  stamps = [], memo = "", isRoot = false, sortOrder = 0,  
+  handSente = {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
+  handGote  = {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
 }) {
   return supabase
     .from("nodes")
@@ -96,6 +98,8 @@ export async function createNode({
       tree_id: treeId, user_id: userId, parent_id: parentId ?? null,
       label, status, approach_type: approachType,
       board, stamps, memo, is_root: isRoot, sort_order: sortOrder,
+      hand_sente: handSente ?? {"p":0,"l":0,"n":0,"s":0,"g":0,"b":0,"r":0},
+      hand_gote:  handGote  ?? {"p":0,"l":0,"n":0,"s":0,"g":0,"b":0,"r":0},
     })
     .select()
     .single();
@@ -111,6 +115,8 @@ export async function updateNode(nodeId, patch) {
     stamps:        "stamps",
     memo:          "memo",
     isMergeTarget: "is_merge_target",
+    handSente:     "hand_sente",
+    handGote:      "hand_gote", 
   };
   const dbPatch = {};
   for (const [k, v] of Object.entries(patch)) {
@@ -138,6 +144,8 @@ export function buildTreeFromNodes(treeRow, flatNodes) {
       memo:          n.memo    || "",
       isRoot:        n.is_root,
       isMergeTarget: n.is_merge_target,
+      handSente:     n.hand_sente || {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
+      handGote:      n.hand_gote  || {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
       childIds:      [],
     };
   });
