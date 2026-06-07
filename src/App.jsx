@@ -4,14 +4,15 @@
 // ══════════════════════════════════════════════════
 import { useState, useEffect, useCallback } from "react";
 import { AuthScreen, PublicTrees } from "./screensPublic";
-import { TreeList, MindMap, NodeDetail, NewNode } from "./screensTree";
+import { TreeList, MindMap, NodeDetail, NewNode, RewardsScreen } from "./screensTree";
 import {
   supabase,
   getSession, getProfile, signOut,
-  fetchMyTrees, fetchPublicTrees, fetchNodes,
+  fetchMyTrees, fetchPublicTrees, fetchNodes, fetchMyNodeCount,
   createTree, createNode, updateNode, updateTree, deleteTree,
-  buildTreeFromNodes, publishTree, deleteNodes, unpublishTree 
+  buildTreeFromNodes, publishTree, deleteNodes, unpublishTree
 } from "./db";
+import { recordLogin } from "./rewards";
 
 const NAV_TABS = [
   { s:"list",   icon:"ti-layout-list", label:"マイツリー" },
@@ -28,6 +29,7 @@ export default function App() {
   const [activeNodeId,     setActiveNodeId]     = useState(null);
   const [newNodeParentId,  setNewNodeParentId]  = useState(null);
   const [loading,          setLoading]          = useState(false);
+  const [nodeCount,        setNodeCount]        = useState(0);
 
   // ── Auth bootstrap ────────────────────────────
   useEffect(() => {
@@ -40,9 +42,11 @@ export default function App() {
   useEffect(() => {
     if (session === undefined) return; // まだ確定していない
     if (!session) return;              // 未ログイン
+    recordLogin();
     getProfile(session.user.id).then(({ data }) => setProfile(data));
     loadMyTrees();
     loadPublicTrees();
+    fetchMyNodeCount(session.user.id).then(setNodeCount);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
@@ -117,12 +121,14 @@ const handleOpenTree = async (treeId) => {
     treeId: data.id, userId: session.user.id,
     parentId: null, label: name, isRoot: true, status: "todo"
   });
+  setNodeCount((n) => n + 1);
   await loadMyTrees();
 };
 
   const handleDeleteTree = async (treeId) => {
     await deleteTree(treeId);
     await loadMyTrees();
+    if (session) fetchMyNodeCount(session.user.id).then(setNodeCount);
   };
 
   const handleEditTree = async (treeId, patch) => {
@@ -184,6 +190,7 @@ const handleOpenTree = async (treeId) => {
   const handleDeleteNode = async (idsToDelete, parentId) => {
     try {
       await deleteNodes(idsToDelete);
+      setNodeCount((n) => Math.max(0, n - idsToDelete.length));
       setActiveTree((prev) => {
         const newNodes = { ...prev.nodes };
         idsToDelete.forEach((id) => delete newNodes[id]);
@@ -221,6 +228,7 @@ const handleOpenTree = async (treeId) => {
     stamps:      newNodeData.stamps,
     memo:        newNodeData.memo,
   });
+  setNodeCount((n) => n + 1);
   await loadTree(activeTree.id);
   setScreen("map");
   return newNode?.id ?? null;  // ← 追加：IDを返す
@@ -257,7 +265,31 @@ const handleOpenTree = async (treeId) => {
       const { data: nn } = await createNode({ treeId: newTree.id, userId: session.user.id, parentId: idMap[n.parent_id] || null, label: n.label, status: n.status, approachType: n.approach_type, memo: n.memo || "", board: n.board, stamps: n.stamps || [] });
       if (nn) idMap[n.id] = nn.id;
     }
+    setNodeCount((c) => c + Object.keys(idMap).length);
     await loadMyTrees();
+  };
+
+  // ── ツリーのひとことメモ ─────────────────────
+  const handleUpdateQuickMemo = async (treeId, text) => {
+    await updateTree(treeId, { quick_memo: text });
+    setActiveTree((prev) => (prev && prev.id === treeId ? { ...prev, quickMemo: text } : prev));
+  };
+
+  // ── 合流リンク ───────────────────────────────
+  const handleSetMergeTarget = async (nodeId, targetId) => {
+    await updateNode(nodeId, { mergeTargetId: targetId });
+    setActiveTree((prev) => ({
+      ...prev,
+      nodes: { ...prev.nodes, [nodeId]: { ...prev.nodes[nodeId], mergeTargetId: targetId, isMergeTarget: true } },
+    }));
+  };
+
+  const handleClearMergeTarget = async (nodeId) => {
+    await updateNode(nodeId, { mergeTargetId: null });
+    setActiveTree((prev) => ({
+      ...prev,
+      nodes: { ...prev.nodes, [nodeId]: { ...prev.nodes[nodeId], mergeTargetId: null, isMergeTarget: false } },
+    }));
   };
 
   // ── ローディング中 / 未ログイン ──────────────
@@ -270,7 +302,7 @@ const handleOpenTree = async (treeId) => {
   }
   if (!session) return <AuthScreen onAuth={handleAuth}/>;
 
-  const navActive = (s) => screen===s || (s==="list" && ["map","node","new"].includes(screen));
+  const navActive = (s) => screen===s || (s==="list" && ["map","node","new","rewards"].includes(screen));
 
   // ── レンダリング ─────────────────────────────
   return (
@@ -288,16 +320,23 @@ const handleOpenTree = async (treeId) => {
     onNewTree={handleNewTree} onSignOut={handleSignOut}
     onDeleteTree={handleDeleteTree} onEditTree={handleEditTree}
     onPublish={handlePublishTree}
-    onUnpublish={handleUnpublishTree}/>
+    onUnpublish={handleUnpublishTree}
+    onOpenRewards={() => setScreen("rewards")}/>
 )}
         {screen==="map" && activeTree && (
-          <MindMap tree={activeTree} onNodeSelect={handleNodeSelect} onBack={() => setScreen("list")}/>
+          <MindMap tree={activeTree} onNodeSelect={handleNodeSelect} onBack={() => setScreen("list")}
+            onUpdateQuickMemo={handleUpdateQuickMemo}/>
         )}
         {screen==="node" && activeTree && activeNodeId && (
           <NodeDetail tree={activeTree} nodeId={activeNodeId}
             onBack={() => setScreen("map")} onNodeSelect={handleNodeSelect}
             onNewNode={handleNewNode} onUpdate={handleNodeUpdate}
-            onDeleteNode={handleDeleteNode}/>
+            onDeleteNode={handleDeleteNode}
+            onSetMergeTarget={handleSetMergeTarget}
+            onClearMergeTarget={handleClearMergeTarget}/>
+        )}
+        {screen==="rewards" && (
+          <RewardsScreen treeCount={myTrees.length} nodeCount={nodeCount} onBack={() => setScreen("list")}/>
         )}
         {screen==="new" && activeTree && newNodeParentId && (
   <NewNode tree={activeTree} parentNodeId={newNodeParentId}

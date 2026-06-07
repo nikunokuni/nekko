@@ -60,6 +60,15 @@ export async function fetchPublicTrees() {
     .order("liked_by", { ascending: false });
 }
 
+// ── 統計（ご褒美機能用）────────────────────────────
+export async function fetchMyNodeCount(userId) {
+  const { count } = await supabase
+    .from("nodes")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId);
+  return count || 0;
+}
+
 export async function createTree({ userId, name, tags = [], active = true }) {
   return supabase
     .from("trees")
@@ -88,9 +97,10 @@ export async function fetchNodes(treeId) {
 export async function createNode({
   treeId, userId, parentId, label,
   status = "todo", approachType, board = null,
-  stamps = [], memo = "", isRoot = false, sortOrder = 0,  
+  stamps = [], memo = "", isRoot = false, sortOrder = 0,
   handSente = {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
   handGote  = {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
+  mergeTargetId = null, kifu = [],
 }) {
   return supabase
     .from("nodes")
@@ -100,6 +110,8 @@ export async function createNode({
       board, stamps, memo, is_root: isRoot, sort_order: sortOrder,
       hand_sente: handSente ?? {"p":0,"l":0,"n":0,"s":0,"g":0,"b":0,"r":0},
       hand_gote:  handGote  ?? {"p":0,"l":0,"n":0,"s":0,"g":0,"b":0,"r":0},
+      merge_target_id: mergeTargetId,
+      kifu,
     })
     .select()
     .single();
@@ -114,9 +126,10 @@ export async function updateNode(nodeId, patch) {
     board:         "board",
     stamps:        "stamps",
     memo:          "memo",
-    isMergeTarget: "is_merge_target",
     handSente:     "hand_sente",
-    handGote:      "hand_gote", 
+    handGote:      "hand_gote",
+    mergeTargetId: "merge_target_id",
+    kifu:          "kifu",
   };
   const dbPatch = {};
   for (const [k, v] of Object.entries(patch)) {
@@ -143,7 +156,9 @@ export function buildTreeFromNodes(treeRow, flatNodes) {
       stamps:        n.stamps  || [],
       memo:          n.memo    || "",
       isRoot:        n.is_root,
-      isMergeTarget: n.is_merge_target,
+      mergeTargetId: n.merge_target_id || null,
+      isMergeTarget: !!n.merge_target_id,
+      kifu:          n.kifu || [],
       handSente:     n.hand_sente || {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
       handGote:      n.hand_gote  || {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
       childIds:      [],
@@ -164,6 +179,7 @@ export function buildTreeFromNodes(treeRow, flatNodes) {
     active:  treeRow.active,
     public:  treeRow.is_public,
     tags:    treeRow.tags    || [],
+    quickMemo: treeRow.quick_memo || "",
     likedBy: treeRow.liked_by || 0,
     userId:  treeRow.user_id,
     nodes:   nodeMap,

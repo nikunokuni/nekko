@@ -27,17 +27,18 @@ const inPromotionZone = (row, isSente) => isSente ? row <= 2 : row >= 6;
 // 持ち駒の空オブジェクト
 const emptyHand = () => ({ p:0, l:0, n:0, s:0, g:0, b:0, r:0 });
 
-// ── roundRect ────────────────────────────────────
-function roundRect(ctx, x, y, w, h, r) {
+// ── 駒の五角形シルエット（将棋の駒の形）────────────
+function piecePath(ctx, cx, cy, w, h) {
+  const hw = w / 2;
+  const top = cy - h / 2;
+  const bottom = cy + h / 2;
+  const shoulder = top + h * 0.27;
   ctx.beginPath();
-  ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y);
-  ctx.quadraticCurveTo(x+w,y,x+w,y+r);
-  ctx.lineTo(x+w,y+h-r);
-  ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
-  ctx.lineTo(x+r,y+h);
-  ctx.quadraticCurveTo(x,y+h,x,y+h-r);
-  ctx.lineTo(x,y+r);
-  ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.moveTo(cx, top);
+  ctx.lineTo(cx + hw, shoulder);
+  ctx.lineTo(cx + hw * 0.84, bottom);
+  ctx.lineTo(cx - hw * 0.84, bottom);
+  ctx.lineTo(cx - hw, shoulder);
   ctx.closePath();
 }
 
@@ -156,22 +157,39 @@ export default function ShogiBoard({
         const promoted = isPromoted(p);
         const pw = CELL*0.72, ph = CELL*0.78;
 
-        // 駒の形
+        // 駒の形（五角形シルエット・木目調グラデーション + 落ち影で高級感を演出）
         ctx.save();
         if (!isSente) { ctx.translate(x,y); ctx.rotate(Math.PI); ctx.translate(-x,-y); }
-        ctx.fillStyle = '#faf4e8';
-        roundRect(ctx, x-pw/2, y-ph/2, pw, ph, 3);
+
+        piecePath(ctx, x, y, pw, ph);
+        const grad = ctx.createLinearGradient(x, y - ph/2, x, y + ph/2);
+        grad.addColorStop(0,    '#fffdf6');
+        grad.addColorStop(0.45, '#f2e0b8');
+        grad.addColorStop(1,    '#d6b378');
+        ctx.shadowColor   = 'rgba(50,30,5,0.35)';
+        ctx.shadowBlur    = 2.5;
+        ctx.shadowOffsetY = 1.5;
+        ctx.fillStyle = grad;
         ctx.fill();
-        ctx.strokeStyle = promoted ? 'rgba(180,0,0,0.6)' : 'rgba(26,15,0,0.3)';
-        ctx.lineWidth   = promoted ? 1.2 : 0.5;
+        ctx.shadowColor = 'transparent';
+
+        ctx.lineWidth   = promoted ? 1.3 : 0.8;
+        ctx.strokeStyle = promoted ? 'rgba(168,28,18,0.55)' : 'rgba(120,84,32,0.6)';
         ctx.stroke();
+
+        // 内側のハイライト線（艶やかな縁取り）
+        piecePath(ctx, x, y - 0.8, pw - 3, ph - 3);
+        ctx.lineWidth = 0.6;
+        ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+        ctx.stroke();
+
         ctx.restore();
 
         // 駒の文字
         ctx.save();
-        ctx.font = `${CELL*0.38}px 'Noto Serif JP',serif`;
+        ctx.font = `${CELL*0.4}px 'Noto Serif JP',serif`;
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillStyle = promoted ? '#c0392b' : (isSente ? '#1a0f00' : '#7B3010');
+        ctx.fillStyle = promoted ? '#a81c12' : (isSente ? '#1a0f00' : '#7B3010');
         if (!isSente) {
           ctx.translate(x,y); ctx.rotate(Math.PI);
           ctx.fillText(getPieceLabel(p), 0, 0);

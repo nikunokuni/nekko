@@ -25,6 +25,7 @@ import {
 import {
   STATUS_META, APPROACH_META, INITIAL_BOARD, SUGGESTIONS,
 } from "./data";
+import { BADGE_DEFS, getLoginStats, getEarnedBadgeIds } from "./rewards";
 
 
 // ══════════════════════════════════════════════════════════════════
@@ -211,13 +212,13 @@ function ModalActionButtons({ onCancel, onConfirm, confirmLabel, disabled, dange
 // ──────────────────────────────────────────
 // BoardSection: 将棋盤の表示/追加エリア
 // ──────────────────────────────────────────
-function BoardSection({ boardVisible, boardData, stamps, handSente, handGote, parentBoard, parentLabel, onToggle, onChange, onDelete }){
+function BoardSection({ boardVisible, boardData, stamps, handSente, handGote, parentBoard, parentLabel, onToggle, onChange, onDelete, readOnly = false }){
   return (
     <div style={{ padding: "8px 16px 0" }}>
       {/* ヘッダー行 */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-        <SectionLabel>盤面</SectionLabel>
-        <button
+        <SectionLabel>盤面{readOnly && <span style={{ color: T.purple, fontSize: T.fontSize.sm, marginLeft: 6 }}>（棋譜再生中）</span>}</SectionLabel>
+        {!readOnly && <button
           onClick={onToggle}
           style={{
             fontSize:    T.fontSize.md,
@@ -235,7 +236,7 @@ function BoardSection({ boardVisible, boardData, stamps, handSente, handGote, pa
         >
           <i className={`ti ti-${boardVisible ? "minus" : "plus"}`} style={{ fontSize: 12 }} />
           {boardVisible ? "非表示" : "追加"}
-        </button>
+        </button>}
       </div>
 
       {/* 非表示時: タップ誘導プレースホルダー */}
@@ -264,7 +265,7 @@ function BoardSection({ boardVisible, boardData, stamps, handSente, handGote, pa
       {/* 表示時: 継承バナー + 将棋盤 + 削除ボタン */}
       {boardVisible && (
         <div style={{ marginBottom: 12 }}>
-          {parentBoard && (
+          {parentBoard && !readOnly && (
             <div style={{
               display:      "flex",
               alignItems:   "center",
@@ -287,10 +288,11 @@ function BoardSection({ boardVisible, boardData, stamps, handSente, handGote, pa
   stamps={stamps}
   handSente={handSente}
   handGote={handGote}
+  readOnly={readOnly}
   onChange={({ board, stamps: s, handSente: hs, handGote: hg }) => onChange(board, s, hs, hg)}
 />
 
-          <button
+          {!readOnly && <button
             onClick={onDelete}
             style={{
               fontSize:   T.fontSize.md,
@@ -306,7 +308,7 @@ function BoardSection({ boardVisible, boardData, stamps, handSente, handGote, pa
             }}
           >
             <i className="ti ti-trash" style={{ fontSize: 11 }} />盤面を削除
-          </button>
+          </button>}
         </div>
       )}
     </div>
@@ -571,6 +573,49 @@ function DeleteTreeModal({ tree, onClose, onConfirm }) {
 }
 
 
+// ──────────────────────────────────────────
+// QuickMemoModal: ツリーの「ひとことメモ」編集
+// ──────────────────────────────────────────
+function QuickMemoModal({ tree, onClose, onSave }) {
+  const [text,   setText]   = useState(tree.quickMemo || "");
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try { await onSave(tree.id, text.trim()); } finally { setSaving(false); onClose(); }
+  };
+
+  return (
+    <div style={MODAL_OVERLAY_STYLE} onClick={onClose}>
+      <div style={MODAL_SHEET_STYLE} onClick={(e) => e.stopPropagation()}>
+        <div style={{ fontFamily: T.fontTitle, fontSize: T.fontSize.h, color: T.ink, marginBottom: 6 }}>
+          ひとことメモ
+        </div>
+        <div style={{ fontSize: T.fontSize.md, color: T.inkMid, marginBottom: 14, lineHeight: 1.6 }}>
+          ノードと関係なく、ふと思ったことをさっと書き留められます。
+        </div>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="例：終盤の3一玉型、もう少し研究したい"
+          rows={4}
+          autoFocus
+          style={{ width: "100%", border: `0.5px solid ${T.inkLine}`, borderRadius: T.radius.md, padding: "11px 14px", fontSize: T.fontSize.lg, color: T.ink, background: T.cream, resize: "none", fontFamily: T.fontSerif, lineHeight: 1.7, outline: "none", marginBottom: 16 }}
+          onFocus={(e) => (e.target.style.borderColor = T.gold)}
+          onBlur={(e)  => (e.target.style.borderColor = T.inkLine)}
+        />
+        <ModalActionButtons
+          onCancel={onClose}
+          onConfirm={handleSave}
+          confirmLabel={saving ? "保存中..." : "保存する"}
+          disabled={saving}
+        />
+      </div>
+    </div>
+  );
+}
+
+
 // ══════════════════════════════════════════════════════════════════
 // TreeCard: ツリー一覧の1行カード
 // ══════════════════════════════════════════════════════════════════
@@ -689,7 +734,7 @@ export function TreeCard({ tree, onOpen, onEdit, onDelete }) {
 // ══════════════════════════════════════════════════════════════════
 // TreeList: ツリー一覧画面
 // ══════════════════════════════════════════════════════════════════
-export function TreeList({ trees, profile, onOpen, onPublic, onNewTree, onSignOut, onDeleteTree, onEditTree, onPublish, onUnpublish }) {
+export function TreeList({ trees, profile, onOpen, onPublic, onNewTree, onSignOut, onDeleteTree, onEditTree, onPublish, onUnpublish, onOpenRewards }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editTarget,      setEditTarget]      = useState(null);
   const [deleteTarget,    setDeleteTarget]    = useState(null);
@@ -713,6 +758,11 @@ export function TreeList({ trees, profile, onOpen, onPublic, onNewTree, onSignOu
         </div>
 
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          {onOpenRewards && (
+            <button onClick={onOpenRewards} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: 20, padding: 2 }} title="ご褒美">
+              <i className="ti ti-award" />
+            </button>
+          )}
           <button onClick={onPublic} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: 20, padding: 2 }}>
             <i className="ti ti-world" />
           </button>
@@ -880,10 +930,11 @@ function layoutTree(nodes, rootId) {
   return { positions, edges };
 }
 
-export function MindMap({ tree, onNodeSelect, onBack }) {
+export function MindMap({ tree, onNodeSelect, onBack, onUpdateQuickMemo }) {
   const [drawerOpen,   setDrawerOpen]   = useState(false);
   const [canvasOffset, setCanvasOffset] = useState({ x: 20, y: 20 });
   const [dragging,     setDragging]     = useState(false);
+  const [memoOpen,     setMemoOpen]     = useState(false);
   const dragStart = useRef(null);
 
   const { nodes } = tree;
@@ -892,6 +943,18 @@ export function MindMap({ tree, onNodeSelect, onBack }) {
   const { positions, edges } = rootId
     ? layoutTree(nodes, rootId)
     : { positions: {}, edges: [] };
+
+  // 合流リンク（ノード→合流先ノードの破線）
+  const mergeEdges = Object.values(nodes)
+    .filter((n) => n.mergeTargetId && positions[n.id] && positions[n.mergeTargetId])
+    .map((n) => {
+      const fromPos = positions[n.id];
+      const toPos   = positions[n.mergeTargetId];
+      return {
+        x1: fromPos.x + NODE_W / 2, y1: fromPos.y + NODE_H / 2,
+        x2: toPos.x   + NODE_W / 2, y2: toPos.y   + NODE_H / 2,
+      };
+    });
 
   // キャンバスサイズ = 全ノード座標の最大値 + 余白
   const posValues = Object.values(positions);
@@ -962,6 +1025,19 @@ export function MindMap({ tree, onNodeSelect, onBack }) {
         <div style={{ flex: 1 }}>
           <div style={{ fontFamily: T.fontTitle, fontSize: T.fontSize.xl, color: T.ink }}>{tree.name}</div>
         </div>
+        {/* ひとことメモ */}
+        {onUpdateQuickMemo && (
+          <button
+            onClick={() => setMemoOpen(true)}
+            style={{ background: "none", border: "none", cursor: "pointer", color: tree.quickMemo ? T.gold : T.gray, fontSize: 18, padding: "6px 4px", lineHeight: 1, position: "relative" }}
+            title="ひとことメモ"
+          >
+            <i className="ti ti-note" />
+            {tree.quickMemo && (
+              <span style={{ position: "absolute", top: 4, right: 1, width: 6, height: 6, borderRadius: "50%", background: T.gold }} />
+            )}
+          </button>
+        )}
         {/* 目次ドロワーを開く3点ドット */}
         <div
           onClick={() => setDrawerOpen(true)}
@@ -991,6 +1067,20 @@ export function MindMap({ tree, onNodeSelect, onBack }) {
                 </marker>
               ))}
             </defs>
+
+            {/* 合流リンク（ノード中心同士を結ぶ破線・矢印なし） */}
+            {mergeEdges.map((edge, i) => {
+              const midX = (edge.x1 + edge.x2) / 2;
+              const midY = (edge.y1 + edge.y2) / 2 - 26;
+              const d    = `M${edge.x1},${edge.y1} Q${midX},${midY} ${edge.x2},${edge.y2}`;
+              return (
+                <path
+                  key={`merge-${i}`} d={d} fill="none"
+                  stroke={T.purple} strokeWidth={1.2}
+                  strokeDasharray="3 3" opacity={0.6}
+                />
+              );
+            })}
 
             {/* エッジ（ベジェ曲線） */}
             {edges.map((edge, i) => {
@@ -1105,9 +1195,10 @@ export function MindMap({ tree, onNodeSelect, onBack }) {
         {[
           { line: T.blue,    label: "自分の手" },
           { line: T.redDark, label: "相手の手" },
+          { line: T.purple,  label: "合流", dashed: true },
         ].map((l) => (
           <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: T.fontSize.sm, color: T.inkMid }}>
-            <div style={{ width: 18, height: 2, borderRadius: 1, background: l.line }} />{l.label}
+            <div style={{ width: 18, height: 2, borderRadius: 1, background: l.dashed ? "transparent" : l.line, borderTop: l.dashed ? `1.5px dashed ${l.line}` : "none" }} />{l.label}
           </div>
         ))}
         {[
@@ -1120,6 +1211,14 @@ export function MindMap({ tree, onNodeSelect, onBack }) {
           </div>
         ))}
       </div>
+
+      {memoOpen && (
+        <QuickMemoModal
+          tree={tree}
+          onClose={() => setMemoOpen(false)}
+          onSave={onUpdateQuickMemo}
+        />
+      )}
     </div>
   );
 }
@@ -1128,7 +1227,7 @@ export function MindMap({ tree, onNodeSelect, onBack }) {
 // ══════════════════════════════════════════════════════════════════
 // NodeDetail: ノード詳細編集画面
 // ══════════════════════════════════════════════════════════════════
-export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUpdate, onDeleteNode }) {
+export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUpdate, onDeleteNode, onSetMergeTarget, onClearMergeTarget }) {
   const node = tree.nodes[nodeId];
 
   const [memo,         setMemo]         = useState("");
@@ -1139,6 +1238,14 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
   const [handSente,   setHandSente]   = useState({p:0,l:0,n:0,s:0,g:0,b:0,r:0});
   const [handGote,    setHandGote]    = useState({p:0,l:0,n:0,s:0,g:0,b:0,r:0});
 
+  // ── 棋譜記録 ──────────────────────────────────
+  const [kifu,         setKifu]         = useState([]);
+  const [recording,    setRecording]    = useState(false);
+  const [viewIndex,    setViewIndex]    = useState(null); // null = ライブ盤面
+
+  // ── 合流リンク ────────────────────────────────
+  const [mergePickerOpen, setMergePickerOpen] = useState(false);
+
   // nodeId が変わったらフォームをリセット
   useEffect(() => {
     if (node) {
@@ -1147,6 +1254,12 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
       setBoardVisible(!!node.board);
       setBoardData(node.board || null);
       setStamps(node.stamps || []);
+      setHandSente(node.handSente || {p:0,l:0,n:0,s:0,g:0,b:0,r:0});
+      setHandGote(node.handGote   || {p:0,l:0,n:0,s:0,g:0,b:0,r:0});
+      setKifu(node.kifu || []);
+      setRecording(false);
+      setViewIndex(null);
+      setMergePickerOpen(false);
     }
   }, [nodeId, node]);
 
@@ -1171,6 +1284,63 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
       setBoardData(cloneBoard(parent?.board ?? null));
     }
     setBoardVisible((v) => !v);
+  };
+
+  /** 盤面の変更を受け取る。記録中は「指し手」とみなせる変化のみ棋譜に追加する */
+  const handleBoardChange = (board, s, hs, hg) => {
+    const moved =
+      JSON.stringify(board) !== JSON.stringify(boardData) ||
+      JSON.stringify(hs)    !== JSON.stringify(handSente)  ||
+      JSON.stringify(hg)    !== JSON.stringify(handGote);
+
+    let nextKifu = kifu;
+    if (recording && moved) {
+      nextKifu = [...kifu, { board: cloneBoard(board), handSente: { ...hs }, handGote: { ...hg } }];
+      setKifu(nextKifu);
+    }
+
+    setBoardData(board);
+    setStamps(s);
+    setHandSente(hs);
+    setHandGote(hg);
+    onUpdate(nodeId, { board, stamps: s, handSente: hs, handGote: hg, kifu: nextKifu });
+  };
+
+  // ── 棋譜記録の操作 ────────────────────────────
+  const handleStartRecording = () => {
+    const startSnap = { board: cloneBoard(boardData), handSente: { ...handSente }, handGote: { ...handGote } };
+    setKifu([startSnap]);
+    setRecording(true);
+    setViewIndex(null);
+    onUpdate(nodeId, { kifu: [startSnap] });
+  };
+  const handleStopRecording = () => setRecording(false);
+  const handleResetKifu = () => {
+    setKifu([]);
+    setRecording(false);
+    setViewIndex(null);
+    onUpdate(nodeId, { kifu: [] });
+  };
+  const handleStartViewing = () => { setRecording(false); setViewIndex(0); };
+  const handleExitViewing  = () => setViewIndex(null);
+  const handlePrevMove = () => setViewIndex((i) => (i === null ? null : Math.max(0, i - 1)));
+  const handleNextMove = () => setViewIndex((i) => (i === null ? null : Math.min(kifu.length - 1, i + 1)));
+
+  const viewing        = viewIndex !== null;
+  const displayBoard     = viewing ? (kifu[viewIndex]?.board     ?? boardData) : boardData;
+  const displayHandSente = viewing ? (kifu[viewIndex]?.handSente ?? handSente) : handSente;
+  const displayHandGote  = viewing ? (kifu[viewIndex]?.handGote  ?? handGote)  : handGote;
+
+  // ── 合流リンクの操作 ──────────────────────────
+  const mergeTargetNode  = node.mergeTargetId ? tree.nodes[node.mergeTargetId] : null;
+  const mergeSourceNodes = Object.values(tree.nodes).filter((n) => n.mergeTargetId === nodeId);
+
+  const handleSelectMergeTarget = async (targetId) => {
+    setMergePickerOpen(false);
+    await onSetMergeTarget?.(nodeId, targetId);
+  };
+  const handleClearMerge = async () => {
+    await onClearMergeTarget?.(nodeId);
   };
 
   /** 変更を保存してから画面遷移する（保存忘れ防止） */
@@ -1257,16 +1427,85 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
         {/* ── 盤面 ── */}
         <BoardSection
           boardVisible={boardVisible}
-          boardData={boardData}
+          boardData={displayBoard}
           stamps={stamps}
           parentBoard={parent?.board}
           parentLabel={parent?.label}
           onToggle={handleToggleBoard}
-          handSente={handSente}
-          handGote={handGote}
-         onChange={(board, s, hs, hg) => {  setBoardData(board); setStamps(s);  onUpdate(nodeId, { board, stamps: s, handSente: hs, handGote: hg });}}
-          onDelete={() => { setBoardData(null); setStamps([]); setBoardVisible(false); }}
+          handSente={displayHandSente}
+          handGote={displayHandGote}
+          readOnly={viewing}
+          onChange={handleBoardChange}
+          onDelete={() => { setBoardData(null); setStamps([]); setBoardVisible(false); setKifu([]); setRecording(false); setViewIndex(null); onUpdate(nodeId, { kifu: [] }); }}
         />
+
+        {boardVisible && boardData && (
+          <KifuControls
+            kifu={kifu}
+            recording={recording}
+            viewing={viewing}
+            viewIndex={viewIndex}
+            onStartRecording={handleStartRecording}
+            onStopRecording={handleStopRecording}
+            onResetKifu={handleResetKifu}
+            onStartViewing={handleStartViewing}
+            onExitViewing={handleExitViewing}
+            onPrev={handlePrevMove}
+            onNext={handleNextMove}
+          />
+        )}
+
+        <Divider />
+
+        {/* ── 合流 ── */}
+        <div style={{ padding: "10px 16px" }}>
+          <SectionLabel style={{ marginBottom: 8 }}>合流</SectionLabel>
+
+          {mergeTargetNode ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div
+                onClick={() => saveAndNavigate(() => onNodeSelect(mergeTargetNode.id))}
+                style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: T.radius.sm, border: `0.5px solid ${T.purple}55`, background: "#f6f0fb", cursor: "pointer" }}
+              >
+                <i className="ti ti-git-merge" style={{ fontSize: 14, color: T.purple }} />
+                <span style={{ fontSize: T.fontSize.base, color: T.ink, flex: 1 }}>「{mergeTargetNode.label}」に合流</span>
+                <i className="ti ti-chevron-right" style={{ fontSize: 14, color: T.gray }} />
+              </div>
+              <button
+                onClick={handleClearMerge}
+                style={{ padding: "9px 12px", borderRadius: T.radius.sm, border: `0.5px solid ${T.inkLine}`, background: "transparent", color: T.inkMid, fontSize: T.fontSize.md, cursor: "pointer", fontFamily: T.fontSerif }}
+              >解除</button>
+            </div>
+          ) : (
+            <div
+              onClick={() => setMergePickerOpen(true)}
+              style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: T.radius.sm, border: `0.5px dashed ${T.inkLine}`, cursor: "pointer", color: T.purple, fontSize: T.fontSize.base }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = T.goldLight)}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            >
+              <i className="ti ti-git-merge" style={{ fontSize: 14 }} />他のノードに合流させる
+            </div>
+          )}
+
+          {mergeSourceNodes.length > 0 && (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ fontSize: T.fontSize.sm, color: T.inkFaint, marginBottom: 6 }}>このノードに合流してくる変化</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {mergeSourceNodes.map((src) => (
+                  <div
+                    key={src.id}
+                    onClick={() => saveAndNavigate(() => onNodeSelect(src.id))}
+                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: T.radius.sm, border: `0.5px solid ${T.inkLineFaint}`, cursor: "pointer" }}
+                  >
+                    <i className="ti ti-corner-down-right" style={{ fontSize: 13, color: T.purple }} />
+                    <span style={{ fontSize: T.fontSize.base, color: T.ink, flex: 1 }}>{src.label}</span>
+                    <i className="ti ti-chevron-right" style={{ fontSize: 14, color: T.gray }} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
 
         <Divider />
 
@@ -1338,6 +1577,135 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
               )}
             </div>
           )}
+        </div>
+      </div>
+
+      {mergePickerOpen && (
+        <MergeTargetModal
+          tree={tree}
+          excludeIds={[nodeId, ...collectDescendantIds(nodeId)]}
+          onClose={() => setMergePickerOpen(false)}
+          onSelect={handleSelectMergeTarget}
+        />
+      )}
+    </div>
+  );
+}
+
+
+// ──────────────────────────────────────────
+// MergeTargetModal: 合流先ノードを選ぶ
+// ──────────────────────────────────────────
+function MergeTargetModal({ tree, excludeIds, onClose, onSelect }) {
+  const candidates = Object.values(tree.nodes).filter((n) => !excludeIds.includes(n.id));
+
+  return (
+    <div style={MODAL_OVERLAY_STYLE} onClick={onClose}>
+      <div style={{ ...MODAL_SHEET_STYLE, maxHeight: "70vh", display: "flex", flexDirection: "column" }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ fontFamily: T.fontTitle, fontSize: T.fontSize.h, color: T.ink, marginBottom: 6 }}>
+          合流先のノードを選ぶ
+        </div>
+        <div style={{ fontSize: T.fontSize.md, color: T.inkMid, marginBottom: 14, lineHeight: 1.6 }}>
+          このノードがどの変化に合流するかを選びます。
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6, marginBottom: 16 }}>
+          {candidates.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "24px 0", fontSize: T.fontSize.base, color: T.inkFaint }}>
+              合流できるノードがありません
+            </div>
+          ) : (
+            candidates.map((n) => (
+              <div
+                key={n.id}
+                onClick={() => onSelect(n.id)}
+                style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: T.radius.sm, border: `0.5px solid ${T.inkLine}`, cursor: "pointer" }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = T.goldLight)}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              >
+                {n.isRoot && <i className="ti ti-flag-2" style={{ fontSize: 13, color: T.gold }} />}
+                <span style={{ fontSize: T.fontSize.base, color: T.ink, flex: 1 }}>{n.label}</span>
+                <StatusChip status={n.status} />
+              </div>
+            ))
+          )}
+        </div>
+        <ModalActionButtons onCancel={onClose} onConfirm={onClose} confirmLabel="閉じる" />
+      </div>
+    </div>
+  );
+}
+
+
+// ──────────────────────────────────────────
+// KifuControls: 棋譜の記録・再生コントロール
+// ──────────────────────────────────────────
+function KifuControls({ kifu, recording, viewing, viewIndex, onStartRecording, onStopRecording, onResetKifu, onStartViewing, onExitViewing, onPrev, onNext }) {
+  const hasKifu = kifu.length > 1;
+
+  return (
+    <div style={{ padding: "0 16px 8px" }}>
+      <div style={{
+        border: `0.5px solid ${recording ? T.red : T.inkLine}`,
+        borderRadius: T.radius.md,
+        padding: "10px 12px",
+        background: recording ? T.redBg : "rgba(26,15,0,0.03)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <i className="ti ti-history-toggle" style={{ fontSize: 14, color: recording ? T.red : T.gold }} />
+          <span style={{ fontSize: T.fontSize.md, color: T.inkMid, flex: 1 }}>
+            {recording ? `記録中… ${kifu.length}手目`
+              : viewing  ? `棋譜を再生中：${viewIndex + 1} / ${kifu.length} 手目`
+              : hasKifu  ? `棋譜を記録済み（全 ${kifu.length} 手）`
+              : "棋譜（指し手の記録）"}
+          </span>
+        </div>
+
+        {/* 記録中: 終了ボタン */}
+        {recording && (
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <button onClick={onStopRecording} style={{ flex: 1, padding: "8px 0", borderRadius: T.radius.sm, border: "none", background: T.red, color: T.cream, fontSize: T.fontSize.base, fontFamily: T.fontSerif, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+              <i className="ti ti-player-stop" style={{ fontSize: 13 }} />記録を終える
+            </button>
+          </div>
+        )}
+
+        {/* 再生中: ←→ と終了 */}
+        {viewing && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+            <button onClick={onPrev} disabled={viewIndex <= 0} style={{ width: 38, height: 34, borderRadius: T.radius.sm, border: `0.5px solid ${T.inkLine}`, background: T.cream, color: viewIndex <= 0 ? T.gray : T.gold, fontSize: 16, cursor: viewIndex <= 0 ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <i className="ti ti-chevron-left" />
+            </button>
+            <button onClick={onNext} disabled={viewIndex >= kifu.length - 1} style={{ width: 38, height: 34, borderRadius: T.radius.sm, border: `0.5px solid ${T.inkLine}`, background: T.cream, color: viewIndex >= kifu.length - 1 ? T.gray : T.gold, fontSize: 16, cursor: viewIndex >= kifu.length - 1 ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <i className="ti ti-chevron-right" />
+            </button>
+            <button onClick={onExitViewing} style={{ flex: 1, padding: "8px 0", borderRadius: T.radius.sm, border: `0.5px solid ${T.inkLine}`, background: "transparent", color: T.inkMid, fontSize: T.fontSize.base, fontFamily: T.fontSerif, cursor: "pointer" }}>
+              ライブ盤面に戻る
+            </button>
+          </div>
+        )}
+
+        {/* 通常時: 記録開始 / 見返す / 撮り直す */}
+        {!recording && !viewing && (
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            {hasKifu && (
+              <button onClick={onStartViewing} style={{ flex: 1, padding: "8px 0", borderRadius: T.radius.sm, border: `0.5px solid ${T.gold}`, background: "transparent", color: T.gold, fontSize: T.fontSize.base, fontFamily: T.fontSerif, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                <i className="ti ti-player-play" style={{ fontSize: 13 }} />棋譜を見返す
+              </button>
+            )}
+            <button onClick={onStartRecording} style={{ flex: 1, padding: "8px 0", borderRadius: T.radius.sm, border: "none", background: T.gold, color: T.cream, fontSize: T.fontSize.base, fontFamily: T.fontSerif, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+              <i className="ti ti-player-record" style={{ fontSize: 13 }} />{hasKifu ? "撮り直す" : "棋譜を記録する"}
+            </button>
+          </div>
+        )}
+
+        {!recording && !viewing && hasKifu && (
+          <div onClick={onResetKifu} style={{ marginTop: 8, textAlign: "center", fontSize: T.fontSize.sm, color: T.gray, cursor: "pointer" }}>
+            棋譜を消去する
+          </div>
+        )}
+
+        <div style={{ fontSize: T.fontSize.sm, color: T.inkFaint, marginTop: 6, lineHeight: 1.5 }}>
+          {recording ? "盤面を動かすと、その手順が記録されます。" : "「記録する」を押してから盤面を動かすと、指し手の流れを保存できます。"}
         </div>
       </div>
     </div>
@@ -1707,6 +2075,148 @@ export function NewNode({ tree, parentNodeId, onComplete, onCancel, onOpenNode }
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+
+// ══════════════════════════════════════════════════════════════════
+// RewardsScreen: ご褒美（スタンプ・実績）画面
+// ══════════════════════════════════════════════════════════════════
+
+/** 達成済みスタンプ。判子（ハンコ）風に角丸枠＋アイコンで表現する */
+function RewardBadge({ badge, earned }) {
+  return (
+    <div
+      style={{
+        display:        "flex",
+        flexDirection:  "column",
+        alignItems:     "center",
+        gap:            8,
+        padding:        "16px 8px 14px",
+        borderRadius:   T.radius.lg,
+        border:         `${earned ? 1.5 : 0.5}px solid ${earned ? badge.color : T.inkLine}`,
+        background:     earned ? T.cream : "rgba(26,15,0,0.03)",
+        opacity:        earned ? 1 : 0.45,
+        transition:     "opacity 0.2s",
+      }}
+    >
+      <div
+        style={{
+          width:          52,
+          height:         52,
+          borderRadius:   "50%",
+          display:        "flex",
+          alignItems:     "center",
+          justifyContent: "center",
+          fontSize:       24,
+          color:          earned ? badge.color : T.gray,
+          border:         `2px solid ${earned ? badge.color : T.gray}`,
+          background:     earned ? `${badge.color}14` : "transparent",
+        }}
+      >
+        <i className={`ti ${badge.icon}`} />
+      </div>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: T.fontSize.lg, fontWeight: 600, color: earned ? T.ink : T.inkMid }}>
+          {badge.label}
+        </div>
+        <div style={{ fontSize: T.fontSize.sm, color: T.inkMid, marginTop: 2 }}>
+          {badge.desc}
+        </div>
+      </div>
+      {earned && (
+        <div style={{ fontSize: T.fontSize.xs, color: badge.color, fontWeight: 600, letterSpacing: 1 }}>
+          達成 ✓
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** 数値を大きく見せる統計カード */
+function StatCard({ icon, label, value, unit, color }) {
+  return (
+    <div
+      style={{
+        flex:           1,
+        display:        "flex",
+        flexDirection:  "column",
+        alignItems:     "center",
+        gap:            4,
+        padding:        "14px 8px",
+        borderRadius:   T.radius.lg,
+        border:         `0.5px solid ${T.inkLine}`,
+        background:     T.cream,
+      }}
+    >
+      <i className={`ti ${icon}`} style={{ fontSize: 18, color }} />
+      <div style={{ fontSize: 22, fontWeight: 700, color: T.ink, fontFamily: T.fontTitle }}>
+        {value}
+        <span style={{ fontSize: T.fontSize.sm, fontWeight: 400, color: T.inkMid, marginLeft: 2 }}>{unit}</span>
+      </div>
+      <div style={{ fontSize: T.fontSize.sm, color: T.inkMid }}>{label}</div>
+    </div>
+  );
+}
+
+/**
+ * ご褒美画面 ― ツリー数・ノード数・ログイン日数を集計し、
+ * 達成済みスタンプ（バッジ）を判子風に並べて表示する
+ */
+export function RewardsScreen({ treeCount, nodeCount, onBack }) {
+  const [loginStats, setLoginStats] = useState({ totalDays: 0, streak: 0 });
+
+  useEffect(() => {
+    setLoginStats(getLoginStats());
+  }, []);
+
+  const stats = {
+    treeCount,
+    nodeCount,
+    totalDays: loginStats.totalDays,
+    streak:    loginStats.streak,
+  };
+  const earnedIds = getEarnedBadgeIds(stats);
+  const earnedCount = earnedIds.size;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: T.cream }}>
+      {/* ── トップバー ── */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 14px 10px", borderBottom: `0.5px solid ${T.inkLine}` }}>
+        <BackBtn onClick={onBack} />
+        <div style={{ fontSize: T.fontSize.xl, fontWeight: 600, color: T.ink }}>ご褒美</div>
+      </div>
+
+      <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 32px" }}>
+        {/* ── 統計サマリー ── */}
+        <SectionLabel style={{ marginBottom: 8 }}>これまでの記録</SectionLabel>
+        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+          <StatCard icon="ti-seedling"  label="ツリー" value={treeCount}        unit="個" color={T.green} />
+          <StatCard icon="ti-sitemap"   label="ノード" value={nodeCount}        unit="個" color={T.blue} />
+        </div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
+          <StatCard icon="ti-calendar"  label="累計ログイン" value={loginStats.totalDays} unit="日" color={T.brown} />
+          <StatCard icon="ti-flame"     label="連続ログイン" value={loginStats.streak}    unit="日" color={T.brown} />
+        </div>
+
+        {/* ── スタンプ一覧 ── */}
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
+          <SectionLabel>獲得スタンプ</SectionLabel>
+          <div style={{ fontSize: T.fontSize.sm, color: T.inkMid }}>
+            {earnedCount} / {BADGE_DEFS.length} 個達成
+          </div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          {BADGE_DEFS.map((badge) => (
+            <RewardBadge key={badge.id} badge={badge} earned={earnedIds.has(badge.id)} />
+          ))}
+        </div>
+
+        <div style={{ marginTop: 20, fontSize: T.fontSize.sm, color: T.inkFaint, lineHeight: 1.7 }}>
+          ※ ログイン日数はこの端末に記録されます。アプリを開くたびに自動でカウントされます。
+        </div>
+      </div>
     </div>
   );
 }
