@@ -134,6 +134,11 @@ const handleOpenTree = async (treeId) => {
     await loadMyTrees();
   };
 
+  const handleMemoSave = async (treeId, memo) => {
+    await updateTree(treeId, { quick_memo: memo });
+    setMyTrees((prev) => prev.map((t) => t.id === treeId ? { ...t, quick_memo: memo } : t));
+  };
+
   const handlePublishTree = async (treeId) => {
     try {
       await publishTree(treeId);
@@ -344,7 +349,8 @@ const handleOpenTree = async (treeId) => {
             onTrophy={() => setScreen("trophy")}
             onNewTree={handleNewTree} onSignOut={handleSignOut}
             onDeleteTree={handleDeleteTree} onEditTree={handleEditTree}
-            onPublish={handlePublishTree} onUnpublish={handleUnpublishTree}/>
+            onPublish={handlePublishTree} onUnpublish={handleUnpublishTree}
+            onMemoSave={handleMemoSave}/>
         )}
         {screen==="trophy" && (
           <TrophyScreen

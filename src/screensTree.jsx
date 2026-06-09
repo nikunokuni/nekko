@@ -589,12 +589,20 @@ function DeleteTreeModal({ tree, onClose, onConfirm }) {
 // ══════════════════════════════════════════════════════════════════
 // TreeCard: ツリー一覧の1行カード
 // ══════════════════════════════════════════════════════════════════
-export function TreeCard({ tree, onOpen, onEdit, onDelete }) {
-  const [menuOpen, setMenuOpen] = useState(false);
+export function TreeCard({ tree, onOpen, onEdit, onDelete, onMemoSave }) {
+  const [menuOpen,  setMenuOpen]  = useState(false);
+  const [memoOpen,  setMemoOpen]  = useState(false);
+  const [memoValue, setMemoValue] = useState(tree.quick_memo || "");
 
   const handleMenuToggle = (e) => { e.stopPropagation(); setMenuOpen((v) => !v); };
   const handleEdit       = (e) => { e.stopPropagation(); setMenuOpen(false); onEdit(tree); };
   const handleDelete     = (e) => { e.stopPropagation(); setMenuOpen(false); onDelete(tree); };
+  const handleMemoToggle = (e) => { e.stopPropagation(); setMemoOpen((v) => !v); };
+  const handleMemoBlur   = () => {
+    const trimmed = memoValue.trim();
+    if (trimmed !== (tree.quick_memo || "").trim()) onMemoSave?.(tree.id, trimmed);
+    setMemoOpen(false);
+  };
 
   return (
     <div style={{ position: "relative", marginBottom: 10 }}>
@@ -612,11 +620,20 @@ export function TreeCard({ tree, onOpen, onEdit, onDelete }) {
         onMouseEnter={(e) => (e.currentTarget.style.borderColor = T.gold)}
         onMouseLeave={(e) => (e.currentTarget.style.borderColor = "rgba(200,169,110,0.35)")}
       >
-        {/* 1行目: 名前 + ステータスバッジ + 公開バッジ + メニューボタン */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        {/* 1行目: 名前 + メモアイコン + ステータスバッジ + 公開バッジ + メニューボタン */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: memoOpen ? 8 : 10 }}>
           <span style={{ fontSize: T.fontSize.xxl, fontWeight: 600, color: T.ink, fontFamily: T.fontTitle, flex: 1 }}>
             {tree.name}
           </span>
+
+          {/* 一言メモボタン */}
+          <button
+            onClick={handleMemoToggle}
+            title={memoValue || "一言メモ"}
+            style={{ background: "none", border: "none", cursor: "pointer", color: memoValue ? T.gold : T.inkFaint, fontSize: 16, padding: "2px 4px", borderRadius: 6, lineHeight: 1 }}
+          >
+            <i className="ti ti-notes" />
+          </button>
 
           {/* 使用中 / 休止中バッジ */}
           <span style={{
@@ -644,6 +661,32 @@ export function TreeCard({ tree, onOpen, onEdit, onDelete }) {
             <i className="ti ti-dots-vertical" />
           </button>
         </div>
+
+        {/* 一言メモ入力欄（展開時） */}
+        {memoOpen && (
+          <div onClick={(e) => e.stopPropagation()} style={{ marginBottom: 10 }}>
+            <textarea
+              autoFocus
+              value={memoValue}
+              onChange={(e) => setMemoValue(e.target.value)}
+              onBlur={handleMemoBlur}
+              placeholder="一言メモをさっと入力..."
+              rows={2}
+              style={{
+                width: "100%", boxSizing: "border-box",
+                border: "0.5px solid rgba(200,169,110,0.6)",
+                borderRadius: T.radius.md,
+                background: "rgba(255,252,240,0.9)",
+                padding: "8px 10px",
+                fontSize: T.fontSize.md,
+                color: T.ink,
+                fontFamily: T.fontSerif,
+                resize: "none",
+                outline: "none",
+              }}
+            />
+          </div>
+        )}
 
         {/* 2行目: タグ + 更新日 */}
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
@@ -704,7 +747,7 @@ export function TreeCard({ tree, onOpen, onEdit, onDelete }) {
 // ══════════════════════════════════════════════════════════════════
 // TreeList: ツリー一覧画面
 // ══════════════════════════════════════════════════════════════════
-export function TreeList({ trees, profile, onOpen, onPublic, onTrophy, onNewTree, onSignOut, onDeleteTree, onEditTree, onPublish, onUnpublish }) {
+export function TreeList({ trees, profile, onOpen, onPublic, onTrophy, onNewTree, onSignOut, onDeleteTree, onEditTree, onPublish, onUnpublish, onMemoSave }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editTarget,      setEditTarget]      = useState(null);
   const [deleteTarget,    setDeleteTarget]    = useState(null);
@@ -760,7 +803,7 @@ export function TreeList({ trees, profile, onOpen, onPublic, onTrophy, onNewTree
               <>
                 <div style={{ fontSize: T.fontSize.sm, color: "rgba(26,15,0,0.4)", letterSpacing: "0.1em", marginBottom: 8 }}>使用中</div>
                 {activeTrees.map((t) => (
-                  <TreeCard key={t.id} tree={t} onOpen={onOpen} onEdit={setEditTarget} onDelete={setDeleteTarget} />
+                  <TreeCard key={t.id} tree={t} onOpen={onOpen} onEdit={setEditTarget} onDelete={setDeleteTarget} onMemoSave={onMemoSave} />
                 ))}
               </>
             )}
@@ -768,7 +811,7 @@ export function TreeList({ trees, profile, onOpen, onPublic, onTrophy, onNewTree
               <>
                 <div style={{ fontSize: T.fontSize.sm, color: "rgba(26,15,0,0.4)", letterSpacing: "0.1em", marginBottom: 8, marginTop: activeTrees.length > 0 ? 16 : 0 }}>休止中</div>
                 {inactiveTrees.map((t) => (
-                  <TreeCard key={t.id} tree={t} onOpen={onOpen} onEdit={setEditTarget} onDelete={setDeleteTarget} />
+                  <TreeCard key={t.id} tree={t} onOpen={onOpen} onEdit={setEditTarget} onDelete={setDeleteTarget} onMemoSave={onMemoSave} />
                 ))}
               </>
             )}
