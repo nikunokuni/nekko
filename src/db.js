@@ -119,6 +119,7 @@ export async function updateNode(nodeId, patch) {
     mergeParentIds: "merge_parent_ids",
     handSente:      "hand_sente",
     handGote:       "hand_gote",
+    kifu:           "kifu",
   };
   const dbPatch = {};
   for (const [k, v] of Object.entries(patch)) {
@@ -145,10 +146,11 @@ export function buildTreeFromNodes(treeRow, flatNodes) {
       stamps:        n.stamps  || [],
       memo:          n.memo    || "",
       isRoot:        n.is_root,
-      isMergeTarget: n.is_merge_target,
+      isMergeTarget:  n.is_merge_target,
       mergeParentIds: n.merge_parent_ids || [],
-      handSente:     n.hand_sente || {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
-      handGote:      n.hand_gote  || {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
+      handSente:      n.hand_sente || {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
+      handGote:       n.hand_gote  || {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
+      kifu:           n.kifu || [],
       childIds:      [],
     };
   });

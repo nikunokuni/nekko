@@ -211,7 +211,7 @@ function ModalActionButtons({ onCancel, onConfirm, confirmLabel, disabled, dange
 // ──────────────────────────────────────────
 // BoardSection: 将棋盤の表示/追加エリア
 // ──────────────────────────────────────────
-function BoardSection({ boardVisible, boardData, stamps, handSente, handGote, parentBoard, parentLabel, onToggle, onChange, onDelete }){
+function BoardSection({ boardVisible, boardData, stamps, handSente, handGote, parentBoard, parentLabel, onToggle, onChange, onDelete, kifu, onKifuChange }){
   return (
     <div style={{ padding: "8px 16px 0" }}>
       {/* ヘッダー行 */}
@@ -283,12 +283,14 @@ function BoardSection({ boardVisible, boardData, stamps, handSente, handGote, pa
           )}
 
           <ShogiBoard
-  board={boardData}
-  stamps={stamps}
-  handSente={handSente}
-  handGote={handGote}
-  onChange={({ board, stamps: s, handSente: hs, handGote: hg }) => onChange(board, s, hs, hg)}
-/>
+            board={boardData}
+            stamps={stamps}
+            handSente={handSente}
+            handGote={handGote}
+            kifu={kifu || []}
+            onChange={({ board, stamps: s, handSente: hs, handGote: hg }) => onChange(board, s, hs, hg)}
+            onKifuChange={onKifuChange}
+          />
 
           <button
             onClick={onDelete}
@@ -1710,8 +1712,10 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
           onToggle={handleToggleBoard}
           handSente={handSente}
           handGote={handGote}
-         onChange={(board, s, hs, hg) => {  setBoardData(board); setStamps(s);  onUpdate(nodeId, { board, stamps: s, handSente: hs, handGote: hg }); showToast();}}
+         onChange={(board, s, hs, hg) => { setBoardData(board); setStamps(s); onUpdate(nodeId, { board, stamps: s, handSente: hs, handGote: hg }); showToast(); }}
           onDelete={() => { setBoardData(null); setStamps([]); setBoardVisible(false); }}
+          kifu={node.kifu || []}
+          onKifuChange={async (newKifu) => { await onUpdate(nodeId, { kifu: newKifu }); showToast("棋譜を保存しました"); }}
         />
 
         <Divider />
