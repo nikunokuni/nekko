@@ -446,7 +446,21 @@ export default function ShogiBoard({
           background: playbackIdx !== null ? '#f0e8d4' : '#faf4e8',
           border: `0.5px solid ${playbackIdx !== null ? '#a07840' : 'rgba(26,15,0,0.15)'}`,
         }}>
-          {/* 前へ */}
+          {/* |< 最初へ */}
+          <button
+            onClick={() => setPlaybackIdx(0)}
+            disabled={playbackIdx === 0}
+            style={{
+              width:32, height:32, borderRadius:6, border:'0.5px solid rgba(26,15,0,0.18)',
+              background:'#faf4e8', cursor: playbackIdx === 0 ? 'default' : 'pointer',
+              color: playbackIdx === 0 ? '#ccc' : '#a07840',
+              fontSize:16, display:'flex', alignItems:'center', justifyContent:'center',
+            }}
+          >
+            <i className="ti ti-player-skip-back"/>
+          </button>
+
+          {/* < 前へ */}
           <button
             onClick={() => setPlaybackIdx(idx => idx === null ? moveCount : Math.max(0, idx - 1))}
             disabled={playbackIdx === 0}
@@ -470,7 +484,7 @@ export default function ShogiBoard({
             }
           </div>
 
-          {/* 次へ */}
+          {/* 次へ > */}
           <button
             onClick={() => setPlaybackIdx(idx => idx === null ? 1 : Math.min(moveCount, idx + 1))}
             disabled={playbackIdx === moveCount}
@@ -482,6 +496,20 @@ export default function ShogiBoard({
             }}
           >
             <i className="ti ti-chevron-right"/>
+          </button>
+
+          {/* 最後へ >| */}
+          <button
+            onClick={() => setPlaybackIdx(moveCount)}
+            disabled={playbackIdx === moveCount}
+            style={{
+              width:32, height:32, borderRadius:6, border:'0.5px solid rgba(26,15,0,0.18)',
+              background:'#faf4e8', cursor: playbackIdx === moveCount ? 'default' : 'pointer',
+              color: playbackIdx === moveCount ? '#ccc' : '#a07840',
+              fontSize:16, display:'flex', alignItems:'center', justifyContent:'center',
+            }}
+          >
+            <i className="ti ti-player-skip-forward"/>
           </button>
 
           {/* 再生中なら「編集に戻る」 */}
