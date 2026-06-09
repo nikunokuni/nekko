@@ -4,14 +4,16 @@
 // ══════════════════════════════════════════════════
 import { useState, useEffect, useCallback } from "react";
 import { AuthScreen, PublicTrees } from "./screensPublic";
-import { TreeList, MindMap, NodeDetail, NewNode } from "./screensTree";
+import { TreeList, MindMap, NodeDetail, NewNode, TrophyScreen } from "./screensTree";
 import {
   supabase,
   getSession, getProfile, signOut,
   fetchMyTrees, fetchPublicTrees, fetchNodes,
   createTree, createNode, updateNode, updateTree, deleteTree,
-  buildTreeFromNodes, publishTree, deleteNodes, unpublishTree 
+  buildTreeFromNodes, publishTree, deleteNodes, unpublishTree,
+  countUserNodes,
 } from "./db";
+import { recordLogin, getLoginStats } from "./rewards";
 
 export default function App() {
   const [session,          setSession]          = useState(undefined); // undefined = 未確定
@@ -23,6 +25,8 @@ export default function App() {
   const [activeNodeId,     setActiveNodeId]     = useState(null);
   const [newNodeParentId,  setNewNodeParentId]  = useState(null);
   const [loading,          setLoading]          = useState(false);
+  const [nodeCount,        setNodeCount]        = useState(0);
+  const [loginStats,       setLoginStats]       = useState({ totalDays: 0, streak: 0 });
 
   // ── Auth bootstrap ────────────────────────────
   useEffect(() => {
@@ -36,8 +40,11 @@ export default function App() {
     if (session === undefined) return; // まだ確定していない
     if (!session) return;              // 未ログイン
     getProfile(session.user.id).then(({ data }) => setProfile(data));
+    recordLogin();
+    setLoginStats(getLoginStats());
     loadMyTrees();
     loadPublicTrees();
+    countUserNodes(session.user.id).then(setNodeCount);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
@@ -247,10 +254,17 @@ const handleOpenTree = async (treeId) => {
       } else {
         setScreen("map");
       }
+      refreshNodeCount();
     } catch (e) {
       console.error("ノード削除失敗", e);
     }
   };
+  const refreshNodeCount = useCallback(async () => {
+    if (!session) return;
+    const cnt = await countUserNodes(session.user.id);
+    setNodeCount(cnt);
+  }, [session]);
+
   const handleNewNodeComplete = async (newNodeData) => {
   if (!activeTree || !session) return;
   const { data: newNode } = await createNode({
@@ -265,9 +279,8 @@ const handleOpenTree = async (treeId) => {
     memo:        newNodeData.memo,
   });
   await loadTree(activeTree.id);
-  // ここで画面遷移しない：NewNode 側の完了画面（done）を表示させるため。
-  // 遷移はユーザーが「ツリーに戻る」/「ノードを開く」を押したときに行う。
-  return newNode?.id ?? null;  // ← 追加：IDを返す
+  refreshNodeCount();
+  return newNode?.id ?? null;
 };
 
   // ── 公開ツリーのコピー（BFS 順で parent_id を解決）──
@@ -324,14 +337,22 @@ const handleOpenTree = async (treeId) => {
           </div>
         )}
 
-       {screen==="list" && (
-  <TreeList trees={myTrees} profile={profile}
-    onOpen={handleOpenTree} onPublic={() => { setScreen("public"); loadPublicTrees(); }}
-    onNewTree={handleNewTree} onSignOut={handleSignOut}
-    onDeleteTree={handleDeleteTree} onEditTree={handleEditTree}
-    onPublish={handlePublishTree}
-    onUnpublish={handleUnpublishTree}/>
-)}
+        {screen==="list" && (
+          <TreeList trees={myTrees} profile={profile}
+            onOpen={handleOpenTree}
+            onPublic={() => { setScreen("public"); loadPublicTrees(); }}
+            onTrophy={() => setScreen("trophy")}
+            onNewTree={handleNewTree} onSignOut={handleSignOut}
+            onDeleteTree={handleDeleteTree} onEditTree={handleEditTree}
+            onPublish={handlePublishTree} onUnpublish={handleUnpublishTree}/>
+        )}
+        {screen==="trophy" && (
+          <TrophyScreen
+            onBack={() => setScreen("list")}
+            treeCount={myTrees.length}
+            nodeCount={nodeCount}
+            loginStats={loginStats}/>
+        )}
         {screen==="map" && activeTree && (
           <MindMap tree={activeTree} onNodeSelect={handleNodeSelect}
             onBack={() => setScreen("list")} onReparent={handleReparentNode}/>

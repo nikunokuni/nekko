@@ -132,6 +132,14 @@ export async function deleteNode(nodeId) {
   return supabase.from("nodes").delete().eq("id", nodeId);
 }
 
+export async function countUserNodes(userId) {
+  const { count } = await supabase
+    .from("nodes")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId);
+  return count ?? 0;
+}
+
 // ── フラットなノード配列からツリーオブジェクトを組み立てる ──
 export function buildTreeFromNodes(treeRow, flatNodes) {
   const nodeMap = {};
