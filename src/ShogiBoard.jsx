@@ -9,8 +9,29 @@ import { PIECE_LABEL, PROMOTED_LABEL, PROMOTABLE } from "./data";
 const CELL = 38;
 const COLS = 9, ROWS = 9;
 
-const STAMP_COLOR = { maru:'#2471A3', ya:'#6B3FA0', hoshi:'#B7950B', tri:'#A93226', q:'#5F5E5A' };
-const STAMP_CHAR  = { maru:'○', ya:'→', hoshi:'★', tri:'△', q:'？' };
+const STAMP_COLOR = { maru:'#2471A3', ya:'#6B3FA0', shikaku:'#C0392B', q:'#5F5E5A' };
+const STAMP_CHAR  = { maru:'○', ya:'➡', shikaku:'□', q:'？' };
+
+// ── 矢印スタンプを描画（マスの中心→中心へ大きな矢印） ──
+function drawArrowStamp(ctx, x1, y1, x2, y2, color) {
+  const headLen = CELL * 0.34;
+  const angle   = Math.atan2(y2 - y1, x2 - x1);
+  ctx.save();
+  ctx.globalAlpha = 0.85;
+  ctx.strokeStyle = color; ctx.fillStyle = color;
+  ctx.lineWidth = CELL * 0.14; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2 - headLen * 0.6 * Math.cos(angle), y2 - headLen * 0.6 * Math.sin(angle));
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI / 6), y2 - headLen * Math.sin(angle - Math.PI / 6));
+  ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI / 6), y2 - headLen * Math.sin(angle + Math.PI / 6));
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
 
 // ── 駒ユーティリティ ──────────────────────────────
 const isSentePiece = (p) => /^\+?[a-z]$/.test(p);
@@ -176,6 +197,7 @@ export default function ShogiBoard({
   const [selectedHand, setSelectedHand] = useState(null);
   const [tool,         setTool]         = useState('move');
   const [currentStamp, setCurrentStamp] = useState('maru');
+  const [arrowStart,   setArrowStart]   = useState(null); // 矢印スタンプ：始点タップ待ち
   const [promoteModal, setPromoteModal] = useState(null);
 
   // ── 棋譜記録・再生 ──────────────────────────────
@@ -228,6 +250,11 @@ export default function ShogiBoard({
       ctx.fillRect(selected.col*CELL + 1, selected.row*CELL + 1, CELL - 2, CELL - 2);
     }
 
+    if (arrowStart && !playSnap) {
+      ctx.fillStyle = 'rgba(107,63,160,0.35)';
+      ctx.fillRect(arrowStart.col*CELL + 1, arrowStart.row*CELL + 1, CELL - 2, CELL - 2);
+    }
+
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
         const p = dispBoard[r]?.[c];
@@ -240,16 +267,36 @@ export default function ShogiBoard({
     for (const st of stamps) {
       if (!STAMP_COLOR[st.type]) continue;
       const x = st.col*CELL + CELL/2, y = st.row*CELL + CELL/2;
-      const fs = CELL * 0.62;
       ctx.save();
-      ctx.font = `bold ${fs}px 'Noto Serif JP',serif`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.globalAlpha = 0.88;
-      ctx.strokeStyle = 'white'; ctx.lineWidth = fs*0.18; ctx.lineJoin = 'round';
-      ctx.strokeText(STAMP_CHAR[st.type], x, y);
-      ctx.fillStyle = STAMP_COLOR[st.type]; ctx.fillText(STAMP_CHAR[st.type], x, y);
+
+      if (st.type === 'ya') {
+        // 矢印：始点マス中心 → 終点マス中心
+        const x2 = st.toCol*CELL + CELL/2, y2 = st.toRow*CELL + CELL/2;
+        drawArrowStamp(ctx, x, y, x2, y2, STAMP_COLOR.ya);
+      } else if (st.type === 'shikaku') {
+        // 四角：マスの輪郭を強調（駒が見えるよう枠線のみ）
+        const pad = CELL * 0.05;
+        ctx.globalAlpha = 0.9;
+        ctx.strokeStyle = STAMP_COLOR.shikaku; ctx.lineWidth = CELL * 0.09;
+        ctx.strokeRect(st.col*CELL + pad, st.row*CELL + pad, CELL - pad*2, CELL - pad*2);
+      } else if (st.type === 'maru') {
+        // 丸：駒を囲む円（中は塗りつぶさない）
+        ctx.globalAlpha = 0.9;
+        ctx.strokeStyle = STAMP_COLOR.maru; ctx.lineWidth = CELL * 0.07;
+        ctx.beginPath(); ctx.arc(x, y, CELL * 0.46, 0, Math.PI * 2); ctx.stroke();
+      } else {
+        // ？マーク：マス左上に小さく表示し、駒本体は隠さない
+        const bx = st.col*CELL + CELL*0.20, by = st.row*CELL + CELL*0.20;
+        const fs = CELL * 0.34;
+        ctx.font = `bold ${fs}px 'Noto Serif JP',serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.globalAlpha = 0.92;
+        ctx.strokeStyle = 'white'; ctx.lineWidth = fs*0.22; ctx.lineJoin = 'round';
+        ctx.strokeText(STAMP_CHAR.q, bx, by);
+        ctx.fillStyle = STAMP_COLOR.q; ctx.fillText(STAMP_CHAR.q, bx, by);
+      }
       ctx.restore();
     }
-  }, [dispBoard, stamps, selected, playSnap]);
+  }, [dispBoard, stamps, selected, arrowStart, playSnap]);
 
   useEffect(() => { draw(); }, [draw]);
 
@@ -301,12 +348,27 @@ export default function ShogiBoard({
     if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return;
 
     if (tool === 'stamp') {
+      if (currentStamp === 'ya') {
+        if (!arrowStart) {
+          setArrowStart({ row, col }); return;
+        }
+        if (arrowStart.row === row && arrowStart.col === col) {
+          setArrowStart(null); return; // 同じマス→キャンセル
+        }
+        const next = stamps.filter(s => !(s.type==='ya' && s.row===arrowStart.row && s.col===arrowStart.col && s.toRow===row && s.toCol===col));
+        next.push({ row: arrowStart.row, col: arrowStart.col, toRow: row, toCol: col, type: 'ya' });
+        setArrowStart(null);
+        setStamps(next); notify(board, handSente, handGote, next); return;
+      }
       const next = stamps.filter(s => !(s.row===row && s.col===col));
       next.push({ row, col, type: currentStamp });
       setStamps(next); notify(board, handSente, handGote, next); return;
     }
     if (tool === 'erase') {
-      const next = stamps.filter(s => !(s.row===row && s.col===col));
+      const next = stamps.filter(s => !(
+        (s.row===row && s.col===col) ||
+        (s.type==='ya' && s.toRow===row && s.toCol===col)
+      ));
       setStamps(next); notify(board, handSente, handGote, next); return;
     }
 
@@ -355,7 +417,7 @@ export default function ShogiBoard({
       return;
     }
     if (board[row]?.[col] && board[row][col] !== ' ') setSelected({ row, col });
-  }, [board, stamps, selected, selectedHand, tool, currentStamp, readOnly, handSente, handGote, notify, playbackIdx]);
+  }, [board, stamps, selected, selectedHand, tool, currentStamp, arrowStart, readOnly, handSente, handGote, notify, playbackIdx]);
 
   const handleTouchEnd = useCallback((e) => {
     if (readOnly || !board) return;
@@ -386,7 +448,7 @@ export default function ShogiBoard({
       {!readOnly && playbackIdx === null && (
         <div style={{ display:'flex', gap:6, marginBottom:6, flexWrap:'wrap', alignItems:'center' }}>
           {[['move','動かす','ti-arrows-move'],['stamp','スタンプ','ti-stamp'],['erase','消す','ti-eraser']].map(([t,lbl,icon]) => (
-            <button key={t} onClick={() => { setTool(t); setSelected(null); setSelectedHand(null); }} style={btnStyle(tool===t)}>
+            <button key={t} onClick={() => { setTool(t); setSelected(null); setSelectedHand(null); setArrowStart(null); }} style={btnStyle(tool===t)}>
               <i className={`ti ${icon}`} style={{fontSize:13}}/>{lbl}
             </button>
           ))}
@@ -421,7 +483,7 @@ export default function ShogiBoard({
         <div style={{ display:'flex', gap:5, marginBottom:6, alignItems:'center', flexWrap:'wrap' }}>
           <span style={{fontSize:10,color:'rgba(26,15,0,0.5)'}}>スタンプ：</span>
           {Object.entries(STAMP_CHAR).map(([k,ch]) => (
-            <div key={k} onClick={() => setCurrentStamp(k)} style={{
+            <div key={k} onClick={() => { setCurrentStamp(k); setArrowStart(null); }} style={{
               width:28, height:28, borderRadius:'50%', cursor:'pointer',
               display:'flex', alignItems:'center', justifyContent:'center',
               fontSize:14, color:STAMP_COLOR[k], background:'#faf4e8',
@@ -526,7 +588,10 @@ export default function ShogiBoard({
           {isRecording
             ? '駒を動かすと手順が記録されます'
             : tool==='move' ? '駒をタップして選択 → 移動先をタップ'
-            : tool==='stamp' ? 'スタンプを選んでマスをタップ'
+            : tool==='stamp'
+              ? (currentStamp === 'ya'
+                  ? (arrowStart ? '矢印の終点のマスをタップ' : '矢印の始点のマスをタップ')
+                  : 'スタンプを選んでマスをタップ')
             : 'スタンプが置かれたマスをタップして消す'}
         </div>
       )}

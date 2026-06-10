@@ -338,7 +338,7 @@ export default function App() {
     const idMap = {};
     const rootSrc = srcNodes.find(n => n.is_root);
     if (rootSrc) {
-      const { data: nr } = await createNode({ treeId: newTree.id, userId: session.user.id, parentId: null, label: rootSrc.label, isRoot: true, status: rootSrc.status, memo: rootSrc.memo || "", board: rootSrc.board, stamps: rootSrc.stamps || [], tags: rootSrc.tags || [] });
+      const { data: nr } = await createNode({ treeId: newTree.id, userId: session.user.id, parentId: null, label: rootSrc.label, isRoot: true, status: rootSrc.status, approachType: rootSrc.approach_type, memo: rootSrc.memo || "", board: rootSrc.board, stamps: rootSrc.stamps || [], tags: rootSrc.tags || [], handSente: rootSrc.hand_sente, handGote: rootSrc.hand_gote, kifu: rootSrc.kifu || [], kifuImported: rootSrc.kifu_imported || false, sortOrder: rootSrc.sort_order || 0 });
       if (nr) idMap[rootSrc.id] = nr.id;
     }
 
@@ -352,9 +352,18 @@ export default function App() {
       }
     }
     for (const n of ordered) {
-      const { data: nn } = await createNode({ treeId: newTree.id, userId: session.user.id, parentId: idMap[n.parent_id] || null, label: n.label, status: n.status, approachType: n.approach_type, memo: n.memo || "", board: n.board, stamps: n.stamps || [], tags: n.tags || [] });
+      const { data: nn } = await createNode({ treeId: newTree.id, userId: session.user.id, parentId: idMap[n.parent_id] || null, label: n.label, status: n.status, approachType: n.approach_type, memo: n.memo || "", board: n.board, stamps: n.stamps || [], tags: n.tags || [], handSente: n.hand_sente, handGote: n.hand_gote, kifu: n.kifu || [], kifuImported: n.kifu_imported || false, sortOrder: n.sort_order || 0 });
       if (nn) idMap[n.id] = nn.id;
     }
+
+    // 合流関係（isMergeTarget / mergeParentIds）を新IDで復元
+    for (const n of srcNodes) {
+      const mergeParentIds = (n.merge_parent_ids || []).map(pid => idMap[pid]).filter(Boolean);
+      if (n.is_merge_target || mergeParentIds.length > 0) {
+        await updateNode(idMap[n.id], { isMergeTarget: !!n.is_merge_target, mergeParentIds });
+      }
+    }
+
     recordAction("copied");
     await loadMyTrees();
   };
