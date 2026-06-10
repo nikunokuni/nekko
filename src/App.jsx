@@ -4,16 +4,19 @@
 // ══════════════════════════════════════════════════
 import { useState, useEffect, useCallback } from "react";
 import { AuthScreen, PublicTrees } from "./screensPublic";
-import { TreeList, MindMap, NodeDetail, NewNode, TrophyScreen } from "./screensTree";
+import { TreeList } from "./screens/TreeListScreen";
+import { MindMap } from "./screens/MindMapScreen";
+import { NodeDetail } from "./screens/NodeDetailScreen";
+import { TrophyScreen } from "./screens/TrophyScreen";
 import {
   supabase,
   getSession, getProfile, signOut,
   fetchMyTrees, fetchPublicTrees, fetchNodes,
   createTree, createNode, updateNode, updateTree, deleteTree,
   buildTreeFromNodes, publishTree, deleteNodes, unpublishTree,
-  countUserNodes,
+  countUserNodes, likeTree, collectTreeTags,
 } from "./db";
-import { recordLogin, getLoginStats } from "./rewards";
+import { recordLogin, getLoginStats, recordAction, getActions } from "./rewards";
 
 export default function App() {
   const [session,          setSession]          = useState(undefined); // undefined = 未確定
@@ -23,7 +26,6 @@ export default function App() {
   const [pubTrees,         setPubTrees]         = useState([]);
   const [activeTree,       setActiveTree]       = useState(null);
   const [activeNodeId,     setActiveNodeId]     = useState(null);
-  const [newNodeParentId,  setNewNodeParentId]  = useState(null);
   const [loading,          setLoading]          = useState(false);
   const [nodeCount,        setNodeCount]        = useState(0);
   const [loginStats,       setLoginStats]       = useState({ totalDays: 0, streak: 0 });
@@ -49,11 +51,11 @@ export default function App() {
   }, [session]);
 
   // ── ツリー一覧の取得 ─────────────────────────
- const loadMyTrees = useCallback(async () => {
-  if (!session) return;
-  const { data } = await fetchMyTrees(session.user.id);
-  setMyTrees(data || []);
-}, [session]);
+  const loadMyTrees = useCallback(async () => {
+    if (!session) return;
+    const { data } = await fetchMyTrees(session.user.id);
+    setMyTrees(data || []);
+  }, [session]);
   const loadPublicTrees = useCallback(async () => {
     const { data } = await fetchPublicTrees();
     setPubTrees(data || []);
@@ -90,39 +92,51 @@ export default function App() {
   };
 
   // ── ツリー操作 ───────────────────────────────
-const handleOpenTree = async (treeId) => {
-  const tree = await loadTree(treeId);
-  if (!tree) return;
+  const handleOpenTree = async (treeId) => {
+    const tree = await loadTree(treeId);
+    if (!tree) return;
 
-  // ルートノードがなければ自動作成
-  if (!tree.rootId) {
-    const treeRow = myTrees.find(t => t.id === treeId);
-    await createNode({
-      treeId,
-      userId: session.user.id,
-      parentId: null,
-      label: treeRow?.name || "戦法",
-      isRoot: true,
-      status: "todo",
+    // ルートノードがなければ自動作成
+    if (!tree.rootId) {
+      const treeRow = myTrees.find(t => t.id === treeId);
+      await createNode({
+        treeId,
+        userId: session.user.id,
+        parentId: null,
+        label: treeRow?.name || "戦法",
+        isRoot: true,
+        status: "todo",
+      });
+      const fixed = await loadTree(treeId);
+      if (fixed) setScreen("map");
+    } else {
+      setScreen("map");
+    }
+  };
+
+  const handleNewTree = async (name, tags = [], kifuSnapshots = null) => {
+    const { data, error } = await createTree({ userId: session.user.id, name, tags });
+    if (error || !data) { console.error("createTree error:", error); return; }
+
+    const hasKifu = kifuSnapshots && kifuSnapshots.length > 0;
+    const last = hasKifu ? kifuSnapshots[kifuSnapshots.length - 1] : null;
+
+    const { error: nodeError } = await createNode({
+      treeId: data.id, userId: session.user.id,
+      parentId: null, label: name, isRoot: true, status: "todo",
+      // 棋譜インポートがあれば、ルートノードに最終局面・棋譜を反映する
+      board:        hasKifu ? last.board     : null,
+      handSente:    hasKifu ? last.handSente : undefined,
+      handGote:     hasKifu ? last.handGote  : undefined,
+      kifu:         hasKifu ? kifuSnapshots  : [],
+      kifuImported: hasKifu,
     });
-    const fixed = await loadTree(treeId);
-    if (fixed) setScreen("map");
-  } else {
-    setScreen("map");
-  }
-};
+    if (nodeError) console.error("createNode error:", nodeError);
 
- const handleNewTree = async (name, tags = []) => {
-  const { data } = await createTree({ userId: session.user.id, name, tags });
-  if (!data) return;
-  await createNode({
-    treeId: data.id, userId: session.user.id,
-    parentId: null, label: name, isRoot: true, status: "todo"
-  });
-  await loadMyTrees();
-  // 作成したツリーをそのまま開く（手動で探してタップする手間を省く）
-  await handleOpenTree(data.id);
-};
+    await loadMyTrees();
+    // 作成したツリーをそのまま開く（手動で探してタップする手間を省く）
+    await handleOpenTree(data.id);
+  };
 
   const handleDeleteTree = async (treeId) => {
     await deleteTree(treeId);
@@ -137,6 +151,7 @@ const handleOpenTree = async (treeId) => {
   const handleMemoSave = async (treeId, memo) => {
     await updateTree(treeId, { quick_memo: memo });
     setMyTrees((prev) => prev.map((t) => t.id === treeId ? { ...t, quick_memo: memo } : t));
+    if (memo.trim()) recordAction("memo");
   };
 
   const handlePublishTree = async (treeId) => {
@@ -145,31 +160,30 @@ const handleOpenTree = async (treeId) => {
       setMyTrees((prev) =>
         prev.map((t) => (t.id === treeId ? { ...t, is_public: true } : t))
       );
+      recordAction("published");
     } catch (e) {
       console.error("公開失敗", e);
     }
   };
-  
+
   const handleUnpublishTree = async (treeId) => {
-  try {
-    await unpublishTree(treeId);
-    setMyTrees((prev) =>
-      prev.map((t) => (t.id === treeId ? { ...t, is_public: false } : t))
-    );
-  } catch (e) {
-    console.error("公開取り消し失敗", e);
-  }
-};
+    try {
+      await unpublishTree(treeId);
+      setMyTrees((prev) =>
+        prev.map((t) => (t.id === treeId ? { ...t, is_public: false } : t))
+      );
+    } catch (e) {
+      console.error("公開取り消し失敗", e);
+    }
+  };
 
   // ── ノード操作 ───────────────────────────────
   const handleNodeSelect = (nodeId) => {
     if (nodeId === "new") {
-      // rootId を確実に取得（rootId が未設定の場合は nodes から探す）
       const rootId = activeTree?.rootId
         ?? Object.values(activeTree?.nodes || {}).find(n => n.isRoot)?.id
         ?? null;
-      setNewNodeParentId(rootId);
-      setScreen("new");
+      handleNewNode(rootId);
       return;
     }
     setActiveNodeId(nodeId);
@@ -179,10 +193,18 @@ const handleOpenTree = async (treeId) => {
   const handleNodeUpdate = async (nodeId, patch) => {
     await updateNode(nodeId, patch);
     // ローカル state も即時反映
-    setActiveTree(prev => ({
-      ...prev,
-      nodes: { ...prev.nodes, [nodeId]: { ...prev.nodes[nodeId], ...patch } },
-    }));
+    setActiveTree(prev => {
+      const nodes = { ...prev.nodes, [nodeId]: { ...prev.nodes[nodeId], ...patch } };
+      const next = { ...prev, nodes };
+      // 戦法タグが変わった場合、ツリー全体のタグ（全ノードのタグの集合）を再計算して保存する
+      if (patch.tags) {
+        const aggregated = collectTreeTags(nodes);
+        next.tags = aggregated;
+        updateTree(prev.id, { tags: aggregated });
+        setMyTrees(mt => mt.map(t => t.id === prev.id ? { ...t, tags: aggregated } : t));
+      }
+      return next;
+    });
   };
 
   // ── ノードの親を付け替える（マインドマップのドラッグ操作） ──
@@ -231,9 +253,41 @@ const handleOpenTree = async (treeId) => {
     }));
   };
 
- const handleNewNode = (parentId) => {
-    setNewNodeParentId(parentId);
-    setScreen("new");
+  const handleNewNode = async (parentId) => {
+    if (!activeTree || !session) return;
+    const { data: newNode } = await createNode({
+      treeId:   activeTree.id,
+      userId:   session.user.id,
+      parentId: parentId,
+      label:    "新しいノード",
+      status:   "wip",
+    });
+    if (!newNode) return;
+    await loadTree(activeTree.id);
+    refreshNodeCount();
+    setActiveNodeId(newNode.id);
+    setScreen("node");
+  };
+
+  // ── 棋譜の途中局面から分岐ノードを作成する ──
+  // できる分岐先は通常の新規ノード扱い（元の棋譜は引き継がない）
+  const handleBranchFromKifu = async (parentNodeId, snapshot) => {
+    if (!activeTree || !session) return;
+    const { data: newNode } = await createNode({
+      treeId:    activeTree.id,
+      userId:    session.user.id,
+      parentId:  parentNodeId,
+      label:     "新しいノード",
+      status:    "wip",
+      board:     snapshot.board,
+      handSente: snapshot.handSente,
+      handGote:  snapshot.handGote,
+    });
+    if (!newNode) return;
+    await loadTree(activeTree.id);
+    refreshNodeCount();
+    setActiveNodeId(newNode.id);
+    setScreen("node");
   };
 
   const handleDeleteNode = async (idsToDelete, parentId) => {
@@ -270,24 +324,6 @@ const handleOpenTree = async (treeId) => {
     setNodeCount(cnt);
   }, [session]);
 
-  const handleNewNodeComplete = async (newNodeData) => {
-  if (!activeTree || !session) return;
-  const { data: newNode } = await createNode({
-    treeId:      activeTree.id,
-    userId:      session.user.id,
-    parentId:    newNodeParentId,
-    label:       newNodeData.label,
-    status:      newNodeData.status,
-    approachType:newNodeData.approachType,
-    board:       newNodeData.board,
-    stamps:      newNodeData.stamps,
-    memo:        newNodeData.memo,
-  });
-  await loadTree(activeTree.id);
-  refreshNodeCount();
-  return newNode?.id ?? null;
-};
-
   // ── 公開ツリーのコピー（BFS 順で parent_id を解決）──
   const handleCopyTree = async (pubTreeId) => {
     const pubTreeRow = pubTrees.find(t => t.id === pubTreeId);
@@ -302,7 +338,7 @@ const handleOpenTree = async (treeId) => {
     const idMap = {};
     const rootSrc = srcNodes.find(n => n.is_root);
     if (rootSrc) {
-      const { data: nr } = await createNode({ treeId: newTree.id, userId: session.user.id, parentId: null, label: rootSrc.label, isRoot: true, status: rootSrc.status, memo: rootSrc.memo || "", board: rootSrc.board, stamps: rootSrc.stamps || [] });
+      const { data: nr } = await createNode({ treeId: newTree.id, userId: session.user.id, parentId: null, label: rootSrc.label, isRoot: true, status: rootSrc.status, memo: rootSrc.memo || "", board: rootSrc.board, stamps: rootSrc.stamps || [], tags: rootSrc.tags || [] });
       if (nr) idMap[rootSrc.id] = nr.id;
     }
 
@@ -316,9 +352,10 @@ const handleOpenTree = async (treeId) => {
       }
     }
     for (const n of ordered) {
-      const { data: nn } = await createNode({ treeId: newTree.id, userId: session.user.id, parentId: idMap[n.parent_id] || null, label: n.label, status: n.status, approachType: n.approach_type, memo: n.memo || "", board: n.board, stamps: n.stamps || [] });
+      const { data: nn } = await createNode({ treeId: newTree.id, userId: session.user.id, parentId: idMap[n.parent_id] || null, label: n.label, status: n.status, approachType: n.approach_type, memo: n.memo || "", board: n.board, stamps: n.stamps || [], tags: n.tags || [] });
       if (nn) idMap[n.id] = nn.id;
     }
+    recordAction("copied");
     await loadMyTrees();
   };
 
@@ -335,7 +372,7 @@ const handleOpenTree = async (treeId) => {
   // ── レンダリング ─────────────────────────────
   return (
     <div style={{ height:"100dvh", background:"#faf4e8", display:"flex", flexDirection:"column" }}>
-  <div style={{ flex:1, overflow:"hidden", position:"relative", minHeight:0 }}>
+      <div style={{ flex:1, overflow:"hidden", position:"relative", minHeight:0 }}>
         {loading && (
           <div style={{ position:"absolute", inset:0, background:"rgba(250,244,232,0.8)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:100 }}>
             <div style={{ color:"#a07840", fontSize:13, letterSpacing:"0.15em" }}>読み込み中...</div>
@@ -352,13 +389,28 @@ const handleOpenTree = async (treeId) => {
             onPublish={handlePublishTree} onUnpublish={handleUnpublishTree}
             onMemoSave={handleMemoSave}/>
         )}
-        {screen==="trophy" && (
-          <TrophyScreen
-            onBack={() => setScreen("list")}
-            treeCount={myTrees.length}
-            nodeCount={nodeCount}
-            loginStats={loginStats}/>
-        )}
+        {screen==="trophy" && (() => {
+          const acts = getActions();
+          const extraStats = {
+            hasPublished: myTrees.some(t => t.is_public),
+            hasMemo:      myTrees.some(t => (t.quick_memo || "").trim().length > 0),
+            hasTags:      myTrees.some(t => (t.tags || []).length > 0),
+            hasCopied:    !!acts.copied,
+            hasLiked:     !!acts.liked,
+            hasApproach:  !!acts.approach,
+            hasKifu:      !!acts.kifu,
+            hasTemplate:  !!acts.template,
+            hasCustomTag: !!acts.customTag,
+          };
+          return (
+            <TrophyScreen
+              onBack={() => setScreen("list")}
+              treeCount={myTrees.length}
+              nodeCount={nodeCount}
+              loginStats={loginStats}
+              extraStats={extraStats}/>
+          );
+        })()}
         {screen==="map" && activeTree && (
           <MindMap tree={activeTree} onNodeSelect={handleNodeSelect}
             onBack={() => setScreen("list")} onReparent={handleReparentNode}/>
@@ -367,18 +419,15 @@ const handleOpenTree = async (treeId) => {
           <NodeDetail tree={activeTree} nodeId={activeNodeId}
             onBack={() => setScreen("map")} onNodeSelect={handleNodeSelect}
             onNewNode={handleNewNode} onUpdate={handleNodeUpdate}
-            onDeleteNode={handleDeleteNode} onSetMergeParents={handleSetMergeParents}/>
+            onDeleteNode={handleDeleteNode} onSetMergeParents={handleSetMergeParents}
+            onBranchFromKifu={handleBranchFromKifu}/>
         )}
-        {screen==="new" && activeTree && newNodeParentId && (
-  <NewNode tree={activeTree} parentNodeId={newNodeParentId}
-    onComplete={handleNewNodeComplete}
-    onCancel={() => setScreen(activeNodeId ? "node" : "map")}
-    onOpenNode={(id) => { setActiveNodeId(id); setScreen("node"); }}/>
-)}
         {screen==="public" && (
           <PublicTrees trees={pubTrees} profile={profile}
             onBack={() => setScreen("list")}
-            onCopy={handleCopyTree} onRefresh={loadPublicTrees}/>
+            onCopy={handleCopyTree}
+            onLike={(treeId) => session && likeTree(session.user.id, treeId)}
+            onRefresh={loadPublicTrees}/>
         )}
       </div>
     </div>

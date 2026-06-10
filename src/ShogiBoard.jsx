@@ -117,6 +117,24 @@ function HandPiece({ k, count, isSente, isSelected, onClick, readOnly }) {
   );
 }
 
+// ── 棋譜ナビボタン ────────────────────────────────
+function NavBtn({ onClick, disabled, icon }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        width:32, height:32, borderRadius:6, border:'0.5px solid rgba(26,15,0,0.18)',
+        background:'#faf4e8', cursor: disabled ? 'default' : 'pointer',
+        color: disabled ? '#ccc' : '#a07840',
+        fontSize:16, display:'flex', alignItems:'center', justifyContent:'center',
+      }}
+    >
+      <i className={`ti ${icon}`}/>
+    </button>
+  );
+}
+
 function HandArea({ hand, isSente, selectedHand, onSelectPiece, readOnly }) {
   const label = isSente ? '自分の持ち駒' : '相手の持ち駒';
   const pieces = HAND_ORDER.filter(k => hand[k] > 0);
@@ -145,6 +163,8 @@ export default function ShogiBoard({
   onChange,
   onKifuChange,
   readOnly = false,
+  allowBranch = false,      // true: 棋譜インポート由来のノードで「この局面で分岐」を表示
+  onBranchFromHere,         // (snapshot) => void
 }) {
   const canvasRef = useRef(null);
 
@@ -447,32 +467,12 @@ export default function ShogiBoard({
           border: `0.5px solid ${playbackIdx !== null ? '#a07840' : 'rgba(26,15,0,0.15)'}`,
         }}>
           {/* |< 最初へ */}
-          <button
-            onClick={() => setPlaybackIdx(0)}
-            disabled={playbackIdx === 0}
-            style={{
-              width:32, height:32, borderRadius:6, border:'0.5px solid rgba(26,15,0,0.18)',
-              background:'#faf4e8', cursor: playbackIdx === 0 ? 'default' : 'pointer',
-              color: playbackIdx === 0 ? '#ccc' : '#a07840',
-              fontSize:16, display:'flex', alignItems:'center', justifyContent:'center',
-            }}
-          >
-            <i className="ti ti-player-skip-back"/>
-          </button>
+          <NavBtn icon="ti-player-skip-back" disabled={playbackIdx === 0}
+            onClick={() => setPlaybackIdx(0)} />
 
           {/* < 前へ */}
-          <button
-            onClick={() => setPlaybackIdx(idx => idx === null ? moveCount : Math.max(0, idx - 1))}
-            disabled={playbackIdx === 0}
-            style={{
-              width:32, height:32, borderRadius:6, border:'0.5px solid rgba(26,15,0,0.18)',
-              background:'#faf4e8', cursor: playbackIdx === 0 ? 'default' : 'pointer',
-              color: playbackIdx === 0 ? '#ccc' : '#a07840',
-              fontSize:16, display:'flex', alignItems:'center', justifyContent:'center',
-            }}
-          >
-            <i className="ti ti-chevron-left"/>
-          </button>
+          <NavBtn icon="ti-chevron-left" disabled={playbackIdx === 0}
+            onClick={() => setPlaybackIdx(idx => idx === null ? moveCount : Math.max(0, idx - 1))} />
 
           {/* 手数表示 */}
           <div style={{ fontFamily:"'Noto Serif JP',serif", fontSize:12, color:'#1a0f00', minWidth:80, textAlign:'center' }}>
@@ -485,32 +485,12 @@ export default function ShogiBoard({
           </div>
 
           {/* 次へ > */}
-          <button
-            onClick={() => setPlaybackIdx(idx => idx === null ? 1 : Math.min(moveCount, idx + 1))}
-            disabled={playbackIdx === moveCount}
-            style={{
-              width:32, height:32, borderRadius:6, border:'0.5px solid rgba(26,15,0,0.18)',
-              background:'#faf4e8', cursor: playbackIdx === moveCount ? 'default' : 'pointer',
-              color: playbackIdx === moveCount ? '#ccc' : '#a07840',
-              fontSize:16, display:'flex', alignItems:'center', justifyContent:'center',
-            }}
-          >
-            <i className="ti ti-chevron-right"/>
-          </button>
+          <NavBtn icon="ti-chevron-right" disabled={playbackIdx === moveCount}
+            onClick={() => setPlaybackIdx(idx => idx === null ? 1 : Math.min(moveCount, idx + 1))} />
 
           {/* 最後へ >| */}
-          <button
-            onClick={() => setPlaybackIdx(moveCount)}
-            disabled={playbackIdx === moveCount}
-            style={{
-              width:32, height:32, borderRadius:6, border:'0.5px solid rgba(26,15,0,0.18)',
-              background:'#faf4e8', cursor: playbackIdx === moveCount ? 'default' : 'pointer',
-              color: playbackIdx === moveCount ? '#ccc' : '#a07840',
-              fontSize:16, display:'flex', alignItems:'center', justifyContent:'center',
-            }}
-          >
-            <i className="ti ti-player-skip-forward"/>
-          </button>
+          <NavBtn icon="ti-player-skip-forward" disabled={playbackIdx === moveCount}
+            onClick={() => setPlaybackIdx(moveCount)} />
 
           {/* 再生中なら「編集に戻る」 */}
           {playbackIdx !== null && (
@@ -523,6 +503,21 @@ export default function ShogiBoard({
             </button>
           )}
         </div>
+      )}
+
+      {/* この局面で分岐（インポートした棋譜のみ） */}
+      {allowBranch && playbackIdx !== null && playSnap && onBranchFromHere && (
+        <button
+          onClick={() => onBranchFromHere(playSnap)}
+          style={{
+            display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+            width:'100%', marginTop:8, padding:'8px 12px', borderRadius:8,
+            border:'0.5px solid #a07840', background:'#f0e8d4', color:'#1a0f00',
+            fontSize:12, cursor:'pointer', fontFamily:"'Noto Serif JP',serif",
+          }}
+        >
+          <i className="ti ti-git-branch" style={{fontSize:13}}/>この局面で分岐
+        </button>
       )}
 
       {/* ヒント文 */}

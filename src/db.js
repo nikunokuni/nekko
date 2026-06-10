@@ -88,11 +88,14 @@ export async function fetchNodes(treeId) {
 export async function createNode({
   treeId, userId, parentId, label,
   status = "todo", approachType, board = null,
-  stamps = [], memo = "", isRoot = false, sortOrder = 0,  
+  stamps = [], memo = "", isRoot = false, sortOrder = 0,
   handSente = {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
   handGote  = {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
+  tags = [],
+  kifu = [],
+  kifuImported = false,
 }) {
-  return supabase
+  const result = await supabase
     .from("nodes")
     .insert({
       tree_id: treeId, user_id: userId, parent_id: parentId ?? null,
@@ -100,9 +103,17 @@ export async function createNode({
       board, stamps, memo, is_root: isRoot, sort_order: sortOrder,
       hand_sente: handSente ?? {"p":0,"l":0,"n":0,"s":0,"g":0,"b":0,"r":0},
       hand_gote:  handGote  ?? {"p":0,"l":0,"n":0,"s":0,"g":0,"b":0,"r":0},
+      tags: tags ?? [],
+      kifu: kifu ?? [],
+      kifu_imported: kifuImported,
     })
     .select()
     .single();
+  if (result.error) {
+    const { message, code, details, hint } = result.error;
+    console.error("createNode error:", JSON.stringify({ message, code, details, hint }));
+  }
+  return result;
 }
 
 export async function updateNode(nodeId, patch) {
@@ -120,6 +131,8 @@ export async function updateNode(nodeId, patch) {
     handSente:      "hand_sente",
     handGote:       "hand_gote",
     kifu:           "kifu",
+    tags:           "tags",
+    kifuImported:   "kifu_imported",
   };
   const dbPatch = {};
   for (const [k, v] of Object.entries(patch)) {
@@ -159,6 +172,8 @@ export function buildTreeFromNodes(treeRow, flatNodes) {
       handSente:      n.hand_sente || {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
       handGote:       n.hand_gote  || {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
       kifu:           n.kifu || [],
+      tags:           n.tags || [],
+      kifuImported:   n.kifu_imported || false,
       childIds:      [],
     };
   });
@@ -182,6 +197,13 @@ export function buildTreeFromNodes(treeRow, flatNodes) {
     nodes:   nodeMap,
     rootId:  rootNode?.id || null,
   };
+}
+
+// 全ノードの戦法タグを重複なく集約する（ツリー全体のタグ）
+export function collectTreeTags(nodeMap) {
+  const set = new Set();
+  Object.values(nodeMap).forEach(n => (n.tags || []).forEach(t => set.add(t)));
+  return [...set];
 }
 
 // ── Likes ─────────────────────────────────────────

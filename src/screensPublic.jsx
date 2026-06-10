@@ -5,6 +5,8 @@
 import { useState } from "react";
 import { BackBtn } from "./components";
 import { signIn, signUp } from "./db";
+import { recordAction } from "./rewards";
+import { T } from "./theme";
 
 // ──────────────────────────────────────────────────
 // 共通スタイル定数
@@ -12,12 +14,12 @@ import { signIn, signUp } from "./db";
 const AUTH_INPUT_STYLE = {
   width: "100%",
   border: "0.5px solid rgba(26,15,0,0.2)",
-  borderRadius: 10,
+  borderRadius: T.radius.md,
   padding: "11px 14px",
-  fontSize: 14,
-  color: "#1a0f00",
+  fontSize: T.fontSize.xl,
+  color: T.ink,
   background: "#fff8ee",
-  fontFamily: "'Noto Serif JP',serif",
+  fontFamily: T.fontSerif,
   outline: "none",
 };
 
@@ -27,7 +29,7 @@ const AUTH_INPUT_STYLE = {
 function AuthInputField({ label, value, setter, type = "text", placeholder = "", nameAttr = "" }) {
   return (
     <div style={{ marginBottom: 14 }}>
-      <div style={{ fontSize: 11, color: "rgba(26,15,0,0.5)", marginBottom: 5, fontFamily: "'Noto Serif JP',serif" }}>
+      <div style={{ fontSize: T.fontSize.md, color: T.inkMid, marginBottom: 5, fontFamily: T.fontSerif }}>
         {label}
       </div>
       <input
@@ -39,7 +41,7 @@ function AuthInputField({ label, value, setter, type = "text", placeholder = "",
         required
         autoComplete={type === "password" ? "current-password" : "username"}
         style={AUTH_INPUT_STYLE}
-        onFocus={(e) => (e.target.style.borderColor = "#a07840")}
+        onFocus={(e) => (e.target.style.borderColor = T.gold)}
         onBlur={(e)  => (e.target.style.borderColor = "rgba(26,15,0,0.2)")}
       />
     </div>
@@ -108,14 +110,14 @@ export function AuthScreen({ onAuth }) {
       display: "flex", flexDirection: "column",
       alignItems: "center", justifyContent: "center",
       padding: "24px 20px",
-      fontFamily: "'Noto Serif JP',serif",
+      fontFamily: T.fontSerif,
     }}>
       {/* ロゴ */}
       <div style={{ textAlign: "center", marginBottom: 40 }}>
-        <div style={{ fontFamily: "'Shippori Mincho B1',serif", fontSize: 42, color: "#e8d4a8", letterSpacing: "0.4em", marginBottom: 6 }}>
+        <div style={{ fontFamily: T.fontTitle, fontSize: 42, color: "#e8d4a8", letterSpacing: "0.4em", marginBottom: 6 }}>
           ね<span style={{ color: "#c8a96e" }}>っ</span>こ
         </div>
-        <div style={{ fontSize: 12, color: "rgba(200,169,110,0.45)", letterSpacing: "0.2em" }}>将棋研究ノート</div>
+        <div style={{ fontSize: T.fontSize.base, color: "rgba(200,169,110,0.45)", letterSpacing: "0.2em" }}>将棋研究ノート</div>
       </div>
 
       {/* フォームカード */}
@@ -123,7 +125,7 @@ export function AuthScreen({ onAuth }) {
         onSubmit={handleSubmit}
         style={{
           width: "100%", maxWidth: 400,
-          background: "#faf4e8", borderRadius: 20,
+          background: T.cream, borderRadius: T.radius.xl,
           padding: "32px 28px",
           boxShadow: "0 24px 60px rgba(0,0,0,0.6)",
           border: "0.5px solid rgba(200,169,110,0.3)",
@@ -136,10 +138,10 @@ export function AuthScreen({ onAuth }) {
               key={m}
               onClick={() => switchMode(m)}
               style={{
-                flex: 1, textAlign: "center", padding: "10px 0", fontSize: 13, cursor: "pointer",
-                color:       mode === m ? "#1a0f00"          : "rgba(26,15,0,0.4)",
+                flex: 1, textAlign: "center", padding: "10px 0", fontSize: T.fontSize.lg, cursor: "pointer",
+                color:       mode === m ? T.ink          : "rgba(26,15,0,0.4)",
                 fontWeight:  mode === m ? 600                : 400,
-                borderBottom: mode === m ? "2px solid #a07840" : "2px solid transparent",
+                borderBottom: mode === m ? `2px solid ${T.gold}` : "2px solid transparent",
                 marginBottom: -1, transition: "all 0.15s",
               }}
             >
@@ -157,10 +159,10 @@ export function AuthScreen({ onAuth }) {
         {/* エラー表示 */}
         {error && (
           <div style={{
-            fontSize: 12, color: "#A93226",
-            background: "#fdedec",
+            fontSize: T.fontSize.base, color: T.red,
+            background: T.redBg,
             border: "0.5px solid rgba(169,50,38,0.3)",
-            borderRadius: 8, padding: "8px 12px", marginBottom: 14,
+            borderRadius: T.radius.sm, padding: "8px 12px", marginBottom: 14,
           }}>
             {error}
           </div>
@@ -170,11 +172,11 @@ export function AuthScreen({ onAuth }) {
           type="submit"
           disabled={loading || !username || !password}
           style={{
-            width: "100%", padding: "13px", borderRadius: 12, border: "none",
-            fontSize: 14, fontWeight: 600,
+            width: "100%", padding: "13px", borderRadius: T.radius.lg, border: "none",
+            fontSize: T.fontSize.xl, fontWeight: 600,
             cursor:     loading || !username || !password ? "default" : "pointer",
-            background: loading || !username || !password ? "#B4B2A9" : "#a07840",
-            color: "#faf4e8", fontFamily: "'Noto Serif JP',serif",
+            background: loading || !username || !password ? T.gray : T.gold,
+            color: T.cream, fontFamily: T.fontSerif,
           }}
         >
           {loading ? "処理中..." : mode === "login" ? "ログイン" : "アカウントを作成"}
@@ -191,27 +193,37 @@ export function AuthScreen({ onAuth }) {
 // ──────────────────────────────────────────────────
 // PublicTreeCard: 公開ツリー1件分のカード
 // ──────────────────────────────────────────────────
-function PublicTreeCard({ tree, isCopied, isCopying, onCopy }) {
+function PublicTreeCard({ tree, isCopied, isCopying, isLiked, onCopy, onLike }) {
   const author = tree.profiles?.display_name || tree.profiles?.username || "匿名";
 
   return (
-    <div style={{ padding: "14px", borderRadius: 12, border: "0.5px solid rgba(200,169,110,0.3)", background: "#f5edd8", marginBottom: 10 }}>
+    <div style={{ padding: "14px", borderRadius: T.radius.lg, border: "0.5px solid rgba(200,169,110,0.3)", background: T.goldBg, marginBottom: 10 }}>
       {/* ヘッダー行 */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8 }}>
         <div>
-          <div style={{ fontFamily: "'Shippori Mincho B1',serif", fontSize: 15, color: "#1a0f00", marginBottom: 2 }}>{tree.name}</div>
-          <div style={{ fontSize: 10, color: "rgba(26,15,0,0.4)" }}>@{author}</div>
+          <div style={{ fontFamily: T.fontTitle, fontSize: T.fontSize.xxl, color: T.ink, marginBottom: 2 }}>{tree.name}</div>
+          <div style={{ fontSize: T.fontSize.sm, color: "rgba(26,15,0,0.4)" }}>@{author}</div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "rgba(26,15,0,0.4)" }}>
-          <i className="ti ti-heart" style={{ fontSize: 14 }} />{tree.liked_by || 0}
-        </div>
+        {/* いいねボタン */}
+        <button
+          onClick={() => !isLiked && onLike(tree.id)}
+          style={{
+            display: "flex", alignItems: "center", gap: 4,
+            background: "none", border: "none", cursor: isLiked ? "default" : "pointer",
+            fontSize: T.fontSize.base, color: isLiked ? T.red : "rgba(26,15,0,0.35)",
+            padding: "2px 4px", borderRadius: 6, transition: "color 0.15s",
+          }}
+        >
+          <i className={`ti ti-heart${isLiked ? "-filled" : ""}`} style={{ fontSize: T.fontSize.xxl }} />
+          {(tree.liked_by || 0) + (isLiked ? 1 : 0)}
+        </button>
       </div>
 
       {/* タグ・コピーボタン行 */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
         <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
           {(tree.tags || []).map((tg) => (
-            <span key={tg} style={{ fontSize: 9, padding: "2px 7px", borderRadius: 8, background: "rgba(26,15,0,0.06)", color: "rgba(26,15,0,0.5)", fontFamily: "'Noto Serif JP',serif" }}>
+            <span key={tg} style={{ fontSize: T.fontSize.xs, padding: "2px 7px", borderRadius: T.radius.sm, background: "rgba(26,15,0,0.06)", color: T.inkMid, fontFamily: T.fontSerif }}>
               {tg}
             </span>
           ))}
@@ -220,16 +232,16 @@ function PublicTreeCard({ tree, isCopied, isCopying, onCopy }) {
           onClick={() => onCopy(tree.id)}
           disabled={isCopying}
           style={{
-            fontSize: 11, padding: "5px 12px", borderRadius: 8,
+            fontSize: T.fontSize.md, padding: "5px 12px", borderRadius: T.radius.sm,
             cursor:     isCopying ? "default" : "pointer",
-            border:     "0.5px solid #a07840",
-            background: isCopied ? "#a07840" : "transparent",
-            color:      isCopied ? "#faf4e8" : "#a07840",
-            fontFamily: "'Noto Serif JP',serif",
+            border:     `0.5px solid ${T.gold}`,
+            background: isCopied ? T.gold : "transparent",
+            color:      isCopied ? T.cream : T.gold,
+            fontFamily: T.fontSerif,
             display: "flex", alignItems: "center", gap: 4, transition: "all 0.2s",
           }}
         >
-          <i className={`ti ti-${isCopied ? "check" : isCopying ? "loader" : "copy"}`} style={{ fontSize: 12 }} />
+          <i className={`ti ti-${isCopied ? "check" : isCopying ? "loader" : "copy"}`} style={{ fontSize: T.fontSize.base }} />
           {isCopied ? "コピーしました" : isCopying ? "コピー中..." : "コピー"}
         </button>
       </div>
@@ -250,11 +262,11 @@ function TagFilter({ activeTag, onSelect }) {
           key={tag}
           onClick={() => onSelect(tag)}
           style={{
-            whiteSpace: "nowrap", fontSize: 11, padding: "5px 12px", borderRadius: 20, cursor: "pointer",
-            fontFamily: "'Noto Serif JP',serif",
-            border:      activeTag === tag ? "0.5px solid #a07840"           : "0.5px solid rgba(26,15,0,0.15)",
-            background:  activeTag === tag ? "#f0e8d4"                        : "#faf4e8",
-            color:       activeTag === tag ? "#1a0f00"                        : "rgba(26,15,0,0.45)",
+            whiteSpace: "nowrap", fontSize: T.fontSize.md, padding: "5px 12px", borderRadius: T.radius.xl, cursor: "pointer",
+            fontFamily: T.fontSerif,
+            border:      activeTag === tag ? `0.5px solid ${T.gold}`         : "0.5px solid rgba(26,15,0,0.15)",
+            background:  activeTag === tag ? T.goldLight                      : T.cream,
+            color:       activeTag === tag ? T.ink                            : "rgba(26,15,0,0.45)",
             fontWeight:  activeTag === tag ? 600                              : 400,
             transition: "all 0.15s",
           }}
@@ -269,11 +281,12 @@ function TagFilter({ activeTag, onSelect }) {
 // ══════════════════════════════════════════════════
 // PublicTrees
 // ══════════════════════════════════════════════════
-export function PublicTrees({ trees, profile, onBack, onCopy, onRefresh }) {
+export function PublicTrees({ trees, profile, onBack, onCopy, onLike, onRefresh }) {
   const [query,     setQuery]     = useState("");
   const [activeTag, setActiveTag] = useState("すべて");
   const [copiedId,  setCopiedId]  = useState(null);
   const [copying,   setCopying]   = useState(null);
+  const [likedIds,  setLikedIds]  = useState(new Set());
 
   const filtered = (trees || []).filter((t) => {
     const matchTag = activeTag === "すべて" || (t.tags || []).includes(activeTag);
@@ -294,29 +307,36 @@ export function PublicTrees({ trees, profile, onBack, onCopy, onRefresh }) {
     }
   };
 
+  const handleLike = async (id) => {
+    if (likedIds.has(id)) return;
+    setLikedIds((prev) => new Set([...prev, id]));
+    recordAction("liked");
+    try { await onLike?.(id); } catch {}
+  };
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#faf4e8" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: T.cream }}>
       {/* ヘッダー */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "16px 14px 12px", borderBottom: "0.5px solid rgba(26,15,0,0.12)" }}>
         <BackBtn onClick={onBack} />
-        <div style={{ fontFamily: "'Shippori Mincho B1',serif", fontSize: 16, color: "#1a0f00", flex: 1 }}>みんなのツリー</div>
-        <button onClick={onRefresh} style={{ background: "none", border: "none", cursor: "pointer", color: "#a07840", fontSize: 18 }}>
+        <div style={{ fontFamily: T.fontTitle, fontSize: T.fontSize.h, color: T.ink, flex: 1 }}>みんなのツリー</div>
+        <button onClick={onRefresh} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: 18 }}>
           <i className="ti ti-refresh" />
         </button>
       </div>
 
       {/* 検索バー */}
       <div style={{ padding: "10px 16px 0" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, border: "0.5px solid rgba(26,15,0,0.15)", borderRadius: 10, padding: "9px 12px", background: "#f0e8d4" }}>
-          <i className="ti ti-search" style={{ fontSize: 15, color: "#B4B2A9" }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 8, border: "0.5px solid rgba(26,15,0,0.15)", borderRadius: T.radius.md, padding: "9px 12px", background: T.goldLight }}>
+          <i className="ti ti-search" style={{ fontSize: T.fontSize.xxl, color: T.gray }} />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="戦法名・タグで検索"
-            style={{ flex: 1, border: "none", background: "transparent", fontSize: 13, color: "#1a0f00", outline: "none", fontFamily: "'Noto Serif JP',serif" }}
+            style={{ flex: 1, border: "none", background: "transparent", fontSize: T.fontSize.lg, color: T.ink, outline: "none", fontFamily: T.fontSerif }}
           />
           {query && (
-            <i className="ti ti-x" style={{ fontSize: 14, color: "#B4B2A9", cursor: "pointer" }} onClick={() => setQuery("")} />
+            <i className="ti ti-x" style={{ fontSize: T.fontSize.xl, color: T.gray, cursor: "pointer" }} onClick={() => setQuery("")} />
           )}
         </div>
       </div>
@@ -327,7 +347,7 @@ export function PublicTrees({ trees, profile, onBack, onCopy, onRefresh }) {
       {/* ツリー一覧 */}
       <div style={{ flex: 1, overflowY: "auto", padding: "0 16px 16px" }}>
         {filtered.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "50px 0", fontSize: 12, color: "#B4B2A9", fontFamily: "'Noto Serif JP',serif" }}>
+          <div style={{ textAlign: "center", padding: "50px 0", fontSize: T.fontSize.base, color: T.gray, fontFamily: T.fontSerif }}>
             <i className="ti ti-mood-empty" style={{ fontSize: 32, display: "block", marginBottom: 10 }} />
             見つかりませんでした
           </div>
@@ -338,7 +358,9 @@ export function PublicTrees({ trees, profile, onBack, onCopy, onRefresh }) {
               tree={t}
               isCopied={copiedId === t.id}
               isCopying={copying === t.id}
+              isLiked={likedIds.has(t.id)}
               onCopy={handleCopy}
+              onLike={handleLike}
             />
           ))
         )}

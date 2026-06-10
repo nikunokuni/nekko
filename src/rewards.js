@@ -4,6 +4,51 @@
 // ══════════════════════════════════════════════════
 
 const STORAGE_KEY = "nekko_login_log";
+const ACTIONS_KEY = "nekko_actions";
+
+/** 一回限りのアクション達成を記録する */
+export function recordAction(key) {
+  try {
+    const raw     = localStorage.getItem(ACTIONS_KEY);
+    const actions = raw ? JSON.parse(raw) : {};
+    if (!actions[key]) {
+      actions[key] = true;
+      localStorage.setItem(ACTIONS_KEY, JSON.stringify(actions));
+    }
+  } catch {}
+}
+
+/** 記録済みアクション一覧を返す */
+export function getActions() {
+  try {
+    const raw = localStorage.getItem(ACTIONS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
+// ── カスタム戦法タグ ─────────────────────────────
+const CUSTOM_TAGS_KEY = "nekko_custom_tags";
+
+/** ユーザーが追加したカスタム戦法タグ一覧を返す */
+export function getCustomTags() {
+  try {
+    const raw = localStorage.getItem(CUSTOM_TAGS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+/** カスタム戦法タグを追加する（重複は無視） */
+export function addCustomTag(name) {
+  try {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const tags = getCustomTags();
+    if (!tags.includes(trimmed)) {
+      tags.push(trimmed);
+      localStorage.setItem(CUSTOM_TAGS_KEY, JSON.stringify(tags));
+    }
+  } catch {}
+}
 const toDateKey = (d) => d.toISOString().slice(0, 10);
 
 /** 今日のログインを記録する（同日2回目以降は無視） */
@@ -56,7 +101,16 @@ export const BADGE_DEFS = [
   { id: "node-150", icon: "ti-network",       color: "#1a5276", label: "棋譜の賢者",       desc: "ノードを150個作る",     check: (s) => s.nodeCount  >= 150 },
   { id: "login-3",  icon: "ti-flame",         color: "#854F0B", label: "三日坊主卒業",     desc: "3日連続でログイン",     check: (s) => s.streak     >= 3   },
   { id: "login-7",  icon: "ti-calendar-week", color: "#854F0B", label: "一週間の積み重ね", desc: "7日連続でログイン",     check: (s) => s.streak     >= 7   },
-  { id: "login-30", icon: "ti-trophy",        color: "#A93226", label: "継続は力なり",     desc: "30日連続でログイン",    check: (s) => s.streak     >= 30  },
+  { id: "login-30",   icon: "ti-trophy",        color: "#A93226", label: "継続は力なり",       desc: "30日連続でログイン",           check: (s) => s.streak        >= 30  },
+  // ── アクション系バッジ ──
+  { id: "published",  icon: "ti-world",         color: "#1a5276", label: "公開の勇気",         desc: "ツリーを公開する",             check: (s) => !!s.hasPublished },
+  { id: "memo",       icon: "ti-notes",         color: "#854F0B", label: "メモの達人",         desc: "一言メモを記入する",           check: (s) => !!s.hasMemo      },
+  { id: "approach",   icon: "ti-tag",           color: "#854F0B", label: "分析家",             desc: "ツリーにタグをつける",         check: (s) => !!s.hasTags      },
+  { id: "copied",     icon: "ti-copy",          color: "#1a5276", label: "コレクター",         desc: "みんなのツリーをコピーする",   check: (s) => !!s.hasCopied    },
+  { id: "liked",      icon: "ti-heart",         color: "#A93226", label: "応援団",             desc: "みんなのツリーにいいねする",   check: (s) => !!s.hasLiked     },
+  { id: "tags",       icon: "ti-tags",          color: "#3B6D11", label: "タグ整理師",         desc: "新しい戦法タグを追加する",     check: (s) => !!s.hasCustomTag },
+  { id: "kifu",       icon: "ti-video",         color: "#1a5276", label: "棋譜記録者",         desc: "盤面に棋譜を記録する",         check: (s) => !!s.hasKifu      },
+  { id: "template",  icon: "ti-layout-grid",   color: "#854F0B", label: "型の継承者",         desc: "盤面のテンプレートを利用する", check: (s) => !!s.hasTemplate  },
 ];
 
 export function getEarnedBadgeIds(stats) {
