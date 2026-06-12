@@ -116,3 +116,23 @@ export const BADGE_DEFS = [
 export function getEarnedBadgeIds(stats) {
   return new Set(BADGE_DEFS.filter((b) => b.check(stats)).map((b) => b.id));
 }
+
+// ── 既読バッジ（紙吹雪演出の重複防止） ─────────────
+const SEEN_BADGES_KEY = "nekko_seen_badges";
+
+/** これまでに演出済み（既読）のバッジID一覧を返す */
+export function getSeenBadgeIds() {
+  try {
+    const raw = localStorage.getItem(SEEN_BADGES_KEY);
+    return new Set(raw ? JSON.parse(raw) : []);
+  } catch { return new Set(); }
+}
+
+/** 渡されたバッジIDを既読として記録する */
+export function markBadgesSeen(ids) {
+  try {
+    const seen = getSeenBadgeIds();
+    ids.forEach((id) => seen.add(id));
+    localStorage.setItem(SEEN_BADGES_KEY, JSON.stringify([...seen]));
+  } catch {}
+}

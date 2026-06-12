@@ -29,6 +29,7 @@ export default function App() {
   const [loading,          setLoading]          = useState(false);
   const [nodeCount,        setNodeCount]        = useState(0);
   const [loginStats,       setLoginStats]       = useState({ totalDays: 0, streak: 0 });
+  const [lastReparent,     setLastReparent]     = useState(null); // マインドマップの親付け替えUndo用
 
   // ── Auth bootstrap ────────────────────────────
   useEffect(() => {
@@ -65,6 +66,7 @@ export default function App() {
   // ※ myTrees が空のタイミングで呼ばれても DB から直接フェッチして取得する
   const loadTree = useCallback(async (treeId) => {
     setLoading(true);
+    setLastReparent(null);
     try {
       let treeRow = [...myTrees, ...pubTrees].find(t => t.id === treeId);
       if (!treeRow) {
@@ -208,7 +210,7 @@ export default function App() {
   };
 
   // ── ノードの親を付け替える（マインドマップのドラッグ操作） ──
-  const handleReparentNode = async (nodeId, newParentId) => {
+  const reparentNode = useCallback(async (nodeId, newParentId) => {
     await updateNode(nodeId, { parentId: newParentId });
     setActiveTree((prev) => {
       const nodes = { ...prev.nodes };
@@ -232,6 +234,20 @@ export default function App() {
       nodes[nodeId] = { ...node, parentId: newParentId };
       return { ...prev, nodes };
     });
+  }, []);
+
+  const handleReparentNode = async (nodeId, newParentId) => {
+    const oldParentId = activeTree?.nodes?.[nodeId]?.parentId ?? null;
+    await reparentNode(nodeId, newParentId);
+    setLastReparent({ nodeId, oldParentId, newParentId });
+  };
+
+  // ── 直前の親付け替えを1回だけ取り消す ──
+  const handleUndoReparent = async () => {
+    if (!lastReparent) return;
+    const { nodeId, oldParentId } = lastReparent;
+    await reparentNode(nodeId, oldParentId);
+    setLastReparent(null);
   };
 
   // ── 合流（複数の親→1つの子）の親リストを更新する ──
@@ -271,7 +287,7 @@ export default function App() {
 
   // ── 棋譜の途中局面から分岐ノードを作成する ──
   // できる分岐先は通常の新規ノード扱い（元の棋譜は引き継がない）
-  const handleBranchFromKifu = async (parentNodeId, snapshot) => {
+  const handleBranchFromKifu = async (parentNodeId, snapshot, moveIndex) => {
     if (!activeTree || !session) return;
     const { data: newNode } = await createNode({
       treeId:    activeTree.id,
@@ -282,6 +298,7 @@ export default function App() {
       board:     snapshot.board,
       handSente: snapshot.handSente,
       handGote:  snapshot.handGote,
+      branchFromMoveIndex: moveIndex ?? null,
     });
     if (!newNode) return;
     await loadTree(activeTree.id);
@@ -352,7 +369,7 @@ export default function App() {
       }
     }
     for (const n of ordered) {
-      const { data: nn } = await createNode({ treeId: newTree.id, userId: session.user.id, parentId: idMap[n.parent_id] || null, label: n.label, status: n.status, approachType: n.approach_type, memo: n.memo || "", board: n.board, stamps: n.stamps || [], tags: n.tags || [], handSente: n.hand_sente, handGote: n.hand_gote, kifu: n.kifu || [], kifuImported: n.kifu_imported || false, sortOrder: n.sort_order || 0 });
+      const { data: nn } = await createNode({ treeId: newTree.id, userId: session.user.id, parentId: idMap[n.parent_id] || null, label: n.label, status: n.status, approachType: n.approach_type, memo: n.memo || "", board: n.board, stamps: n.stamps || [], tags: n.tags || [], handSente: n.hand_sente, handGote: n.hand_gote, kifu: n.kifu || [], kifuImported: n.kifu_imported || false, branchFromMoveIndex: n.branch_from_move_index ?? null, sortOrder: n.sort_order || 0 });
       if (nn) idMap[n.id] = nn.id;
     }
 
@@ -422,7 +439,8 @@ export default function App() {
         })()}
         {screen==="map" && activeTree && (
           <MindMap tree={activeTree} onNodeSelect={handleNodeSelect}
-            onBack={() => setScreen("list")} onReparent={handleReparentNode}/>
+            onBack={() => setScreen("list")} onReparent={handleReparentNode}
+            canUndoReparent={!!lastReparent} onUndoReparent={handleUndoReparent}/>
         )}
         {screen==="node" && activeTree && activeNodeId && (
           <NodeDetail tree={activeTree} nodeId={activeNodeId}

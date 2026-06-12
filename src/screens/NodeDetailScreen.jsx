@@ -6,7 +6,7 @@ import {
   StatusChip, MergeTag, Divider, BackBtn,
 } from "../components";
 import {
-  STATUS_META, APPROACH_META, SUGGESTIONS,
+  STATUS_META, APPROACH_META, SUGGESTIONS, USAGE_META,
 } from "../data";
 import { recordAction, getCustomTags, addCustomTag } from "../rewards";
 import { T, INPUT_STYLE, parseTags, cloneBoard } from "../theme";
@@ -23,6 +23,8 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
   const [approach,     setApproach]     = useState("");
   const [memo,         setMemo]         = useState("");
   const [status,       setStatus]       = useState("wip");
+  const [usageLevel,   setUsageLevel]   = useState(2);
+  const [winRate,      setWinRate]      = useState(null);
   const [boardVisible, setBoardVisible] = useState(false);
   const [boardData,    setBoardData]    = useState(null);
   const [stamps,       setStamps]       = useState([]);
@@ -44,6 +46,8 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
       setApproach(node.approachType || "");
       setMemo(node.memo || "");
       setStatus(node.status || "wip");
+      setUsageLevel(node.usageLevel || 2);
+      setWinRate(node.winRate ?? null);
       setBoardVisible(!!node.board);
       setBoardData(node.board || null);
       setStamps(node.stamps || []);
@@ -238,6 +242,16 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
                   <i className="ti ti-chevron-right" style={{ fontSize: 14, color: T.gray }} />
                 </div>
               )}
+              {parent && node.branchFromMoveIndex != null && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px" }}>
+                  <i className="ti ti-git-branch" style={{ fontSize: 13, color: T.gray }} />
+                  <span style={{ fontSize: T.fontSize.sm, color: T.gray }}>
+                    {node.branchFromMoveIndex === 0
+                      ? `「${parent.label}」の初期局面から分岐`
+                      : `「${parent.label}」の第${node.branchFromMoveIndex}手から分岐`}
+                  </span>
+                </div>
+              )}
               {onSetMergeParents && (
                 <MergeLinkList
                   items={mergeParentIds.map((pid) => tree.nodes[pid]).filter(Boolean)}
@@ -313,6 +327,53 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
             </div>
           </div>
         )}
+
+        {/* ── よく使う度 ── */}
+        <div style={{ padding: "10px 16px 0" }}>
+          <SectionLabel style={{ marginBottom: 5 }}>よく使う</SectionLabel>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {[1, 2, 3].map((lvl, i) => (
+              <div key={lvl} style={{ display: "flex", alignItems: "center", flex: lvl < 3 ? 1 : "0 0 auto" }}>
+                <i
+                  className={usageLevel >= lvl ? "ti ti-circle-filled" : "ti ti-circle"}
+                  onClick={async () => {
+                    setUsageLevel(lvl);
+                    await onUpdate(nodeId, { usageLevel: lvl });
+                  }}
+                  style={{ fontSize: 18, color: usageLevel >= lvl ? T.gold : T.inkLine, cursor: "pointer", flexShrink: 0 }}
+                />
+                {lvl < 3 && <div style={{ flex: 1, height: 1, background: T.inkLine, margin: "0 4px" }} />}
+              </div>
+            ))}
+            <span style={{ fontSize: T.fontSize.sm, color: T.inkMid, marginLeft: 8, fontFamily: T.fontSerif }}>
+              {USAGE_META[usageLevel]?.label}
+            </span>
+          </div>
+        </div>
+
+        {/* ── 勝率 ── */}
+        <div style={{ padding: "10px 16px 0" }}>
+          <SectionLabel style={{ marginBottom: 5 }}>勝率</SectionLabel>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <select
+              value={winRate ?? ""}
+              onChange={async (e) => {
+                const v = e.target.value === "" ? null : Number(e.target.value);
+                setWinRate(v);
+                await onUpdate(nodeId, { winRate: v });
+              }}
+              style={{ ...INPUT_STYLE, width: "auto", flex: "0 0 auto", padding: "8px 12px" }}
+            >
+              <option value="">未設定</option>
+              {Array.from({ length: 11 }, (_, i) => i).map((v) => (
+                <option key={v} value={v}>{v}</option>
+              ))}
+            </select>
+            <span style={{ fontSize: T.fontSize.base, color: T.inkMid, fontFamily: T.fontSerif }}>
+              {winRate != null ? `${winRate}割くらい勝てる` : "未設定"}
+            </span>
+          </div>
+        </div>
 
         {/* ── 戦法タグ ── */}
         <div style={{ padding: "10px 16px 0" }}>
@@ -502,8 +563,20 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
           }}
           kifu={node.kifu || []}
           onKifuChange={async (newKifu) => { await onUpdate(nodeId, { kifu: newKifu }); if (newKifu.length > 0) recordAction("kifu"); showToast("棋譜を保存しました"); }}
+          onKifuDelete={async () => {
+            const initial = (node.kifu || [])[0];
+            const board = initial ? cloneBoard(initial.board) : boardData;
+            const hs = initial ? { ...initial.handSente } : handSente;
+            const hg = initial ? { ...initial.handGote }  : handGote;
+            setBoardData(board);
+            setHandSente(hs);
+            setHandGote(hg);
+            setStamps([]);
+            await onUpdate(nodeId, { board, stamps: [], handSente: hs, handGote: hg, kifu: [] });
+            showToast("棋譜を削除しました");
+          }}
           allowBranch={!!node.kifuImported}
-          onBranchFromHere={(snapshot) => onBranchFromKifu?.(nodeId, snapshot)}
+          onBranchFromHere={(snapshot, moveIndex) => onBranchFromKifu?.(nodeId, snapshot, moveIndex)}
         />
 
         {/* 今のノード ↔ 分岐 境界 */}

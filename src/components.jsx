@@ -3,7 +3,7 @@
 //   StatusChip / ApproachTag / MergeTag /
 //   Divider / BackBtn / DotMenu / Accordion
 // ══════════════════════════════════════════════════
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { STATUS_META, APPROACH_META } from "./data";
 import { T } from "./theme";
 
@@ -177,6 +177,48 @@ export function Accordion({ nodes, rootChildIds, onSelect }) {
           />
         );
       })}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════
+// Confetti  ―  バッジ獲得時の紙吹雪演出
+// ══════════════════════════════════════════════════
+const CONFETTI_COLORS = [T.gold, T.blue, T.green, T.red, T.purple, T.brown];
+
+export function Confetti({ count = 60 }) {
+  const pieces = useMemo(() => Array.from({ length: count }, (_, i) => ({
+    id:       i,
+    left:     Math.random() * 100,
+    delay:    Math.random() * 0.4,
+    duration: 1.6 + Math.random() * 1.2,
+    spin:     360 + Math.random() * 360,
+    color:    CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+    w:        4 + Math.random() * 5,
+    h:        8 + Math.random() * 6,
+  })), [count]);
+
+  return (
+    <div style={{ position:'fixed', inset:0, pointerEvents:'none', overflow:'hidden', zIndex:200 }}>
+      <style>{`
+        @keyframes nekko-confetti-fall {
+          0%   { transform: translateY(-10vh) rotate(0deg);   opacity: 1; }
+          100% { transform: translateY(110vh) rotate(var(--spin)); opacity: 0; }
+        }
+      `}</style>
+      {pieces.map((p) => (
+        <div key={p.id} style={{
+          position:  'absolute',
+          top:       0,
+          left:      `${p.left}%`,
+          width:     p.w,
+          height:    p.h,
+          borderRadius: 1,
+          background: p.color,
+          "--spin":  `${p.spin}deg`,
+          animation: `nekko-confetti-fall ${p.duration}s ease-in ${p.delay}s forwards`,
+        }}/>
+      ))}
     </div>
   );
 }

@@ -570,7 +570,7 @@ export default function ShogiBoard({
       {/* この局面で分岐（インポートした棋譜のみ） */}
       {allowBranch && playbackIdx !== null && playSnap && onBranchFromHere && (
         <button
-          onClick={() => onBranchFromHere(playSnap)}
+          onClick={() => onBranchFromHere(playSnap, playbackIdx)}
           style={{
             display:'flex', alignItems:'center', justifyContent:'center', gap:6,
             width:'100%', marginTop:8, padding:'8px 12px', borderRadius:8,

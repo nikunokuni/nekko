@@ -74,7 +74,7 @@ export function ModalActionButtons({ onCancel, onConfirm, confirmLabel, disabled
 // ──────────────────────────────────────────
 // BoardSection: 将棋盤の表示/追加エリア
 // ──────────────────────────────────────────
-export function BoardSection({ boardVisible, boardData, stamps, handSente, handGote, parentBoard, parentLabel, onToggle, onChange, onDelete, onLoadTemplate, kifu, onKifuChange, allowBranch, onBranchFromHere }){
+export function BoardSection({ boardVisible, boardData, stamps, handSente, handGote, parentBoard, parentLabel, onToggle, onChange, onDelete, onLoadTemplate, kifu, onKifuChange, onKifuDelete, allowBranch, onBranchFromHere }){
   const [tmplOpen, setTmplOpen] = useState(false);
 
   return (
@@ -209,23 +209,43 @@ export function BoardSection({ boardVisible, boardData, stamps, handSente, handG
             onBranchFromHere={onBranchFromHere}
           />
 
-          <button
-            onClick={onDelete}
-            style={{
-              fontSize:   T.fontSize.md,
-              color:      T.gray,
-              background: "none",
-              border:     "none",
-              cursor:     "pointer",
-              fontFamily: T.fontSerif,
-              display:    "flex",
-              alignItems: "center",
-              gap:        4,
-              marginTop:  6,
-            }}
-          >
-            <i className="ti ti-trash" style={{ fontSize: 11 }} />盤面を削除
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 6 }}>
+            <button
+              onClick={onDelete}
+              style={{
+                fontSize:   T.fontSize.md,
+                color:      T.gray,
+                background: "none",
+                border:     "none",
+                cursor:     "pointer",
+                fontFamily: T.fontSerif,
+                display:    "flex",
+                alignItems: "center",
+                gap:        4,
+              }}
+            >
+              <i className="ti ti-trash" style={{ fontSize: 11 }} />盤面を削除
+            </button>
+
+            {kifu && kifu.length > 0 && (
+              <button
+                onClick={onKifuDelete}
+                style={{
+                  fontSize:   T.fontSize.md,
+                  color:      T.gray,
+                  background: "none",
+                  border:     "none",
+                  cursor:     "pointer",
+                  fontFamily: T.fontSerif,
+                  display:    "flex",
+                  alignItems: "center",
+                  gap:        4,
+                }}
+              >
+                <i className="ti ti-arrow-back-up" style={{ fontSize: 11 }} />棋譜を削除（入力前の盤面に戻す）
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

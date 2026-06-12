@@ -94,6 +94,9 @@ export async function createNode({
   tags = [],
   kifu = [],
   kifuImported = false,
+  branchFromMoveIndex = null,
+  usageLevel = 2,
+  winRate = null,
 }) {
   const result = await supabase
     .from("nodes")
@@ -106,6 +109,9 @@ export async function createNode({
       tags: tags ?? [],
       kifu: kifu ?? [],
       kifu_imported: kifuImported,
+      branch_from_move_index: branchFromMoveIndex,
+      usage_level: usageLevel ?? 2,
+      win_rate: winRate,
     })
     .select()
     .single();
@@ -133,6 +139,8 @@ export async function updateNode(nodeId, patch) {
     kifu:           "kifu",
     tags:           "tags",
     kifuImported:   "kifu_imported",
+    usageLevel:     "usage_level",
+    winRate:        "win_rate",
   };
   const dbPatch = {};
   for (const [k, v] of Object.entries(patch)) {
@@ -174,6 +182,9 @@ export function buildTreeFromNodes(treeRow, flatNodes) {
       kifu:           n.kifu || [],
       tags:           n.tags || [],
       kifuImported:   n.kifu_imported || false,
+      branchFromMoveIndex: n.branch_from_move_index ?? null,
+      usageLevel:     n.usage_level ?? 2,
+      winRate:        n.win_rate ?? null,
       childIds:      [],
     };
   });
@@ -207,9 +218,15 @@ export function collectTreeTags(nodeMap) {
 }
 
 // ── Likes ─────────────────────────────────────────
+// liked_by カウントは likes テーブルへの insert/delete に応じて
+// DBトリガー（sync_tree_liked_by）が trees.liked_by を自動同期する
 export async function likeTree(userId, treeId) {
-  await supabase.from("likes").insert({ user_id: userId, tree_id: treeId });
-  // liked_by カウントは DB トリガーまたは RPC で管理することを推奨
+  const { error } = await supabase.from("likes").insert({ user_id: userId, tree_id: treeId });
+  // 23505 = unique_violation（既にいいね済み）。重複いいねは無視する
+  if (error && error.code !== "23505") {
+    console.error("likeTree error:", error);
+    throw error;
+  }
 }
 
 export async function unlikeTree(userId, treeId) {

@@ -4,7 +4,7 @@
 // ══════════════════════════════════════════════════════════════════
 import { useState, useRef, useCallback } from "react";
 import { Accordion } from "../components";
-import { STATUS_META } from "../data";
+import { STATUS_META, USAGE_META } from "../data";
 import { T } from "../theme";
 
 /** ノードの矩形サイズ */
@@ -121,7 +121,7 @@ function roundedOrtho(points, r) {
   return d;
 }
 
-export function MindMap({ tree, onNodeSelect, onBack, onReparent }) {
+export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparent, onUndoReparent }) {
   const [drawerOpen,   setDrawerOpen]   = useState(false);
   const [canvasOffset, setCanvasOffset] = useState({ x: 20, y: 20 });
   const [dragging,     setDragging]     = useState(false);
@@ -420,6 +420,15 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent }) {
               const isDropTarget = dropTarget === id;
               const isBeingDragged = nodeDrag === id;
 
+              // 「よく使う」レベルに応じてノードを拡大/縮小（ルートは常に標準サイズ）
+              const usageScale = isRoot ? 1 : (USAGE_META[node.usageLevel]?.scale ?? 1);
+              const w = NODE_W * usageScale;
+              const h = NODE_H * usageScale;
+              const rx = pos.x - (w - NODE_W) / 2;
+              const ry = pos.y - (h - NODE_H) / 2;
+              const cx = pos.x + NODE_W / 2;
+              const cy = pos.y + NODE_H / 2;
+
               return (
                 <g
                   key={id}
@@ -429,7 +438,7 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent }) {
                   style={{ cursor: "pointer", opacity: isBeingDragged ? 0.5 : 1 }}
                 >
                   <rect
-                    x={pos.x} y={pos.y} width={NODE_W} height={NODE_H}
+                    x={rx} y={ry} width={w} height={h}
                     rx={isRoot ? 9 : 6}
                     fill={isDropTarget ? T.goldBg : nodeColor.fill}
                     stroke={isDropTarget ? T.gold : node.isMergeTarget ? T.purple : nodeColor.stroke}
@@ -439,15 +448,15 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent }) {
 
                   {/* ステータスドット（ルート・todo 以外） */}
                   {!isRoot && node.status !== "todo" && (
-                    <circle cx={pos.x + NODE_W - 8} cy={pos.y + 7} r={3.5} fill={STATUS_META[node.status]?.dot || T.gray} />
+                    <circle cx={rx + w - 8} cy={ry + 7} r={3.5} fill={STATUS_META[node.status]?.dot || T.gray} />
                   )}
 
                   {/* ノード名テキスト */}
                   <text
-                    x={pos.x + NODE_W / 2}
-                    y={pos.y + (isRoot ? NODE_H / 2 - 5 : NODE_H / 2)}
+                    x={cx}
+                    y={isRoot ? cy - 5 : cy}
                     textAnchor="middle" dominantBaseline="middle"
-                    fontSize={isRoot ? 14 : 11}
+                    fontSize={isRoot ? 14 : 11 * usageScale}
                     fontWeight={isRoot ? 600 : 500}
                     fill={isRoot ? "#3d2000" : s.text}
                     fontFamily={T.fontSerif}
@@ -458,7 +467,7 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent }) {
                   {/* ルートノードのサブラベル */}
                   {isRoot && (
                     <text
-                      x={pos.x + NODE_W / 2} y={pos.y + NODE_H / 2 + 10}
+                      x={cx} y={cy + 10}
                       textAnchor="middle" dominantBaseline="middle"
                       fontSize={9} fill={T.gold} fontFamily={T.fontSerif}
                     >
@@ -505,6 +514,34 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent }) {
             </button>
           ))}
         </div>
+
+        {/* 親付け替えのUndoボタン（直前の1回のみ） */}
+        {canUndoReparent && (
+          <button
+            onClick={onUndoReparent}
+            style={{
+              position:     "absolute",
+              left:         18,
+              bottom:       136,
+              zIndex:       15,
+              display:      "flex",
+              alignItems:   "center",
+              gap:          6,
+              padding:      "9px 14px",
+              borderRadius: T.radius.xl,
+              border:       `0.5px solid ${T.inkLine}`,
+              background:   T.cream,
+              color:        T.gold,
+              fontSize:     T.fontSize.md,
+              fontFamily:   T.fontSerif,
+              cursor:       "pointer",
+              boxShadow:    "0 2px 10px rgba(26,15,0,0.12)",
+            }}
+          >
+            <i className="ti ti-arrow-back-up" style={{ fontSize: 14 }} />
+            元に戻す
+          </button>
+        )}
 
         {/* 目次ドロワー背景オーバーレイ */}
         {drawerOpen && (

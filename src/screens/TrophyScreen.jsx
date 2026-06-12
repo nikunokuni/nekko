@@ -1,7 +1,9 @@
 // ══════════════════════════════════════════════════════════════════
 // TrophyScreen.jsx  ―  トロフィー（バッジ）画面
 // ══════════════════════════════════════════════════════════════════
-import { BADGE_DEFS } from "../rewards";
+import { useEffect, useState } from "react";
+import { BADGE_DEFS, getSeenBadgeIds, markBadgesSeen } from "../rewards";
+import { Confetti } from "../components";
 import { T } from "../theme";
 
 export function TrophyScreen({ onBack, treeCount, nodeCount, loginStats, extraStats = {} }) {
@@ -10,6 +12,20 @@ export function TrophyScreen({ onBack, treeCount, nodeCount, loginStats, extraSt
 
   const earnedIds  = new Set(BADGE_DEFS.filter((b) => b.check(stats)).map((b) => b.id));
   const earnedCount = earnedIds.size;
+
+  // ── 新規獲得バッジの紙吹雪演出 ────────────────────
+  const [showConfetti, setShowConfetti] = useState(false);
+  useEffect(() => {
+    const seen = getSeenBadgeIds();
+    const newlyEarned = [...earnedIds].filter((id) => !seen.has(id));
+    if (newlyEarned.length > 0) {
+      setShowConfetti(true);
+      const timer = setTimeout(() => setShowConfetti(false), 2800);
+      markBadgesSeen([...earnedIds]);
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const statItems = [
     { icon: "ti-binary-tree", label: "ツリー",      value: treeCount, unit: "個" },
@@ -20,6 +36,7 @@ export function TrophyScreen({ onBack, treeCount, nodeCount, loginStats, extraSt
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: T.cream }}>
+      {showConfetti && <Confetti />}
       {/* ヘッダー */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "16px 18px 12px", borderBottom: `0.5px solid ${T.inkLine}` }}>
         <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: 18, padding: 2, lineHeight: 1 }}>
