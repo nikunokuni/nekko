@@ -5,7 +5,8 @@
 import { useState } from "react";
 import { BackBtn } from "./components";
 import { signIn, signUp } from "./db";
-import { recordAction } from "./rewards";
+import { recordAction, getCustomTags } from "./rewards";
+import { SUGGESTIONS } from "./data";
 import { T } from "./theme";
 
 // ──────────────────────────────────────────────────
@@ -219,15 +220,8 @@ function PublicTreeCard({ tree, isCopied, isCopying, isLiked, onCopy, onLike }) 
         </button>
       </div>
 
-      {/* タグ・コピーボタン行 */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-        <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-          {(tree.tags || []).map((tg) => (
-            <span key={tg} style={{ fontSize: T.fontSize.xs, padding: "2px 7px", borderRadius: T.radius.sm, background: "rgba(26,15,0,0.06)", color: T.inkMid, fontFamily: T.fontSerif }}>
-              {tg}
-            </span>
-          ))}
-        </div>
+      {/* コピーボタン行 */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap", gap: 8 }}>
         <button
           onClick={() => onCopy(tree.id)}
           disabled={isCopying}
@@ -252,12 +246,14 @@ function PublicTreeCard({ tree, isCopied, isCopying, isLiked, onCopy, onLike }) 
 // ──────────────────────────────────────────────────
 // TagFilter: タグ絞り込みバー
 // ──────────────────────────────────────────────────
-const ALL_TAGS = ["すべて", "居飛車", "振り飛車", "角換わり", "矢倉", "雁木", "石田流", "中飛車", "四間飛車"];
-
 function TagFilter({ activeTag, onSelect }) {
+  const presetTags = Object.values(SUGGESTIONS).flat();
+  const customTags = getCustomTags();
+  const allTags = ["すべて", ...new Set([...presetTags, ...customTags])];
+
   return (
     <div style={{ display: "flex", gap: 6, padding: "10px 16px", overflowX: "auto", flexShrink: 0 }}>
-      {ALL_TAGS.map((tag) => (
+      {allTags.map((tag) => (
         <div
           key={tag}
           onClick={() => onSelect(tag)}

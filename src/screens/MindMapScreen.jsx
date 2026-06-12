@@ -144,6 +144,15 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
   const { nodes } = tree;
   const rootId    = tree.rootId ?? Object.values(nodes).find((n) => n.isRoot)?.id ?? null;
 
+  // ── ノード数に応じてルート上に表示する成長アイコン ──
+  const totalNodeCount = Object.keys(nodes).length;
+  const growthIcon =
+    totalNodeCount <= 3  ? "🌰" :
+    totalNodeCount <= 10 ? "🌱" :
+    totalNodeCount <= 20 ? "🌼" :
+    "🌳";
+  const growthIconSize = totalNodeCount * 3;
+
   const { positions, edges } = rootId
     ? layoutTree(nodes, rootId)
     : { positions: {}, edges: [] };
@@ -477,6 +486,19 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
                 </g>
               );
             })}
+
+            {/* ルートノード上の成長アイコン（ノード数に応じて変化） */}
+            {rootId && positions[rootId] && (
+              <text
+                x={positions[rootId].x + NODE_W / 2}
+                y={positions[rootId].y - 8 - growthIconSize / 2}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fontSize={growthIconSize}
+              >
+                {growthIcon}
+              </text>
+            )}
           </svg>
         </div>
 

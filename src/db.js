@@ -108,7 +108,7 @@ export async function createNode({
       hand_gote:  handGote  ?? {"p":0,"l":0,"n":0,"s":0,"g":0,"b":0,"r":0},
       tags: tags ?? [],
       kifu: kifu ?? [],
-      kifu_imported: kifuImported,
+      kifu_imported: kifuImported ?? false,
       branch_from_move_index: branchFromMoveIndex,
       usage_level: usageLevel ?? 2,
       win_rate: winRate,

@@ -6,7 +6,7 @@ import {
   StatusChip, MergeTag, Divider, BackBtn,
 } from "../components";
 import {
-  STATUS_META, APPROACH_META, SUGGESTIONS, USAGE_META,
+  STATUS_META, APPROACH_META, SUGGESTIONS,
 } from "../data";
 import { recordAction, getCustomTags, addCustomTag } from "../rewards";
 import { T, INPUT_STYLE, parseTags, cloneBoard } from "../theme";
@@ -328,33 +328,41 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
           </div>
         )}
 
-        {/* ── よく使う度 ── */}
-        <div style={{ padding: "10px 16px 0" }}>
-          <SectionLabel style={{ marginBottom: 5 }}>よく使う</SectionLabel>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            {[1, 2, 3].map((lvl, i) => (
-              <div key={lvl} style={{ display: "flex", alignItems: "center", flex: lvl < 3 ? 1 : "0 0 auto" }}>
-                <i
-                  className={usageLevel >= lvl ? "ti ti-circle-filled" : "ti ti-circle"}
-                  onClick={async () => {
-                    setUsageLevel(lvl);
-                    await onUpdate(nodeId, { usageLevel: lvl });
-                  }}
-                  style={{ fontSize: 18, color: usageLevel >= lvl ? T.gold : T.inkLine, cursor: "pointer", flexShrink: 0 }}
-                />
-                {lvl < 3 && <div style={{ flex: 1, height: 1, background: T.inkLine, margin: "0 4px" }} />}
-              </div>
-            ))}
-            <span style={{ fontSize: T.fontSize.sm, color: T.inkMid, marginLeft: 8, fontFamily: T.fontSerif }}>
-              {USAGE_META[usageLevel]?.label}
-            </span>
+        {/* ── 頻度 / 勝率 ── */}
+        <div style={{ padding: "10px 16px 0", display: "flex", gap: 10 }}>
+          <div style={{ flex: 2, minWidth: 0 }}>
+            <SectionLabel style={{ marginBottom: 5 }}>頻度</SectionLabel>
+            <div style={{ display: "flex", alignItems: "center" }}>
+              {[1, 2, 3].map((lvl) => (
+                <div key={lvl} style={{ display: "flex", alignItems: "center", flex: lvl < 3 ? 1 : "0 0 auto" }}>
+                  <input
+                    type="radio"
+                    name="usageLevel"
+                    checked={usageLevel === lvl}
+                    onChange={async () => {
+                      setUsageLevel(lvl);
+                      await onUpdate(nodeId, { usageLevel: lvl });
+                    }}
+                    style={{ width: 15, height: 15, margin: 0, accentColor: T.gold, cursor: "pointer", flexShrink: 0 }}
+                  />
+                  {lvl < 3 && <div style={{ flex: 1, height: 1, background: T.inkLine, margin: "0 3px" }} />}
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", marginTop: 2 }}>
+              {[1, 2, 3].map((lvl) => (
+                <div key={lvl} style={{ display: "flex", alignItems: "center", flex: lvl < 3 ? 1 : "0 0 auto" }}>
+                  <span style={{ width: 15, flexShrink: 0, textAlign: "center", fontSize: T.fontSize.xs, color: T.inkMid, fontFamily: T.fontSerif }}>
+                    {lvl}
+                  </span>
+                  {lvl < 3 && <div style={{ flex: 1, margin: "0 3px" }} />}
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
 
-        {/* ── 勝率 ── */}
-        <div style={{ padding: "10px 16px 0" }}>
-          <SectionLabel style={{ marginBottom: 5 }}>勝率</SectionLabel>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <SectionLabel style={{ marginBottom: 5 }}>勝率</SectionLabel>
             <select
               value={winRate ?? ""}
               onChange={async (e) => {
@@ -362,16 +370,16 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
                 setWinRate(v);
                 await onUpdate(nodeId, { winRate: v });
               }}
-              style={{ ...INPUT_STYLE, width: "auto", flex: "0 0 auto", padding: "8px 12px" }}
+              style={{ ...INPUT_STYLE, width: "100%", padding: "6px 8px", fontSize: T.fontSize.base }}
             >
               <option value="">未設定</option>
               {Array.from({ length: 11 }, (_, i) => i).map((v) => (
                 <option key={v} value={v}>{v}</option>
               ))}
             </select>
-            <span style={{ fontSize: T.fontSize.base, color: T.inkMid, fontFamily: T.fontSerif }}>
+            <div style={{ fontSize: T.fontSize.xs, color: T.inkMid, marginTop: 3, fontFamily: T.fontSerif, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {winRate != null ? `${winRate}割くらい勝てる` : "未設定"}
-            </span>
+            </div>
           </div>
         </div>
 
