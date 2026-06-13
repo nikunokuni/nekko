@@ -12,7 +12,7 @@ import {
   supabase,
   getSession, getProfile, signOut,
   fetchMyTrees, fetchPublicTrees, fetchNodes,
-  createTree, createNode, updateNode, updateTree, deleteTree,
+  createTree, createNode, updateNode, updateTree, deleteTree, copyTree,
   buildTreeFromNodes, publishTree, deleteNodes, unpublishTree,
   countUserNodes, likeTree, collectTreeTags,
 } from "./db";
@@ -343,45 +343,13 @@ export default function App() {
     setNodeCount(cnt);
   }, [session]);
 
-  // ── 公開ツリーのコピー（BFS 順で parent_id を解決）──
+  // ── 公開ツリーのコピー（サーバー側RPCで1トランザクション一括コピー）──
   const handleCopyTree = async (pubTreeId) => {
     const pubTreeRow = pubTrees.find(t => t.id === pubTreeId);
     if (!pubTreeRow || !session) return;
 
-    const { data: newTree } = await createTree({ userId: session.user.id, name: pubTreeRow.name + "（コピー）", tags: pubTreeRow.tags || [] });
-    if (!newTree) return;
-
-    const { data: srcNodes } = await fetchNodes(pubTreeId);
-    if (!srcNodes) return;
-
-    const idMap = {};
-    const rootSrc = srcNodes.find(n => n.is_root);
-    if (rootSrc) {
-      const { data: nr } = await createNode({ treeId: newTree.id, userId: session.user.id, parentId: null, label: rootSrc.label, isRoot: true, status: rootSrc.status, approachType: rootSrc.approach_type, memo: rootSrc.memo || "", board: rootSrc.board, stamps: rootSrc.stamps || [], tags: rootSrc.tags || [], handSente: rootSrc.hand_sente, handGote: rootSrc.hand_gote, kifu: rootSrc.kifu || [], kifuImported: rootSrc.kifu_imported || false, usageLevel: rootSrc.usage_level ?? 2, winRate: rootSrc.win_rate ?? null, sortOrder: rootSrc.sort_order || 0 });
-      if (nr) idMap[rootSrc.id] = nr.id;
-    }
-
-    // BFS 順に並び替えて insert（親が先に登録されていることを保証）
-    const nonRoot = srcNodes.filter(n => !n.is_root);
-    const ordered = [], queue = [rootSrc?.id].filter(Boolean), visited = new Set(queue);
-    while (queue.length) {
-      const cur = queue.shift();
-      for (const child of nonRoot.filter(n => n.parent_id === cur)) {
-        if (!visited.has(child.id)) { visited.add(child.id); ordered.push(child); queue.push(child.id); }
-      }
-    }
-    for (const n of ordered) {
-      const { data: nn } = await createNode({ treeId: newTree.id, userId: session.user.id, parentId: idMap[n.parent_id] || null, label: n.label, status: n.status, approachType: n.approach_type, memo: n.memo || "", board: n.board, stamps: n.stamps || [], tags: n.tags || [], handSente: n.hand_sente, handGote: n.hand_gote, kifu: n.kifu || [], kifuImported: n.kifu_imported || false, branchFromMoveIndex: n.branch_from_move_index ?? null, usageLevel: n.usage_level ?? 2, winRate: n.win_rate ?? null, sortOrder: n.sort_order || 0 });
-      if (nn) idMap[n.id] = nn.id;
-    }
-
-    // 合流関係（isMergeTarget / mergeParentIds）を新IDで復元
-    for (const n of srcNodes) {
-      const mergeParentIds = (n.merge_parent_ids || []).map(pid => idMap[pid]).filter(Boolean);
-      if (n.is_merge_target || mergeParentIds.length > 0) {
-        await updateNode(idMap[n.id], { isMergeTarget: !!n.is_merge_target, mergeParentIds });
-      }
-    }
+    const { data: newTreeId, error } = await copyTree(pubTreeId, pubTreeRow.name + "（コピー）");
+    if (error || !newTreeId) { console.error("copyTree error:", error); return; }
 
     recordAction("copied");
     await loadMyTrees();

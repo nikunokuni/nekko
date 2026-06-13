@@ -76,6 +76,11 @@ export async function deleteTree(treeId) {
   return supabase.from("trees").delete().eq("id", treeId);
 }
 
+// 公開ツリーをサーバー側RPCで一括コピー（1トランザクション）
+export async function copyTree(treeId, newName = null) {
+  return supabase.rpc("copy_tree", { p_source_tree_id: treeId, p_new_name: newName });
+}
+
 // ── Nodes ─────────────────────────────────────────
 export async function fetchNodes(treeId) {
   return supabase
