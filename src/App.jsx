@@ -17,6 +17,7 @@ import {
   countUserNodes, likeTree, collectTreeTags,
 } from "./db";
 import { recordLogin, getLoginStats, recordAction, getActions } from "./rewards";
+import { cloneBoard } from "./theme";
 
 export default function App() {
   const [session,          setSession]          = useState(undefined); // undefined = 未確定
@@ -108,6 +109,7 @@ export default function App() {
         label: treeRow?.name || "戦法",
         isRoot: true,
         status: "todo",
+        board: cloneBoard(null),
       });
       const fixed = await loadTree(treeId);
       if (fixed) setScreen("map");
@@ -127,7 +129,7 @@ export default function App() {
       treeId: data.id, userId: session.user.id,
       parentId: null, label: name, isRoot: true, status: "todo",
       // 棋譜インポートがあれば、ルートノードに最終局面・棋譜を反映する
-      board:        hasKifu ? last.board     : null,
+      board:        hasKifu ? last.board     : cloneBoard(null),
       handSente:    hasKifu ? last.handSente : undefined,
       handGote:     hasKifu ? last.handGote  : undefined,
       kifu:         hasKifu ? kifuSnapshots  : [],
@@ -447,6 +449,7 @@ export default function App() {
             onBack={() => setScreen("map")} onNodeSelect={handleNodeSelect}
             onNewNode={handleNewNode} onUpdate={handleNodeUpdate}
             onDeleteNode={handleDeleteNode} onSetMergeParents={handleSetMergeParents}
+            onReparentNode={handleReparentNode}
             onBranchFromKifu={handleBranchFromKifu}/>
         )}
         {screen==="public" && (

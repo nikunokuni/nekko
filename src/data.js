@@ -44,6 +44,9 @@ export const USAGE_META = {
   3: { label: 'よく使う',       scale: 1.18 },
 };
 
+// ── 勝率ラジオの選択肢（割単位）──
+export const WIN_RATE_LEVELS = [1, 3, 5, 7, 9];
+
 // ── アプローチ表示メタ ────────────────────────────
 export const APPROACH_META = {
   '相手の戦法': { bg:'#fadbd8', color:'#7B3010' },

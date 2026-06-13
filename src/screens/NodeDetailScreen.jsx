@@ -1,21 +1,36 @@
 // ══════════════════════════════════════════════════════════════════
 // NodeDetailScreen.jsx  ―  ノード詳細編集画面
+//   親ノード / 今（すぐ書く） / 今（じっくり整理） / 子ノード
 // ══════════════════════════════════════════════════════════════════
 import { useState, useEffect, useCallback } from "react";
 import {
   StatusChip, MergeTag, Divider, BackBtn,
 } from "../components";
 import {
-  STATUS_META, APPROACH_META, SUGGESTIONS,
+  STATUS_META, APPROACH_META, SUGGESTIONS, WIN_RATE_LEVELS,
 } from "../data";
 import { recordAction, getCustomTags, addCustomTag } from "../rewards";
 import { T, INPUT_STYLE, parseTags, cloneBoard } from "../theme";
-import { SectionLabel, BoardSection, MergeLinkList } from "../components/uiParts";
+import { SectionLabel, BoardSection, MergeLinkList, LinkPicker } from "../components/uiParts";
+
+// ── セクション見出し ──────────────────────────────
+function SectionHeader({ icon, children }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "14px 16px 8px", fontSize: T.fontSize.base, fontWeight: 600, color: T.inkMid, letterSpacing: "0.04em", fontFamily: T.fontSerif }}>
+      <i className={`ti ${icon}`} style={{ fontSize: 13, color: T.gold }} />{children}
+    </div>
+  );
+}
+
+// ── セクション間の太い区切り線 ──────────────────────
+function SectionDivider() {
+  return <div style={{ height: 3, background: "rgba(26,15,0,0.18)" }} />;
+}
 
 // ══════════════════════════════════════════════════════════════════
 // NodeDetail: ノード詳細編集画面
 // ══════════════════════════════════════════════════════════════════
-export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUpdate, onDeleteNode, onSetMergeParents, onBranchFromKifu }) {
+export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUpdate, onDeleteNode, onSetMergeParents, onReparentNode, onBranchFromKifu }) {
   const node = tree.nodes[nodeId];
 
   const [label,        setLabel]        = useState("");
@@ -35,8 +50,11 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
   const [customTags,   setCustomTags]   = useState(() => getCustomTags());
   const [addingTag,    setAddingTag]    = useState(false);
   const [newTagInput,  setNewTagInput]  = useState("");
-  const [mergePickerOpen,      setMergePickerOpen]      = useState(false);
-  const [mergeChildPickerOpen, setMergeChildPickerOpen] = useState(false);
+  const [mergePickerOpen,        setMergePickerOpen]        = useState(false);
+  const [mergeChildPickerOpen,   setMergeChildPickerOpen]   = useState(false);
+  const [parentDetailsOpen,      setParentDetailsOpen]      = useState(false);
+  const [parentChangePickerOpen, setParentChangePickerOpen] = useState(false);
+  const [deleteConfirm,          setDeleteConfirm]          = useState(false);
 
   // nodeId が変わったらフォームをリセット
   useEffect(() => {
@@ -51,6 +69,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
       setBoardVisible(!!node.board);
       setBoardData(node.board || null);
       setStamps(node.stamps || []);
+      setParentDetailsOpen((node.mergeParentIds || []).length > 0);
     }
   }, [nodeId, node]);
 
@@ -120,6 +139,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
   };
 
   // このノードに合流させる「親」候補：自分・実親・既存の合流親・下流（子孫）を除く
+  // （親ノードの変更先候補も同じ条件のため共用する）
   const mergeParentCandidates = (() => {
     const downstream = reachableFrom(nodeId);
     return Object.values(tree.nodes).filter((n) =>
@@ -165,9 +185,15 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
     showToast("合流を解除しました");
   };
 
-  /** 子孫IDを再帰的に収集してノード削除 */
-  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  // ── 親ノードの変更 ──────────────────────────────
+  const handleChangeParent = async (newParentId) => {
+    setParentChangePickerOpen(false);
+    if (typeof onReparentNode !== "function") return;
+    await onReparentNode(nodeId, newParentId);
+    showToast("親ノードを変更しました");
+  };
 
+  /** 子孫IDを再帰的に収集してノード削除 */
   const collectDescendantIds = (id) => {
     const n = tree.nodes[id];
     if (!n) return [];
@@ -225,54 +251,91 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
       </div>
 
       <div style={{ flex: 1, overflowY: "auto" }}>
-        {/* ── 親ノード（実親 + 合流元）── */}
+
+        {/* ════════════════ 親ノード ════════════════ */}
         {!node.isRoot && (
-          <div style={{ padding: "8px 16px 0" }}>
-            <SectionLabel style={{ marginBottom: 8 }}>親ノード</SectionLabel>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {parent && (
+          <>
+            <SectionHeader icon="ti-corner-left-up">親ノード</SectionHeader>
+            <div style={{ padding: "0 16px 12px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {parent && (
+                  <div
+                    onClick={() => saveAndNavigate(() => onNodeSelect(parent.id))}
+                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: T.radius.sm, border: `0.5px solid ${T.inkLine}`, background: T.cream, cursor: "pointer" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = T.goldLight)}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = T.cream)}
+                  >
+                    <i className="ti ti-corner-left-up" style={{ fontSize: 14, color: T.gray }} />
+                    <span style={{ fontSize: T.fontSize.base, color: T.ink, flex: 1 }}>{parent.label}</span>
+                    <i className="ti ti-chevron-right" style={{ fontSize: 14, color: T.gray }} />
+                  </div>
+                )}
+                {parent && node.branchFromMoveIndex != null && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px" }}>
+                    <i className="ti ti-git-branch" style={{ fontSize: 13, color: T.gray }} />
+                    <span style={{ fontSize: T.fontSize.sm, color: T.gray }}>
+                      {node.branchFromMoveIndex === 0
+                        ? `「${parent.label}」の初期局面から分岐`
+                        : `「${parent.label}」の第${node.branchFromMoveIndex}手から分岐`}
+                    </span>
+                  </div>
+                )}
+
+                {/* その他の操作（合流・親の変更）── デフォルト非表示 */}
                 <div
-                  onClick={() => saveAndNavigate(() => onNodeSelect(parent.id))}
-                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: T.radius.sm, border: `0.5px solid ${T.inkLine}`, background: T.cream, cursor: "pointer" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = T.goldLight)}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = T.cream)}
+                  onClick={() => setParentDetailsOpen((v) => !v)}
+                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 4px", marginTop: 2, cursor: "pointer", color: T.inkFaint, fontSize: T.fontSize.sm, fontFamily: T.fontSerif }}
                 >
-                  <i className="ti ti-corner-left-up" style={{ fontSize: 14, color: T.gray }} />
-                  <span style={{ fontSize: T.fontSize.base, color: T.ink, flex: 1 }}>{parent.label}</span>
-                  <i className="ti ti-chevron-right" style={{ fontSize: 14, color: T.gray }} />
+                  <i className="ti ti-chevron-right" style={{ fontSize: 11, transition: "transform 0.15s", transform: parentDetailsOpen ? "rotate(90deg)" : "none" }} />
+                  その他の操作（合流・親の変更）
                 </div>
-              )}
-              {parent && node.branchFromMoveIndex != null && (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px" }}>
-                  <i className="ti ti-git-branch" style={{ fontSize: 13, color: T.gray }} />
-                  <span style={{ fontSize: T.fontSize.sm, color: T.gray }}>
-                    {node.branchFromMoveIndex === 0
-                      ? `「${parent.label}」の初期局面から分岐`
-                      : `「${parent.label}」の第${node.branchFromMoveIndex}手から分岐`}
-                  </span>
-                </div>
-              )}
-              {onSetMergeParents && (
-                <MergeLinkList
-                  items={mergeParentIds.map((pid) => tree.nodes[pid]).filter(Boolean)}
-                  candidates={mergeParentCandidates}
-                  pickerOpen={mergePickerOpen}
-                  setPickerOpen={setMergePickerOpen}
-                  onAdd={addMergeParent}
-                  onRemove={removeMergeParent}
-                  addLabel="合流元を追加"
-                  pickLabel="親にするノードを選択"
-                />
-              )}
+
+                {parentDetailsOpen && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "2px 0 0 4px" }}>
+                    {onSetMergeParents && (
+                      <div>
+                        <SectionLabel style={{ marginBottom: 5 }}>合流元</SectionLabel>
+                        <MergeLinkList
+                          items={mergeParentIds.map((pid) => tree.nodes[pid]).filter(Boolean)}
+                          candidates={mergeParentCandidates}
+                          pickerOpen={mergePickerOpen}
+                          setPickerOpen={setMergePickerOpen}
+                          onAdd={addMergeParent}
+                          onRemove={removeMergeParent}
+                          addLabel="合流元を追加"
+                          pickLabel="親にするノードを選択"
+                        />
+                      </div>
+                    )}
+                    {onReparentNode && (
+                      <div>
+                        <SectionLabel style={{ marginBottom: 5 }}>親を変更</SectionLabel>
+                        <LinkPicker
+                          candidates={mergeParentCandidates}
+                          pickerOpen={parentChangePickerOpen}
+                          setPickerOpen={setParentChangePickerOpen}
+                          onPick={handleChangeParent}
+                          label="親ノードを変更"
+                          pickLabel="新しい親ノードを選択"
+                          icon="ti-arrows-exchange"
+                          color={T.blue}
+                          hoverBg={T.blueBg}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+            <SectionDivider />
+          </>
         )}
 
-        {/* 親ノード ↔ 今のノード 境界 */}
-        <div style={{ height: 3, background: "rgba(26,15,0,0.18)", margin: "14px 0 0" }} />
+        {/* ════════════════ 今（すぐ書く） ════════════════ */}
+        <SectionHeader icon="ti-pencil">今（すぐ書く）</SectionHeader>
 
-        {/* ── ノード名（編集可能・自由記入） ── */}
-        <div style={{ padding: "10px 16px 0" }}>
+        {/* ノード名 */}
+        <div style={{ padding: "0 16px 10px" }}>
           <SectionLabel style={{ marginBottom: 5 }}>ノード名</SectionLabel>
           <input
             value={label}
@@ -290,9 +353,82 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
           />
         </div>
 
-        {/* ── 切り口（自分の戦法 / 相手の戦法 / 局面の状況）── */}
+        {/* ステータス */}
+        <div style={{ padding: "0 16px 10px" }}>
+          <SectionLabel style={{ marginBottom: 5 }}>ステータス</SectionLabel>
+          <div style={{ display: "flex", gap: 6 }}>
+            {["done", "wip"].map((s) => (
+              <StatusChip key={s} status={s} active={status === s} onClick={() => setStatus(s)} />
+            ))}
+          </div>
+        </div>
+
+        {/* メモ */}
+        <div style={{ padding: "0 16px 10px" }}>
+          <SectionLabel style={{ marginBottom: 6 }}>メモ</SectionLabel>
+          <textarea
+            value={memo}
+            onChange={(e) => setMemo(e.target.value)}
+            placeholder="気づき・方針・手順のポイントなど"
+            rows={4}
+            style={{ width: "100%", border: `0.5px solid ${T.inkLine}`, borderRadius: T.radius.sm, padding: "10px 12px", fontSize: T.fontSize.base, color: T.ink, background: T.cream, resize: "none", fontFamily: T.fontSerif, lineHeight: 1.7, outline: "none" }}
+            onFocus={(e) => (e.target.style.borderColor = T.gold)}
+            onBlur={(e)  => (e.target.style.borderColor = T.inkLine)}
+          />
+        </div>
+
+        <Divider />
+
+        {/* 盤面 */}
+        <BoardSection
+          boardVisible={boardVisible}
+          boardData={boardData}
+          stamps={stamps}
+          parentBoard={parent?.board}
+          parentLabel={parent?.label}
+          onToggle={handleToggleBoard}
+          handSente={handSente}
+          handGote={handGote}
+         onChange={(board, s, hs, hg) => { setBoardData(board); setStamps(s); onUpdate(nodeId, { board, stamps: s, handSente: hs, handGote: hg }); }}
+          onDelete={() => { setBoardData(null); setStamps([]); setBoardVisible(false); }}
+          onLoadTemplate={(t) => {
+            const b = t.board.map(r => [...r]);
+            setBoardData(b);
+            setHandSente({ ...t.handSente });
+            setHandGote({ ...t.handGote });
+            setStamps([]);
+            setBoardVisible(true);
+            onUpdate(nodeId, { board: b, stamps: [], handSente: t.handSente, handGote: t.handGote });
+            recordAction("template");
+            showToast("テンプレートを読み込みました");
+          }}
+          kifu={node.kifu || []}
+          onKifuChange={async (newKifu) => { await onUpdate(nodeId, { kifu: newKifu }); if (newKifu.length > 0) recordAction("kifu"); showToast("棋譜を保存しました"); }}
+          onKifuDelete={async () => {
+            const initial = (node.kifu || [])[0];
+            const board = initial ? cloneBoard(initial.board) : boardData;
+            const hs = initial ? { ...initial.handSente } : handSente;
+            const hg = initial ? { ...initial.handGote }  : handGote;
+            setBoardData(board);
+            setHandSente(hs);
+            setHandGote(hg);
+            setStamps([]);
+            await onUpdate(nodeId, { board, stamps: [], handSente: hs, handGote: hg, kifu: [] });
+            showToast("棋譜を削除しました");
+          }}
+          allowBranch={!!node.kifuImported}
+          onBranchFromHere={(snapshot, moveIndex) => onBranchFromKifu?.(nodeId, snapshot, moveIndex)}
+        />
+
+        <SectionDivider />
+
+        {/* ════════════════ 今（じっくり整理） ════════════════ */}
+        <SectionHeader icon="ti-adjustments">今（じっくり整理）</SectionHeader>
+
+        {/* 切り口（自分の戦法 / 相手の戦法 / 局面の状況）*/}
         {!node.isRoot && (
-          <div style={{ padding: "10px 16px 0" }}>
+          <div style={{ padding: "0 16px 10px" }}>
+            <SectionLabel style={{ marginBottom: 5 }}>切り口</SectionLabel>
             <div style={{ display: "flex", gap: 6 }}>
               {["自分の戦法", "相手の戦法", "局面の状況"].map((a) => {
                 const selected = approach === a;
@@ -328,63 +464,75 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
           </div>
         )}
 
-        {/* ── 頻度 / 勝率 ── */}
-        <div style={{ padding: "10px 16px 0", display: "flex", gap: 10 }}>
-          <div style={{ flex: 2, minWidth: 0 }}>
-            <SectionLabel style={{ marginBottom: 5 }}>頻度</SectionLabel>
-            <div style={{ display: "flex", alignItems: "center" }}>
-              {[1, 2, 3].map((lvl) => (
-                <div key={lvl} style={{ display: "flex", alignItems: "center", flex: lvl < 3 ? 1 : "0 0 auto" }}>
-                  <input
-                    type="radio"
-                    name="usageLevel"
-                    checked={usageLevel === lvl}
-                    onChange={async () => {
-                      setUsageLevel(lvl);
-                      await onUpdate(nodeId, { usageLevel: lvl });
-                    }}
-                    style={{ width: 15, height: 15, margin: 0, accentColor: T.gold, cursor: "pointer", flexShrink: 0 }}
-                  />
-                  {lvl < 3 && <div style={{ flex: 1, height: 1, background: T.inkLine, margin: "0 3px" }} />}
-                </div>
-              ))}
-            </div>
-            <div style={{ display: "flex", alignItems: "center", marginTop: 2 }}>
-              {[1, 2, 3].map((lvl) => (
-                <div key={lvl} style={{ display: "flex", alignItems: "center", flex: lvl < 3 ? 1 : "0 0 auto" }}>
-                  <span style={{ width: 15, flexShrink: 0, textAlign: "center", fontSize: T.fontSize.xs, color: T.inkMid, fontFamily: T.fontSerif }}>
-                    {lvl}
-                  </span>
-                  {lvl < 3 && <div style={{ flex: 1, margin: "0 3px" }} />}
-                </div>
-              ))}
-            </div>
+        {/* 頻度 */}
+        <div style={{ padding: "0 16px 10px" }}>
+          <SectionLabel style={{ marginBottom: 5 }}>頻度</SectionLabel>
+          <div style={{ display: "flex", alignItems: "center" }}>
+            {[1, 2, 3].map((lvl) => (
+              <div key={lvl} style={{ display: "flex", alignItems: "center", flex: lvl < 3 ? 1 : "0 0 auto" }}>
+                <input
+                  type="radio"
+                  name="usageLevel"
+                  checked={usageLevel === lvl}
+                  onChange={async () => {
+                    setUsageLevel(lvl);
+                    await onUpdate(nodeId, { usageLevel: lvl });
+                  }}
+                  style={{ width: 15, height: 15, margin: 0, accentColor: T.gold, cursor: "pointer", flexShrink: 0 }}
+                />
+                {lvl < 3 && <div style={{ flex: 1, height: 1, background: T.inkLine, margin: "0 3px" }} />}
+              </div>
+            ))}
           </div>
-
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <SectionLabel style={{ marginBottom: 5 }}>勝率</SectionLabel>
-            <select
-              value={winRate ?? ""}
-              onChange={async (e) => {
-                const v = e.target.value === "" ? null : Number(e.target.value);
-                setWinRate(v);
-                await onUpdate(nodeId, { winRate: v });
-              }}
-              style={{ ...INPUT_STYLE, width: "100%", padding: "6px 8px", fontSize: T.fontSize.base }}
-            >
-              <option value="">未設定</option>
-              {Array.from({ length: 11 }, (_, i) => i).map((v) => (
-                <option key={v} value={v}>{v}</option>
-              ))}
-            </select>
-            <div style={{ fontSize: T.fontSize.xs, color: T.inkMid, marginTop: 3, fontFamily: T.fontSerif, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {winRate != null ? `${winRate}割くらい勝てる` : "未設定"}
-            </div>
+          <div style={{ display: "flex", alignItems: "center", marginTop: 2 }}>
+            {[1, 2, 3].map((lvl) => (
+              <div key={lvl} style={{ display: "flex", alignItems: "center", flex: lvl < 3 ? 1 : "0 0 auto" }}>
+                <span style={{ width: 15, flexShrink: 0, textAlign: "center", fontSize: T.fontSize.xs, color: T.inkMid, fontFamily: T.fontSerif }}>
+                  {lvl}
+                </span>
+                {lvl < 3 && <div style={{ flex: 1, margin: "0 3px" }} />}
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* ── 戦法タグ ── */}
-        <div style={{ padding: "10px 16px 0" }}>
+        {/* 勝率 */}
+        <div style={{ padding: "0 16px 10px" }}>
+          <SectionLabel style={{ marginBottom: 5 }}>勝率</SectionLabel>
+          <div style={{ display: "flex", alignItems: "center" }}>
+            {WIN_RATE_LEVELS.map((lvl, i) => (
+              <div key={lvl} style={{ display: "flex", alignItems: "center", flex: i < WIN_RATE_LEVELS.length - 1 ? 1 : "0 0 auto" }}>
+                <input
+                  type="radio"
+                  name="winRate"
+                  checked={winRate === lvl}
+                  onChange={async () => {
+                    setWinRate(lvl);
+                    await onUpdate(nodeId, { winRate: lvl });
+                  }}
+                  style={{ width: 15, height: 15, margin: 0, accentColor: T.gold, cursor: "pointer", flexShrink: 0 }}
+                />
+                {i < WIN_RATE_LEVELS.length - 1 && <div style={{ flex: 1, height: 1, background: T.inkLine, margin: "0 3px" }} />}
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", marginTop: 2 }}>
+            {WIN_RATE_LEVELS.map((lvl, i) => (
+              <div key={lvl} style={{ display: "flex", alignItems: "center", flex: i < WIN_RATE_LEVELS.length - 1 ? 1 : "0 0 auto" }}>
+                <span style={{ width: 15, flexShrink: 0, textAlign: "center", fontSize: T.fontSize.xs, color: T.inkMid, fontFamily: T.fontSerif }}>
+                  {lvl}
+                </span>
+                {i < WIN_RATE_LEVELS.length - 1 && <div style={{ flex: 1, margin: "0 3px" }} />}
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: T.fontSize.xs, color: T.inkMid, marginTop: 3, fontFamily: T.fontSerif }}>
+            {winRate != null ? `${winRate}割くらい勝てる` : "未設定"}
+          </div>
+        </div>
+
+        {/* 戦法タグ */}
+        <div style={{ padding: "0 16px 16px" }}>
           <SectionLabel style={{ marginBottom: 5 }}>戦法タグ（カンマ区切り）</SectionLabel>
           <div style={{ position: "relative" }}>
             <input
@@ -521,78 +669,11 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
           })()}
         </div>
 
-        {/* ── ステータス ── */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderBottom: `0.5px solid ${T.inkLineFaint}` }}>
-          <div style={{ display: "flex", gap: 6 }}>
-            {["done", "wip"].map((s) => (
-              <StatusChip key={s} status={s} active={status === s} onClick={() => setStatus(s)} />
-            ))}
-          </div>
-        </div>
+        <SectionDivider />
 
-        {/* ── メモ ── */}
-        <div style={{ padding: "10px 16px 0" }}>
-          <SectionLabel style={{ marginBottom: 6 }}>メモ</SectionLabel>
-          <textarea
-            value={memo}
-            onChange={(e) => setMemo(e.target.value)}
-            placeholder="気づき・方針・手順のポイントなど"
-            rows={4}
-            style={{ width: "100%", border: `0.5px solid ${T.inkLine}`, borderRadius: T.radius.sm, padding: "10px 12px", fontSize: T.fontSize.base, color: T.ink, background: T.cream, resize: "none", fontFamily: T.fontSerif, lineHeight: 1.7, outline: "none" }}
-            onFocus={(e) => (e.target.style.borderColor = T.gold)}
-            onBlur={(e)  => (e.target.style.borderColor = T.inkLine)}
-          />
-        </div>
-
-        <Divider style={{ margin: "10px 0 0" }} />
-
-        {/* ── 盤面 ── */}
-        <BoardSection
-          boardVisible={boardVisible}
-          boardData={boardData}
-          stamps={stamps}
-          parentBoard={parent?.board}
-          parentLabel={parent?.label}
-          onToggle={handleToggleBoard}
-          handSente={handSente}
-          handGote={handGote}
-         onChange={(board, s, hs, hg) => { setBoardData(board); setStamps(s); onUpdate(nodeId, { board, stamps: s, handSente: hs, handGote: hg }); }}
-          onDelete={() => { setBoardData(null); setStamps([]); setBoardVisible(false); }}
-          onLoadTemplate={(t) => {
-            const b = t.board.map(r => [...r]);
-            setBoardData(b);
-            setHandSente({ ...t.handSente });
-            setHandGote({ ...t.handGote });
-            setStamps([]);
-            setBoardVisible(true);
-            onUpdate(nodeId, { board: b, stamps: [], handSente: t.handSente, handGote: t.handGote });
-            recordAction("template");
-            showToast("テンプレートを読み込みました");
-          }}
-          kifu={node.kifu || []}
-          onKifuChange={async (newKifu) => { await onUpdate(nodeId, { kifu: newKifu }); if (newKifu.length > 0) recordAction("kifu"); showToast("棋譜を保存しました"); }}
-          onKifuDelete={async () => {
-            const initial = (node.kifu || [])[0];
-            const board = initial ? cloneBoard(initial.board) : boardData;
-            const hs = initial ? { ...initial.handSente } : handSente;
-            const hg = initial ? { ...initial.handGote }  : handGote;
-            setBoardData(board);
-            setHandSente(hs);
-            setHandGote(hg);
-            setStamps([]);
-            await onUpdate(nodeId, { board, stamps: [], handSente: hs, handGote: hg, kifu: [] });
-            showToast("棋譜を削除しました");
-          }}
-          allowBranch={!!node.kifuImported}
-          onBranchFromHere={(snapshot, moveIndex) => onBranchFromKifu?.(nodeId, snapshot, moveIndex)}
-        />
-
-        {/* 今のノード ↔ 分岐 境界 */}
-        <div style={{ height: 3, background: "rgba(26,15,0,0.18)", margin: "4px 0 0" }} />
-
-        {/* ── 分岐（実子 + 合流先）── */}
-        <div style={{ padding: "8px 16px 16px" }}>
-          <SectionLabel style={{ marginBottom: 8 }}>分岐</SectionLabel>
+        {/* ════════════════ 子ノード ════════════════ */}
+        <SectionHeader icon="ti-git-branch">子ノード</SectionHeader>
+        <div style={{ padding: "0 16px 16px" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {children.map((child) => {
               const m = STATUS_META[child.status] || STATUS_META.todo;
@@ -640,7 +721,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
 
           {/* ── ノード削除 ── */}
           {!node.isRoot && onDeleteNode && (
-            <div style={{ padding: "16px 16px 8px", borderTop: `0.5px solid ${T.inkLineFaint}` }}>
+            <div style={{ padding: "16px 0 0", marginTop: 10, borderTop: `0.5px solid ${T.inkLineFaint}` }}>
               {!deleteConfirm ? (
                 <button
                   onClick={() => setDeleteConfirm(true)}

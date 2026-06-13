@@ -253,6 +253,51 @@ export function BoardSection({ boardVisible, boardData, stamps, handSente, handG
 }
 
 // ──────────────────────────────────────────
+// LinkPicker: 「追加」ボタン or 候補一覧から1件選ぶピッカー
+//   合流の追加・親ノードの変更など、ノードを1件選ぶUIで共有する
+// ──────────────────────────────────────────
+export function LinkPicker({ candidates, pickerOpen, setPickerOpen, onPick, label, pickLabel, icon = "ti-arrows-exchange", color = T.purple, hoverBg = T.goldLight }) {
+  return !pickerOpen ? (
+    <div
+      onClick={() => setPickerOpen(true)}
+      style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: T.radius.sm, border: `0.5px dashed ${color}`, cursor: "pointer", color, fontSize: T.fontSize.base }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = hoverBg)}
+      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+    >
+      <i className={`ti ${icon}`} style={{ fontSize: 14 }} />{label}
+    </div>
+  ) : (
+    <div style={{ border: `0.5px solid ${T.inkLine}`, borderRadius: T.radius.sm, overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", borderBottom: `0.5px solid ${T.inkLineFaint}`, background: T.goldLight }}>
+        <span style={{ fontSize: T.fontSize.sm, color: T.inkMid }}>{pickLabel}</span>
+        <button onClick={() => setPickerOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: T.gray, fontSize: 13 }}>
+          <i className="ti ti-x" />
+        </button>
+      </div>
+      <div style={{ maxHeight: 180, overflowY: "auto" }}>
+        {candidates.length === 0 ? (
+          <div style={{ padding: "12px", fontSize: T.fontSize.sm, color: T.inkFaint, textAlign: "center" }}>
+            選べるノードがありません
+          </div>
+        ) : (
+          candidates.map((c) => (
+            <div
+              key={c.id}
+              onClick={() => onPick(c.id)}
+              style={{ padding: "9px 12px", fontSize: T.fontSize.base, color: T.ink, cursor: "pointer", borderBottom: `0.5px solid ${T.inkLineFaint}` }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = T.goldLight)}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            >
+              {c.label}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────
 // MergeLinkList: 合流リンク（親/子）の一覧 + 追加ピッカー
 // ──────────────────────────────────────────
 export function MergeLinkList({ items, candidates, pickerOpen, setPickerOpen, onAdd, onRemove, addLabel, pickLabel }) {
@@ -268,44 +313,17 @@ export function MergeLinkList({ items, candidates, pickerOpen, setPickerOpen, on
         </div>
       ))}
 
-      {!pickerOpen ? (
-        <div
-          onClick={() => setPickerOpen(true)}
-          style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: T.radius.sm, border: `0.5px dashed ${T.purple}`, cursor: "pointer", color: T.purple, fontSize: T.fontSize.base }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = "#f3edf9")}
-          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-        >
-          <i className="ti ti-arrow-merge" style={{ fontSize: 14 }} />{addLabel}
-        </div>
-      ) : (
-        <div style={{ border: `0.5px solid ${T.inkLine}`, borderRadius: T.radius.sm, overflow: "hidden" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", borderBottom: `0.5px solid ${T.inkLineFaint}`, background: T.goldLight }}>
-            <span style={{ fontSize: T.fontSize.sm, color: T.inkMid }}>{pickLabel}</span>
-            <button onClick={() => setPickerOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: T.gray, fontSize: 13 }}>
-              <i className="ti ti-x" />
-            </button>
-          </div>
-          <div style={{ maxHeight: 180, overflowY: "auto" }}>
-            {candidates.length === 0 ? (
-              <div style={{ padding: "12px", fontSize: T.fontSize.sm, color: T.inkFaint, textAlign: "center" }}>
-                選べるノードがありません
-              </div>
-            ) : (
-              candidates.map((c) => (
-                <div
-                  key={c.id}
-                  onClick={() => onAdd(c.id)}
-                  style={{ padding: "9px 12px", fontSize: T.fontSize.base, color: T.ink, cursor: "pointer", borderBottom: `0.5px solid ${T.inkLineFaint}` }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = T.goldLight)}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                >
-                  {c.label}
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
+      <LinkPicker
+        candidates={candidates}
+        pickerOpen={pickerOpen}
+        setPickerOpen={setPickerOpen}
+        onPick={onAdd}
+        label={addLabel}
+        pickLabel={pickLabel}
+        icon="ti-arrow-merge"
+        color={T.purple}
+        hoverBg="#f3edf9"
+      />
     </div>
   );
 }
