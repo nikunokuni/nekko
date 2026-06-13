@@ -55,6 +55,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
   const [parentDetailsOpen,      setParentDetailsOpen]      = useState(false);
   const [parentChangePickerOpen, setParentChangePickerOpen] = useState(false);
   const [deleteConfirm,          setDeleteConfirm]          = useState(false);
+  const [boardSnapshot,          setBoardSnapshot]          = useState(null);
 
   // nodeId が変わったらフォームをリセット
   useEffect(() => {
@@ -69,9 +70,26 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
       setBoardVisible(!!node.board);
       setBoardData(node.board || null);
       setStamps(node.stamps || []);
+      setHandSente(node.handSente || {p:0,l:0,n:0,s:0,g:0,b:0,r:0});
+      setHandGote(node.handGote  || {p:0,l:0,n:0,s:0,g:0,b:0,r:0});
       setParentDetailsOpen((node.mergeParentIds || []).length > 0);
     }
   }, [nodeId, node]);
+
+  // 編集開始時点の盤面状態を記録する（盤面の「元に戻す」用スナップショット）
+  useEffect(() => {
+    if (node) {
+      setBoardSnapshot({
+        boardVisible: !!node.board,
+        boardData:    cloneBoard(node.board || null),
+        stamps:       node.stamps || [],
+        handSente:    node.handSente || {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
+        handGote:     node.handGote  || {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
+        kifu:         node.kifu || [],
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodeId]);
 
   /** 「保存しました」トーストを一定時間表示する */
   const showToast = useCallback((msg = "保存しました") => {
@@ -100,6 +118,34 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
       setBoardData(cloneBoard(parent?.board ?? null));
     }
     setBoardVisible((v) => !v);
+  };
+
+  // 盤面を編集開始時点の状態に戻せるか
+  const canUndoBoard = !!boardSnapshot && (
+    boardVisible !== boardSnapshot.boardVisible ||
+    JSON.stringify(boardData)       !== JSON.stringify(boardSnapshot.boardData) ||
+    JSON.stringify(stamps)          !== JSON.stringify(boardSnapshot.stamps) ||
+    JSON.stringify(handSente)       !== JSON.stringify(boardSnapshot.handSente) ||
+    JSON.stringify(handGote)        !== JSON.stringify(boardSnapshot.handGote) ||
+    JSON.stringify(node.kifu || []) !== JSON.stringify(boardSnapshot.kifu)
+  );
+
+  /** 盤面まわり（盤面・コマ台・棋譜）を編集開始時点に戻す */
+  const handleUndoBoard = async () => {
+    if (!boardSnapshot) return;
+    setBoardVisible(boardSnapshot.boardVisible);
+    setBoardData(cloneBoard(boardSnapshot.boardData));
+    setStamps(boardSnapshot.stamps);
+    setHandSente(boardSnapshot.handSente);
+    setHandGote(boardSnapshot.handGote);
+    await onUpdate(nodeId, {
+      board:     boardSnapshot.boardVisible ? boardSnapshot.boardData : null,
+      stamps:    boardSnapshot.boardVisible ? boardSnapshot.stamps    : [],
+      handSente: boardSnapshot.handSente,
+      handGote:  boardSnapshot.handGote,
+      kifu:      boardSnapshot.kifu,
+    });
+    showToast("盤面をもとに戻しました");
   };
 
   /** 変更を保存してから画面遷移する（保存忘れ防止） */
@@ -418,6 +464,8 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
           }}
           allowBranch={!!node.kifuImported}
           onBranchFromHere={(snapshot, moveIndex) => onBranchFromKifu?.(nodeId, snapshot, moveIndex)}
+          canUndo={canUndoBoard}
+          onUndo={handleUndoBoard}
         />
 
         <SectionDivider />

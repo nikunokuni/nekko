@@ -74,49 +74,68 @@ export function ModalActionButtons({ onCancel, onConfirm, confirmLabel, disabled
 // ──────────────────────────────────────────
 // BoardSection: 将棋盤の表示/追加エリア
 // ──────────────────────────────────────────
-export function BoardSection({ boardVisible, boardData, stamps, handSente, handGote, parentBoard, parentLabel, onToggle, onChange, onDelete, onLoadTemplate, kifu, onKifuChange, onKifuDelete, allowBranch, onBranchFromHere }){
+export function BoardSection({ boardVisible, boardData, stamps, handSente, handGote, parentBoard, parentLabel, onToggle, onChange, onDelete, onLoadTemplate, kifu, onKifuChange, onKifuDelete, allowBranch, onBranchFromHere, canUndo, onUndo }){
   const [tmplOpen, setTmplOpen] = useState(false);
+
+  // 盤面操作系ボタンの共通スタイル
+  const toolbarBtnStyle = (color, border = color) => ({
+    fontSize:     T.fontSize.md,
+    padding:      "4px 10px",
+    borderRadius: T.radius.sm,
+    border:       `0.5px solid ${border}`,
+    background:   "none",
+    cursor:       "pointer",
+    color,
+    fontFamily:   T.fontSerif,
+    display:      "flex",
+    alignItems:   "center",
+    gap:          4,
+  });
 
   return (
     <div style={{ padding: "8px 16px 0" }}>
-      {/* ヘッダー行 */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: tmplOpen ? 0 : 8 }}>
-        <SectionLabel>盤面</SectionLabel>
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+      {/* ヘッダー行: 盤面操作系ボタンをまとめて配置 */}
+      <div style={{ marginBottom: tmplOpen ? 0 : 8 }}>
+        <SectionLabel style={{ marginBottom: 6 }}>盤面</SectionLabel>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           {/* テンプレートボタン */}
           <button
             onClick={() => setTmplOpen((v) => !v)}
             title="テンプレートから呼び出す"
             style={{
-              fontSize: T.fontSize.md, padding: "4px 10px",
-              borderRadius: T.radius.sm,
-              border: `0.5px solid ${tmplOpen ? T.gold : T.inkLine}`,
+              ...toolbarBtnStyle(tmplOpen ? T.gold : T.inkMid, tmplOpen ? T.gold : T.inkLine),
               background: tmplOpen ? T.goldLight : "none",
-              cursor: "pointer", color: tmplOpen ? T.gold : T.inkMid,
-              fontFamily: T.fontSerif, display: "flex", alignItems: "center", gap: 4,
             }}
           >
             <i className="ti ti-template" style={{ fontSize: 12 }} />テンプレート
           </button>
-          <button
-            onClick={onToggle}
-            style={{
-              fontSize:    T.fontSize.md,
-              padding:     "4px 10px",
-              borderRadius: T.radius.sm,
-              border:      `0.5px solid ${T.gold}`,
-              background:  "none",
-              cursor:      "pointer",
-              color:       T.gold,
-              fontFamily:  T.fontSerif,
-              display:     "flex",
-              alignItems:  "center",
-              gap:         4,
-            }}
-          >
+
+          {/* 表示/非表示 */}
+          <button onClick={onToggle} style={toolbarBtnStyle(T.gold)}>
             <i className={`ti ti-${boardVisible ? "minus" : "plus"}`} style={{ fontSize: 12 }} />
             {boardVisible ? "非表示" : "追加"}
           </button>
+
+          {/* 元に戻す（編集開始時点の盤面に戻す） */}
+          {canUndo && (
+            <button onClick={onUndo} title="この画面を開いたときの盤面に戻す" style={toolbarBtnStyle(T.blue)}>
+              <i className="ti ti-history" style={{ fontSize: 12 }} />元に戻す
+            </button>
+          )}
+
+          {/* 盤面を削除 */}
+          {boardVisible && (
+            <button onClick={onDelete} style={toolbarBtnStyle(T.gray, T.inkLine)}>
+              <i className="ti ti-trash" style={{ fontSize: 12 }} />盤面を削除
+            </button>
+          )}
+
+          {/* 棋譜を削除 */}
+          {boardVisible && kifu && kifu.length > 0 && (
+            <button onClick={onKifuDelete} title="入力前の盤面に戻す" style={toolbarBtnStyle(T.gray, T.inkLine)}>
+              <i className="ti ti-arrow-back-up" style={{ fontSize: 12 }} />棋譜を削除
+            </button>
+          )}
         </div>
       </div>
 
@@ -176,7 +195,7 @@ export function BoardSection({ boardVisible, boardData, stamps, handSente, handG
         </div>
       )}
 
-      {/* 表示時: 継承バナー + 将棋盤 + 削除ボタン */}
+      {/* 表示時: 継承バナー + 将棋盤 */}
       {boardVisible && (
         <div style={{ marginBottom: 12 }}>
           {parentBoard && (
@@ -208,44 +227,6 @@ export function BoardSection({ boardVisible, boardData, stamps, handSente, handG
             allowBranch={allowBranch}
             onBranchFromHere={onBranchFromHere}
           />
-
-          <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 6 }}>
-            <button
-              onClick={onDelete}
-              style={{
-                fontSize:   T.fontSize.md,
-                color:      T.gray,
-                background: "none",
-                border:     "none",
-                cursor:     "pointer",
-                fontFamily: T.fontSerif,
-                display:    "flex",
-                alignItems: "center",
-                gap:        4,
-              }}
-            >
-              <i className="ti ti-trash" style={{ fontSize: 11 }} />盤面を削除
-            </button>
-
-            {kifu && kifu.length > 0 && (
-              <button
-                onClick={onKifuDelete}
-                style={{
-                  fontSize:   T.fontSize.md,
-                  color:      T.gray,
-                  background: "none",
-                  border:     "none",
-                  cursor:     "pointer",
-                  fontFamily: T.fontSerif,
-                  display:    "flex",
-                  alignItems: "center",
-                  gap:        4,
-                }}
-              >
-                <i className="ti ti-arrow-back-up" style={{ fontSize: 11 }} />棋譜を削除（入力前の盤面に戻す）
-              </button>
-            )}
-          </div>
         </div>
       )}
     </div>
