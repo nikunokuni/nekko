@@ -30,7 +30,7 @@ export default function App() {
   const [loading,          setLoading]          = useState(false);
   const [nodeCount,        setNodeCount]        = useState(0);
   const [loginStats,       setLoginStats]       = useState({ totalDays: 0, streak: 0 });
-  const [lastReparent,     setLastReparent]     = useState(null); // マインドマップの親付け替えUndo用
+  const [reparentStack,    setReparentStack]    = useState([]); // マインドマップの親付け替えUndo用（開いた時点からの履歴）
 
   // ── Auth bootstrap ────────────────────────────
   useEffect(() => {
@@ -98,6 +98,7 @@ export default function App() {
   const handleOpenTree = async (treeId) => {
     const tree = await loadTree(treeId);
     if (!tree) return;
+    setReparentStack([]);
 
     // ルートノードがなければ自動作成
     if (!tree.rootId) {
@@ -241,15 +242,15 @@ export default function App() {
   const handleReparentNode = async (nodeId, newParentId) => {
     const oldParentId = activeTree?.nodes?.[nodeId]?.parentId ?? null;
     await reparentNode(nodeId, newParentId);
-    setLastReparent({ nodeId, oldParentId, newParentId });
+    setReparentStack((prev) => [...prev, { nodeId, oldParentId, newParentId }]);
   };
 
-  // ── 直前の親付け替えを1回だけ取り消す ──
+  // ── マインドマップを開いてからの親付け替えを1手ずつ取り消す ──
   const handleUndoReparent = async () => {
-    if (!lastReparent) return;
-    const { nodeId, oldParentId } = lastReparent;
+    if (reparentStack.length === 0) return;
+    const { nodeId, oldParentId } = reparentStack[reparentStack.length - 1];
     await reparentNode(nodeId, oldParentId);
-    setLastReparent(null);
+    setReparentStack((prev) => prev.slice(0, -1));
   };
 
   // ── 合流（複数の親→1つの子）の親リストを更新する ──
@@ -410,7 +411,7 @@ export default function App() {
         {screen==="map" && activeTree && (
           <MindMap tree={activeTree} onNodeSelect={handleNodeSelect}
             onBack={() => setScreen("list")} onReparent={handleReparentNode}
-            canUndoReparent={!!lastReparent} onUndoReparent={handleUndoReparent}/>
+            canUndoReparent={reparentStack.length > 0} onUndoReparent={handleUndoReparent}/>
         )}
         {screen==="node" && activeTree && activeNodeId && (
           <NodeDetail tree={activeTree} nodeId={activeNodeId}

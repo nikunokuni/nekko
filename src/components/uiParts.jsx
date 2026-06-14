@@ -92,6 +92,33 @@ export function BoardSection({ boardVisible, boardData, stamps, handSente, handG
     gap:          4,
   });
 
+  // 盤面がまだ追加されていない場合: プレースホルダーのみ表示する
+  if (!boardVisible) {
+    return (
+      <div style={{ padding: "8px 16px 0" }}>
+        <div
+          onClick={onToggle}
+          style={{
+            display:        "flex",
+            flexDirection:  "column",
+            alignItems:     "center",
+            justifyContent: "center",
+            gap:            8,
+            padding:        20,
+            border:         `0.5px dashed ${T.inkLine}`,
+            borderRadius:   T.radius.md,
+            cursor:         "pointer",
+            background:     "rgba(26,15,0,0.04)",
+            marginBottom:   12,
+          }}
+        >
+          <i className="ti ti-chess" style={{ fontSize: 24, color: T.gold }} />
+          <span style={{ fontSize: T.fontSize.base, color: T.inkMid }}>タップして盤面を追加</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ padding: "8px 16px 0" }}>
       {/* ヘッダー行: 盤面操作系ボタンをまとめて配置 */}
@@ -110,10 +137,9 @@ export function BoardSection({ boardVisible, boardData, stamps, handSente, handG
             <i className="ti ti-template" style={{ fontSize: 12 }} />テンプレート
           </button>
 
-          {/* 表示/非表示 */}
+          {/* 非表示 */}
           <button onClick={onToggle} style={toolbarBtnStyle(T.gold)}>
-            <i className={`ti ti-${boardVisible ? "minus" : "plus"}`} style={{ fontSize: 12 }} />
-            {boardVisible ? "非表示" : "追加"}
+            <i className="ti ti-minus" style={{ fontSize: 12 }} />非表示
           </button>
 
           {/* 元に戻す（編集開始時点の盤面に戻す） */}
@@ -124,14 +150,12 @@ export function BoardSection({ boardVisible, boardData, stamps, handSente, handG
           )}
 
           {/* 盤面を削除 */}
-          {boardVisible && (
-            <button onClick={onDelete} style={toolbarBtnStyle(T.gray, T.inkLine)}>
-              <i className="ti ti-trash" style={{ fontSize: 12 }} />盤面を削除
-            </button>
-          )}
+          <button onClick={onDelete} style={toolbarBtnStyle(T.gray, T.inkLine)}>
+            <i className="ti ti-trash" style={{ fontSize: 12 }} />盤面を削除
+          </button>
 
           {/* 棋譜を削除 */}
-          {boardVisible && kifu && kifu.length > 0 && (
+          {kifu && kifu.length > 0 && (
             <button onClick={onKifuDelete} title="入力前の盤面に戻す" style={toolbarBtnStyle(T.gray, T.inkLine)}>
               <i className="ti ti-arrow-back-up" style={{ fontSize: 12 }} />棋譜を削除
             </button>
@@ -172,63 +196,38 @@ export function BoardSection({ boardVisible, boardData, stamps, handSente, handG
         </div>
       )}
 
-      {/* 非表示時: タップ誘導プレースホルダー */}
-      {!boardVisible && (
-        <div
-          onClick={onToggle}
-          style={{
-            display:        "flex",
-            flexDirection:  "column",
-            alignItems:     "center",
-            justifyContent: "center",
-            gap:            8,
-            padding:        20,
-            border:         `0.5px dashed ${T.inkLine}`,
-            borderRadius:   T.radius.md,
-            cursor:         "pointer",
-            background:     "rgba(26,15,0,0.04)",
-            marginBottom:   12,
-          }}
-        >
-          <i className="ti ti-chess" style={{ fontSize: 24, color: T.gold }} />
-          <span style={{ fontSize: T.fontSize.base, color: T.inkMid }}>タップして盤面を追加</span>
-        </div>
-      )}
+      {/* 継承バナー + 将棋盤 */}
+      <div style={{ marginBottom: 12 }}>
+        {parentBoard && (
+          <div style={{
+            display:      "flex",
+            alignItems:   "center",
+            gap:          6,
+            padding:      "6px 10px",
+            borderRadius: T.radius.sm,
+            background:   T.blueBg,
+            border:       `0.5px solid ${T.blueLine}`,
+            marginBottom: 10,
+            fontSize:     T.fontSize.md,
+            color:        T.blue,
+          }}>
+            <i className="ti ti-copy" style={{ fontSize: 13 }} />
+            親ノード「{parentLabel}」の盤面を引き継いでいます
+          </div>
+        )}
 
-      {/* 表示時: 継承バナー + 将棋盤 */}
-      {boardVisible && (
-        <div style={{ marginBottom: 12 }}>
-          {parentBoard && (
-            <div style={{
-              display:      "flex",
-              alignItems:   "center",
-              gap:          6,
-              padding:      "6px 10px",
-              borderRadius: T.radius.sm,
-              background:   T.blueBg,
-              border:       `0.5px solid ${T.blueLine}`,
-              marginBottom: 10,
-              fontSize:     T.fontSize.md,
-              color:        T.blue,
-            }}>
-              <i className="ti ti-copy" style={{ fontSize: 13 }} />
-              親ノード「{parentLabel}」の盤面を引き継いでいます
-            </div>
-          )}
-
-          <ShogiBoard
-            board={boardData}
-            stamps={stamps}
-            handSente={handSente}
-            handGote={handGote}
-            kifu={kifu || []}
-            onChange={({ board, stamps: s, handSente: hs, handGote: hg }) => onChange(board, s, hs, hg)}
-            onKifuChange={onKifuChange}
-            allowBranch={allowBranch}
-            onBranchFromHere={onBranchFromHere}
-          />
-        </div>
-      )}
+        <ShogiBoard
+          board={boardData}
+          stamps={stamps}
+          handSente={handSente}
+          handGote={handGote}
+          kifu={kifu || []}
+          onChange={({ board, stamps: s, handSente: hs, handGote: hg }) => onChange(board, s, hs, hg)}
+          onKifuChange={onKifuChange}
+          allowBranch={allowBranch}
+          onBranchFromHere={onBranchFromHere}
+        />
+      </div>
     </div>
   );
 }

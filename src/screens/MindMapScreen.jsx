@@ -537,7 +537,7 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
           ))}
         </div>
 
-        {/* 親付け替えのUndoボタン（直前の1回のみ） */}
+        {/* 親付け替えのUndoボタン（このマインドマップを開いてからの操作を1手ずつ戻せる） */}
         {canUndoReparent && (
           <button
             onClick={onUndoReparent}

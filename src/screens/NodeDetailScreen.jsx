@@ -1,8 +1,8 @@
 // ══════════════════════════════════════════════════════════════════
 // NodeDetailScreen.jsx  ―  ノード詳細編集画面
-//   親ノード / 今（すぐ書く） / 今（じっくり整理） / 子ノード
+//   親ノード / きほん / ついか / 子ノード
 // ══════════════════════════════════════════════════════════════════
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   StatusChip, MergeTag, Divider, BackBtn,
 } from "../components";
@@ -57,6 +57,24 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
   const [deleteConfirm,          setDeleteConfirm]          = useState(false);
   const [boardSnapshot,          setBoardSnapshot]          = useState(null);
 
+  // デバウンス付き自動保存（ノード名・メモ・タグなど、入力ごとに即時送信したくないフィールド用）
+  const pendingPatch = useRef({});
+  const saveTimer    = useRef(null);
+
+  const flushSave = async () => {
+    if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null; }
+    const patch = pendingPatch.current;
+    pendingPatch.current = {};
+    if (Object.keys(patch).length === 0) return;
+    await onUpdate(nodeId, patch);
+  };
+
+  const scheduleSave = (patch) => {
+    pendingPatch.current = { ...pendingPatch.current, ...patch };
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(flushSave, 800);
+  };
+
   // nodeId が変わったらフォームをリセット
   useEffect(() => {
     if (node) {
@@ -74,6 +92,12 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
       setHandGote(node.handGote  || {p:0,l:0,n:0,s:0,g:0,b:0,r:0});
       setParentDetailsOpen((node.mergeParentIds || []).length > 0);
     }
+    return () => {
+      if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null; }
+      const patch = pendingPatch.current;
+      pendingPatch.current = {};
+      if (Object.keys(patch).length > 0) onUpdate(nodeId, patch);
+    };
   }, [nodeId, node]);
 
   // 編集開始時点の盤面状態を記録する（盤面の「元に戻す」用スナップショット）
@@ -148,20 +172,10 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
     showToast("盤面をもとに戻しました");
   };
 
-  /** 変更を保存してから画面遷移する（保存忘れ防止） */
- const saveAndNavigate = async (navigateFn) => {
-    await onUpdate(nodeId, {
-      label: label.trim() || node.label,
-      tags: parseTags(tags),
-      approachType: approach || null,
-      status,
-      memo,
-      board:  boardVisible ? boardData : null,
-      stamps: boardVisible ? stamps    : [],
-    });
-    showToast();
-    setTimeout(navigateFn, 400); // トーストを少し見せてから遷移
-    return;
+  /** 未保存の変更をflushしてから画面遷移する（他のフィールドは入力時に即時保存済み） */
+  const saveAndNavigate = async (navigateFn) => {
+    await flushSave();
+    navigateFn();
   };
 
   // ── 合流（追加の親子リンク）操作 ──────────────────
@@ -238,6 +252,9 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
     await onReparentNode(nodeId, newParentId);
     showToast("親ノードを変更しました");
   };
+
+  // 「ついか」内の未入力項目が残っているか（切り口・勝率・戦法タグ）
+  const addIncomplete = (!node.isRoot && !approach) || winRate == null || parseTags(tags).length === 0;
 
   /** 子孫IDを再帰的に収集してノード削除 */
   const collectDescendantIds = (id) => {
@@ -377,34 +394,36 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
           </>
         )}
 
-        {/* ════════════════ 今（すぐ書く） ════════════════ */}
-        <SectionHeader icon="ti-pencil">今（すぐ書く）</SectionHeader>
+        {/* ════════════════ きほん ════════════════ */}
+        <SectionHeader icon="ti-pencil">きほん</SectionHeader>
 
-        {/* ノード名 */}
-        <div style={{ padding: "0 16px 10px" }}>
-          <SectionLabel style={{ marginBottom: 5 }}>ノード名</SectionLabel>
-          <input
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            onBlur={async (e) => {
-              e.target.style.borderColor = T.inkLine;
-              const next = label.trim();
-              if (next && next !== node.label) {
-                await onUpdate(nodeId, { label: next });
-              }
-            }}
-            placeholder="例：▲４六銀型"
-            style={INPUT_STYLE}
-            onFocus={(e) => (e.target.style.borderColor = T.gold)}
-          />
-        </div>
-
-        {/* ステータス */}
-        <div style={{ padding: "0 16px 10px" }}>
-          <SectionLabel style={{ marginBottom: 5 }}>ステータス</SectionLabel>
-          <div style={{ display: "flex", gap: 6 }}>
+        {/* ノード名 + ステータス */}
+        <div style={{ display: "flex", gap: 8, alignItems: "flex-end", padding: "0 16px 10px" }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <SectionLabel style={{ marginBottom: 5 }}>ノード名</SectionLabel>
+            <input
+              value={label}
+              onChange={(e) => { setLabel(e.target.value); scheduleSave({ label: e.target.value }); }}
+              onBlur={(e) => {
+                e.target.style.borderColor = T.inkLine;
+                const next = label.trim() || node.label;
+                if (next !== label) setLabel(next);
+                scheduleSave({ label: next });
+                flushSave();
+              }}
+              placeholder="例：▲４六銀型"
+              style={INPUT_STYLE}
+              onFocus={(e) => (e.target.style.borderColor = T.gold)}
+            />
+          </div>
+          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
             {["done", "wip"].map((s) => (
-              <StatusChip key={s} status={s} active={status === s} onClick={() => setStatus(s)} />
+              <StatusChip
+                key={s}
+                status={s}
+                active={status === s}
+                onClick={async () => { setStatus(s); await onUpdate(nodeId, { status: s }); }}
+              />
             ))}
           </div>
         </div>
@@ -414,12 +433,12 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
           <SectionLabel style={{ marginBottom: 6 }}>メモ</SectionLabel>
           <textarea
             value={memo}
-            onChange={(e) => setMemo(e.target.value)}
+            onChange={(e) => { setMemo(e.target.value); scheduleSave({ memo: e.target.value }); }}
             placeholder="気づき・方針・手順のポイントなど"
             rows={4}
             style={{ width: "100%", border: `0.5px solid ${T.inkLine}`, borderRadius: T.radius.sm, padding: "10px 12px", fontSize: T.fontSize.base, color: T.ink, background: T.cream, resize: "none", fontFamily: T.fontSerif, lineHeight: 1.7, outline: "none" }}
             onFocus={(e) => (e.target.style.borderColor = T.gold)}
-            onBlur={(e)  => (e.target.style.borderColor = T.inkLine)}
+            onBlur={(e)  => { e.target.style.borderColor = T.inkLine; flushSave(); }}
           />
         </div>
 
@@ -436,7 +455,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
           handSente={handSente}
           handGote={handGote}
          onChange={(board, s, hs, hg) => { setBoardData(board); setStamps(s); onUpdate(nodeId, { board, stamps: s, handSente: hs, handGote: hg }); }}
-          onDelete={() => { setBoardData(null); setStamps([]); setBoardVisible(false); }}
+          onDelete={() => { setBoardData(null); setStamps([]); setBoardVisible(false); onUpdate(nodeId, { board: null, stamps: [] }); }}
           onLoadTemplate={(t) => {
             const b = t.board.map(r => [...r]);
             setBoardData(b);
@@ -470,8 +489,10 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
 
         <SectionDivider />
 
-        {/* ════════════════ 今（じっくり整理） ════════════════ */}
-        <SectionHeader icon="ti-adjustments">今（じっくり整理）</SectionHeader>
+        {/* ════════════════ ついか ════════════════ */}
+        <SectionHeader icon="ti-adjustments">
+          {addIncomplete && <span style={{ color: T.gold, marginRight: 4 }}>・</span>}ついか
+        </SectionHeader>
 
         {/* 切り口（自分の戦法 / 相手の戦法 / 局面の状況）*/}
         {!node.isRoot && (
@@ -532,15 +553,9 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
               </div>
             ))}
           </div>
-          <div style={{ display: "flex", alignItems: "center", marginTop: 2 }}>
-            {[1, 2, 3].map((lvl) => (
-              <div key={lvl} style={{ display: "flex", alignItems: "center", flex: lvl < 3 ? 1 : "0 0 auto" }}>
-                <span style={{ width: 15, flexShrink: 0, textAlign: "center", fontSize: T.fontSize.xs, color: T.inkMid, fontFamily: T.fontSerif }}>
-                  {lvl}
-                </span>
-                {lvl < 3 && <div style={{ flex: 1, margin: "0 3px" }} />}
-              </div>
-            ))}
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+            <span style={{ fontSize: T.fontSize.xs, color: T.inkMid, fontFamily: T.fontSerif }}>たまに</span>
+            <span style={{ fontSize: T.fontSize.xs, color: T.inkMid, fontFamily: T.fontSerif }}>よくでる</span>
           </div>
         </div>
 
@@ -564,15 +579,9 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
               </div>
             ))}
           </div>
-          <div style={{ display: "flex", alignItems: "center", marginTop: 2 }}>
-            {WIN_RATE_LEVELS.map((lvl, i) => (
-              <div key={lvl} style={{ display: "flex", alignItems: "center", flex: i < WIN_RATE_LEVELS.length - 1 ? 1 : "0 0 auto" }}>
-                <span style={{ width: 15, flexShrink: 0, textAlign: "center", fontSize: T.fontSize.xs, color: T.inkMid, fontFamily: T.fontSerif }}>
-                  {lvl}
-                </span>
-                {i < WIN_RATE_LEVELS.length - 1 && <div style={{ flex: 1, margin: "0 3px" }} />}
-              </div>
-            ))}
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+            <span style={{ fontSize: T.fontSize.xs, color: T.inkMid, fontFamily: T.fontSerif }}>勝てない</span>
+            <span style={{ fontSize: T.fontSize.xs, color: T.inkMid, fontFamily: T.fontSerif }}>勝ちやすい</span>
           </div>
           <div style={{ fontSize: T.fontSize.xs, color: T.inkMid, marginTop: 3, fontFamily: T.fontSerif }}>
             {winRate != null ? `${winRate}割くらい勝てる` : "未設定"}
@@ -585,11 +594,8 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
           <div style={{ position: "relative" }}>
             <input
               value={tags}
-              onChange={(e) => setTags(e.target.value)}
-              onBlur={async (e) => {
-                e.target.style.borderColor = T.inkLine;
-                await onUpdate(nodeId, { tags: parseTags(tags) });
-              }}
+              onChange={(e) => { setTags(e.target.value); scheduleSave({ tags: parseTags(e.target.value) }); }}
+              onBlur={(e) => { e.target.style.borderColor = T.inkLine; flushSave(); }}
               placeholder="例：振り飛車, 中飛車"
               style={{ ...INPUT_STYLE, paddingRight: 40 }}
               onFocus={(e) => (e.target.style.borderColor = T.gold)}
