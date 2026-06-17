@@ -7,7 +7,7 @@ import {
   StatusChip, MergeTag, Divider, BackBtn,
 } from "../components";
 import {
-  STATUS_META, ORIENTATION_META, STRATEGY_GROUPS, WIN_RATE_LEVELS, LIKE_LEVELS, COMMENT_GROUPS,
+  STATUS_META, ORIENTATION_META, STRATEGY_GROUPS, WIN_RATE_LEVELS, LIKE_LEVELS, COMMENT_GROUPS, USAGE_LEVELS, USAGE_META,
 } from "../data";
 import { recordAction, getCustomTagsByGroup, addCustomTag, getCommentCustomTags, addCommentCustomTag } from "../rewards";
 import { T, INPUT_STYLE, cloneBoard } from "../theme";
@@ -116,7 +116,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
       pendingPatch.current = {};
       if (Object.keys(patch).length > 0) onUpdate(nodeId, patch);
     };
-  }, [nodeId, node]);
+  }, [nodeId]); // node を外す：保存のたびに node 参照が変わり全 state がリセットされスクロール位置がトップに戻るため
 
   // 編集開始時点の盤面状態を記録する（盤面の「元に戻す」用スナップショット）
   useEffect(() => {
@@ -598,8 +598,8 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
         <div style={{ padding: "0 16px 10px" }}>
           <SectionLabel style={{ marginBottom: 5 }}>頻度</SectionLabel>
           <div style={{ display: "flex", alignItems: "center" }}>
-            {[1, 2, 3].map((lvl) => (
-              <div key={lvl} style={{ display: "flex", alignItems: "center", flex: lvl < 3 ? 1 : "0 0 auto" }}>
+            {USAGE_LEVELS.map((lvl, i) => (
+              <div key={lvl} style={{ display: "flex", alignItems: "center", flex: i < USAGE_LEVELS.length - 1 ? 1 : "0 0 auto" }}>
                 <input
                   type="radio"
                   name="usageLevel"
@@ -610,13 +610,16 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
                   }}
                   style={{ width: 15, height: 15, margin: 0, accentColor: T.gold, cursor: "pointer", flexShrink: 0 }}
                 />
-                {lvl < 3 && <div style={{ flex: 1, height: 1, background: T.inkLine, margin: "0 3px" }} />}
+                {i < USAGE_LEVELS.length - 1 && <div style={{ flex: 1, height: 1, background: T.inkLine, margin: "0 3px" }} />}
               </div>
             ))}
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-            <span style={{ fontSize: T.fontSize.xs, color: T.inkMid, fontFamily: T.fontSerif }}>たまに</span>
-            <span style={{ fontSize: T.fontSize.xs, color: T.inkMid, fontFamily: T.fontSerif }}>よくでる</span>
+            {USAGE_LEVELS.map((lvl) => (
+              <span key={lvl} style={{ fontSize: T.fontSize.xs, color: usageLevel === lvl ? T.gold : T.inkMid, fontFamily: T.fontSerif, fontWeight: usageLevel === lvl ? 600 : 400 }}>
+                {USAGE_META[lvl].label}
+              </span>
+            ))}
           </div>
         </div>
 

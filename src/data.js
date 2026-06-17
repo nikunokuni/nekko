@@ -37,12 +37,15 @@ export const STATUS_META = {
   todo: { label:'未定',  bg:'transparent', color:'#5F5E5A', dot:'#B4B2A9', dashed:true },
 };
 
-// ── 「よく使う」表示メタ（1: あまり使わない 〜 3: よく使う）──
+// ── 「よく使う」表示メタ（1: めったに 〜 5: いつも）──
 export const USAGE_META = {
-  1: { label: 'あまり使わない', scale: 0.82 },
-  2: { label: 'ふつう',         scale: 1.0  },
-  3: { label: 'よく使う',       scale: 1.18 },
+  1: { label: 'めったに',   scale: 0.75 },
+  2: { label: 'たまに',     scale: 0.88 },
+  3: { label: 'ふつう',     scale: 1.0  },
+  4: { label: 'よく',       scale: 1.12 },
+  5: { label: 'いつも',     scale: 1.22 },
 };
+export const USAGE_LEVELS = [1, 2, 3, 4, 5];
 
 // ── 勝率ラジオの選択肢（割単位）──
 export const WIN_RATE_LEVELS = [1, 3, 5, 7, 9];
@@ -64,8 +67,10 @@ export const COMMENT_GROUPS = [
 // ── 好き度ラジオの選択肢 ──────────────────────────
 export const LIKE_LEVELS = [
   { value: 1, label: '普通' },
-  { value: 2, label: '好き' },
-  { value: 3, label: '大好き' },
+  { value: 2, label: 'まあまあ' },
+  { value: 3, label: '好き' },
+  { value: 4, label: 'かなり' },
+  { value: 5, label: '大好き' },
 ];
 
 // ── 志向（戦法の方向性）表示メタ ──────────────────
