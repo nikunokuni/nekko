@@ -51,6 +51,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
   const [customTags,        setCustomTags]        = useState(() => getCustomTagsByGroup());
   const [commentTags,       setCommentTags]       = useState("");
   const [commentCustomTags, setCommentCustomTags] = useState(() => getCommentCustomTags());
+  const [commentOpen,       setCommentOpen]       = useState(false);
   const [aim,         setAim]         = useState("");
   const [caution,     setCaution]     = useState("");
   const [nextStudy,   setNextStudy]   = useState("");
@@ -615,11 +616,8 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
             ))}
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-            {USAGE_LEVELS.map((lvl) => (
-              <span key={lvl} style={{ fontSize: T.fontSize.xs, color: usageLevel === lvl ? T.gold : T.inkMid, fontFamily: T.fontSerif, fontWeight: usageLevel === lvl ? 600 : 400 }}>
-                {USAGE_META[lvl].label}
-              </span>
-            ))}
+            <span style={{ fontSize: T.fontSize.xs, color: T.inkMid, fontFamily: T.fontSerif }}>{USAGE_META[USAGE_LEVELS[0]].label}</span>
+            <span style={{ fontSize: T.fontSize.xs, color: T.inkMid, fontFamily: T.fontSerif }}>{USAGE_META[USAGE_LEVELS[USAGE_LEVELS.length - 1]].label}</span>
           </div>
         </div>
 
@@ -673,46 +671,53 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
             ))}
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-            {LIKE_LEVELS.map((lvl) => (
-              <span key={lvl.value} style={{ fontSize: T.fontSize.xs, color: likeLevel === lvl.value ? T.gold : T.inkMid, fontFamily: T.fontSerif, fontWeight: likeLevel === lvl.value ? 600 : 400 }}>
-                {lvl.label}
-              </span>
-            ))}
+            <span style={{ fontSize: T.fontSize.xs, color: T.inkMid, fontFamily: T.fontSerif }}>{LIKE_LEVELS[0].label}</span>
+            <span style={{ fontSize: T.fontSize.xs, color: T.inkMid, fontFamily: T.fontSerif }}>{LIKE_LEVELS[LIKE_LEVELS.length - 1].label}</span>
           </div>
         </div>
 
-        {/* セクションメモ：ここでの狙い・気を付けること・次に調べること */}
-        {[
-          { label: "ここでの狙い",     value: aim,       set: setAim,       key: "aim",       placeholder: "この局面・戦法で目指すこと" },
-          { label: "気を付けること",   value: caution,   set: setCaution,   key: "caution",   placeholder: "ミスしやすい点・落とし穴" },
-          { label: "次に調べること",   value: nextStudy, set: setNextStudy, key: "nextStudy", placeholder: "宿題・深掘りしたい手順" },
-        ].map(({ label, value, set, key, placeholder }) => (
-          <div key={key} style={{ padding: "0 16px 10px" }}>
-            <SectionLabel style={{ marginBottom: 5 }}>{label}</SectionLabel>
-            <textarea
-              value={value}
-              onChange={(e) => set(e.target.value)}
-              onBlur={async (e) => { e.target.style.borderColor = T.inkLine; await onUpdate(nodeId, { [key]: value }); }}
-              placeholder={placeholder}
-              rows={2}
-              style={{ width: "100%", border: `0.5px solid ${T.inkLine}`, borderRadius: T.radius.sm, padding: "8px 12px", fontSize: T.fontSize.base, color: T.ink, background: T.cream, resize: "none", fontFamily: T.fontSerif, lineHeight: 1.7, outline: "none", boxSizing: "border-box" }}
-              onFocus={(e) => (e.target.style.borderColor = T.gold)}
-            />
-          </div>
-        ))}
+        {/* ════ コメント（折りたたみ） ════ */}
+        <div
+          onClick={() => setCommentOpen((v) => !v)}
+          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 16px 6px", cursor: "pointer" }}
+        >
+          <SectionLabel style={{ marginBottom: 0 }}>コメント</SectionLabel>
+          <i className={`ti ti-chevron-${commentOpen ? "up" : "down"}`} style={{ fontSize: 13, color: T.inkMid }} />
+        </div>
 
-        {/* 一言コメント */}
-        <TagPickerField
-          label="一言コメント"
-          text={commentTags}
-          onSelectTag={async (next) => { setCommentTags(next.join("、")); await onUpdate(nodeId, { commentTags: next }); }}
-          groups={COMMENT_GROUPS}
-          customTags={commentCustomTags}
-          onAddCustomTag={(tag, group) => {
-            addCommentCustomTag(tag, group);
-            setCommentCustomTags(getCommentCustomTags());
-          }}
-        />
+        {commentOpen && <>
+          {[
+            { label: "ここでの狙い",   value: aim,       set: setAim,       key: "aim",       placeholder: "この局面・戦法で目指すこと" },
+            { label: "気を付けること", value: caution,   set: setCaution,   key: "caution",   placeholder: "ミスしやすい点・落とし穴" },
+            { label: "次に調べること", value: nextStudy, set: setNextStudy, key: "nextStudy", placeholder: "宿題・深掘りしたい手順" },
+          ].map(({ label, value, set, key, placeholder }) => (
+            <div key={key} style={{ padding: "0 16px 10px" }}>
+              <SectionLabel style={{ marginBottom: 5 }}>{label}</SectionLabel>
+              <textarea
+                value={value}
+                onChange={(e) => set(e.target.value)}
+                onBlur={async (e) => { e.target.style.borderColor = T.inkLine; await onUpdate(nodeId, { [key]: value }); }}
+                placeholder={placeholder}
+                rows={2}
+                style={{ width: "100%", border: `0.5px solid ${T.inkLine}`, borderRadius: T.radius.sm, padding: "8px 12px", fontSize: T.fontSize.base, color: T.ink, background: T.cream, resize: "none", fontFamily: T.fontSerif, lineHeight: 1.7, outline: "none", boxSizing: "border-box" }}
+                onFocus={(e) => (e.target.style.borderColor = T.gold)}
+              />
+            </div>
+          ))}
+
+          <TagPickerField
+            label="一言コメント"
+            text={commentTags}
+            onSelectTag={async (next) => { setCommentTags(next.join("、")); await onUpdate(nodeId, { commentTags: next }); }}
+            groups={COMMENT_GROUPS}
+            customTags={commentCustomTags}
+            onAddCustomTag={(tag, group) => {
+              addCommentCustomTag(tag, group);
+              setCommentCustomTags(getCommentCustomTags());
+            }}
+            noToggle
+          />
+        </>}
 
         </>}
 

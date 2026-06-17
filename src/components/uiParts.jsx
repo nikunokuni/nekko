@@ -239,8 +239,9 @@ export function BoardSection({ boardVisible, boardData, stamps, handSente, handG
 export function TagPickerField({
   label, text, onSelectTag,
   groups, customTags, onAddCustomTag,
+  noToggle = false,
 }) {
-  const [open,        setOpen]        = useState(false);
+  const [open,        setOpen]        = useState(noToggle);
   const [activeGroup, setActiveGroup] = useState(null);
   const [addingTag,   setAddingTag]   = useState(false);
   const [newTagInput, setNewTagInput] = useState("");
@@ -281,13 +282,13 @@ export function TagPickerField({
 
   return (
     <div style={{ padding: "0 16px 16px" }}>
-      {/* ラベル（タップで開閉） */}
+      {/* ラベル（noToggle=false のときのみ開閉） */}
       <div
-        onClick={() => { setOpen((v) => !v); if (open) setActiveGroup(null); }}
-        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}
+        onClick={noToggle ? undefined : () => { setOpen((v) => !v); if (open) setActiveGroup(null); }}
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: noToggle ? "default" : "pointer" }}
       >
         <SectionLabel style={{ marginBottom: 5 }}>{label}</SectionLabel>
-        <i className={`ti ti-chevron-${open ? "up" : "down"}`} style={{ fontSize: 13, color: T.inkMid }} />
+        {!noToggle && <i className={`ti ti-chevron-${open ? "up" : "down"}`} style={{ fontSize: 13, color: T.inkMid }} />}
       </div>
 
       {/* 選択済みタグ（閉じているときのプレビュー） */}
