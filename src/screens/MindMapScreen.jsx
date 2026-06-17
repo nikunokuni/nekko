@@ -4,7 +4,7 @@
 // ══════════════════════════════════════════════════════════════════
 import { useState, useRef, useCallback } from "react";
 import { Accordion } from "../components";
-import { STATUS_META, USAGE_META } from "../data";
+import { STATUS_META, USAGE_META, ORIENTATION_META } from "../data";
 import { T } from "../theme";
 
 /** ノードの矩形サイズ */
@@ -18,11 +18,12 @@ const STATUS_NODE = {
   todo: { stroke: T.gray,   text: T.grayText, dashed: true },
 };
 
-/** アプローチ種別ごとのエッジ色 */
-const APPROACH_LINE_COLOR = {
-  "自分の戦法": T.blue,
-  "相手の戦法": T.redDark,
-  "局面の状況": T.brown,
+/** 志向ごとのエッジ色（攻め=赤 / 受け=青 / バランス=緑 / 不明=グレー） */
+const ORIENTATION_LINE_COLOR = {
+  "攻め":     ORIENTATION_META["攻め"].color,
+  "受け":     ORIENTATION_META["受け"].color,
+  "バランス": ORIENTATION_META["バランス"].color,
+  "不明":     ORIENTATION_META["不明"].color,
 };
 
 /**
@@ -82,8 +83,8 @@ function layoutTree(nodes, rootId) {
         y1:      fromPos.y + NODE_H,
         x2:      toPos.x   + NODE_W / 2,  // 子ノードの上辺中央
         y2:      toPos.y,
-        color:   APPROACH_LINE_COLOR[child.approachType] || T.redDark,
-        dashed:  child.approachType === "相手の戦法" || child.approachType === "局面の状況",
+        color:   ORIENTATION_LINE_COLOR[child.orientation] || ORIENTATION_LINE_COLOR["不明"],
+        dashed:  !child.orientation || child.orientation === "不明",
         isMerge: false,
       });
 
@@ -313,10 +314,16 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
   }, [positions]);
 
   // エッジ色→マーカーインデックスのマッピング
-  const MARKER_COLORS = [T.blue, T.redDark, T.brown, T.purple];
+  const MARKER_COLORS = [
+    ORIENTATION_META["攻め"].color,
+    ORIENTATION_META["受け"].color,
+    ORIENTATION_META["バランス"].color,
+    ORIENTATION_META["不明"].color,
+    T.purple,
+  ];
   const markerIndex = (color) => {
     const i = MARKER_COLORS.indexOf(color);
-    return i >= 0 ? i : 3;
+    return i >= 0 ? i : MARKER_COLORS.length - 1;
   };
 
   const rootNode = rootId ? nodes[rootId] : null;
@@ -405,7 +412,7 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
                   key={`m${i}`} d={roundedOrtho(pts, 6)} fill="none"
                   stroke={T.purple} strokeWidth={1.2}
                   strokeDasharray="2 3"
-                  markerEnd={`url(#arr3)`}
+                  markerEnd={`url(#arr${MARKER_COLORS.length - 1})`}
                 />
               );
             })}
@@ -415,16 +422,14 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
               const node   = nodes[id];
               if (!node) return null;
 
-              const isRoot  = id === rootId;
-              const s       = STATUS_NODE[node.status] || STATUS_NODE.todo;
-              const isMine  = node.approachType === "自分の戦法";
+              const isRoot      = id === rootId;
+              const s           = STATUS_NODE[node.status] || STATUS_NODE.todo;
+              const orientMeta  = ORIENTATION_META[node.orientation] || ORIENTATION_META["不明"];
 
-              // ルート・自分・相手でノード色を変える
+              // ルートは金色、それ以外は志向（攻め/受け/バランス/不明）の色に応じてノード色を変える
               const nodeColor = isRoot
-                ? { fill: T.goldLight, stroke: T.gold    }
-                : isMine
-                ? { fill: T.blueBg,   stroke: T.blue    }
-                : { fill: T.goldBgSub, stroke: T.blue   };
+                ? { fill: T.goldLight, stroke: T.gold }
+                : { fill: orientMeta.bg, stroke: orientMeta.color };
 
               const isDropTarget = dropTarget === id;
               const isBeingDragged = nodeDrag === id;
@@ -600,12 +605,9 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
 
       {/* ── 凡例 ── */}
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", padding: "8px 16px", borderTop: `0.5px solid ${T.inkLine}`, background: T.goldLight }}>
-        {[
-          { line: T.blue,    label: "自分の手" },
-          { line: T.redDark, label: "相手の手" },
-        ].map((l) => (
-          <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: T.fontSize.sm, color: T.inkMid }}>
-            <div style={{ width: 18, height: 2, borderRadius: 1, background: l.line }} />{l.label}
+        {["攻め", "受け", "バランス", "不明"].map((o) => (
+          <div key={o} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: T.fontSize.sm, color: T.inkMid }}>
+            <div style={{ width: 18, height: 2, borderRadius: 1, background: ORIENTATION_META[o].color }} />{o}
           </div>
         ))}
         {[

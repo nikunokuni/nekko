@@ -102,6 +102,9 @@ export async function createNode({
   branchFromMoveIndex = null,
   usageLevel = 2,
   winRate = null,
+  situation = [],
+  myApproach = [],
+  orientation = null,
 }) {
   const result = await supabase
     .from("nodes")
@@ -117,6 +120,9 @@ export async function createNode({
       branch_from_move_index: branchFromMoveIndex,
       usage_level: usageLevel ?? 2,
       win_rate: winRate,
+      situation: situation ?? [],
+      my_approach: myApproach ?? [],
+      orientation,
     })
     .select()
     .single();
@@ -146,6 +152,9 @@ export async function updateNode(nodeId, patch) {
     kifuImported:   "kifu_imported",
     usageLevel:     "usage_level",
     winRate:        "win_rate",
+    situation:      "situation",
+    myApproach:     "my_approach",
+    orientation:    "orientation",
   };
   const dbPatch = {};
   for (const [k, v] of Object.entries(patch)) {
@@ -190,6 +199,9 @@ export function buildTreeFromNodes(treeRow, flatNodes) {
       branchFromMoveIndex: n.branch_from_move_index ?? null,
       usageLevel:     n.usage_level ?? 2,
       winRate:        n.win_rate ?? null,
+      situation:      n.situation || [],
+      myApproach:     n.my_approach || [],
+      orientation:    n.orientation || null,
       childIds:      [],
     };
   });

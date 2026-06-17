@@ -1,10 +1,10 @@
 // ══════════════════════════════════════════════════
 // components.jsx  ―  共通 UI パーツ
-//   StatusChip / ApproachTag / MergeTag /
+//   StatusChip / MergeTag /
 //   Divider / BackBtn / DotMenu / Accordion
 // ══════════════════════════════════════════════════
 import { useState, useMemo } from "react";
-import { STATUS_META, APPROACH_META } from "./data";
+import { STATUS_META } from "./data";
 import { T } from "./theme";
 
 // ── StatusChip ────────────────────────────────────
@@ -29,19 +29,6 @@ export function StatusChip({ status, active, onClick, style = {} }) {
       }}/>
       {m.label}
     </span>
-  );
-}
-
-// ── ApproachTag ───────────────────────────────────
-export function ApproachTag({ type, style = {} }) {
-  const m = APPROACH_META[type] || { bg:'#F1EFE8', color:'#5F5E5A' };
-  return (
-    <span style={{
-      fontSize:T.fontSize.xs, padding:'2px 7px', borderRadius:10,
-      background: m.bg, color: m.color,
-      fontFamily:T.fontSerif,
-      ...style,
-    }}>{type}</span>
   );
 }
 

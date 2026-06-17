@@ -7,11 +7,11 @@ import {
   StatusChip, MergeTag, Divider, BackBtn,
 } from "../components";
 import {
-  STATUS_META, APPROACH_META, SUGGESTIONS, WIN_RATE_LEVELS,
+  STATUS_META, ORIENTATION_META, STRATEGY_GROUPS, WIN_RATE_LEVELS,
 } from "../data";
 import { recordAction, getCustomTags, addCustomTag } from "../rewards";
-import { T, INPUT_STYLE, parseTags, cloneBoard } from "../theme";
-import { SectionLabel, BoardSection, MergeLinkList, LinkPicker } from "../components/uiParts";
+import { T, INPUT_STYLE, cloneBoard } from "../theme";
+import { SectionLabel, BoardSection, MergeLinkList, LinkPicker, TagPickerField } from "../components/uiParts";
 
 // ── セクション見出し ──────────────────────────────
 function SectionHeader({ icon, children }) {
@@ -34,8 +34,9 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
   const node = tree.nodes[nodeId];
 
   const [label,        setLabel]        = useState("");
-  const [tags,         setTags]         = useState("");
-  const [approach,     setApproach]     = useState("");
+  const [situation,    setSituation]    = useState("");
+  const [myApproach,   setMyApproach]   = useState("");
+  const [orientation,  setOrientation]  = useState("");
   const [memo,         setMemo]         = useState("");
   const [status,       setStatus]       = useState("wip");
   const [usageLevel,   setUsageLevel]   = useState(2);
@@ -46,20 +47,21 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
   const [handSente,   setHandSente]   = useState({p:0,l:0,n:0,s:0,g:0,b:0,r:0});
   const [handGote,    setHandGote]    = useState({p:0,l:0,n:0,s:0,g:0,b:0,r:0});
   const [toast,        setToast]        = useState("");
-  const [suggOpen,     setSuggOpen]     = useState(false);
   const [customTags,   setCustomTags]   = useState(() => getCustomTags());
-  const [addingTag,    setAddingTag]    = useState(false);
-  const [newTagInput,  setNewTagInput]  = useState("");
   const [mergePickerOpen,        setMergePickerOpen]        = useState(false);
   const [mergeChildPickerOpen,   setMergeChildPickerOpen]   = useState(false);
   const [parentDetailsOpen,      setParentDetailsOpen]      = useState(false);
   const [parentChangePickerOpen, setParentChangePickerOpen] = useState(false);
+  const [childDetailsOpen,       setChildDetailsOpen]       = useState(false);
+  const [childChangePickerOpen,  setChildChangePickerOpen]  = useState(false);
   const [deleteConfirm,          setDeleteConfirm]          = useState(false);
   const [boardSnapshot,          setBoardSnapshot]          = useState(null);
+  const [addOpen,                setAddOpen]                = useState(false);
 
   // デバウンス付き自動保存（ノード名・メモ・タグなど、入力ごとに即時送信したくないフィールド用）
   const pendingPatch = useRef({});
   const saveTimer    = useRef(null);
+  const labelInputRef = useRef(null);
 
   const flushSave = async () => {
     if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null; }
@@ -79,8 +81,9 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
   useEffect(() => {
     if (node) {
       setLabel(node.label || "");
-      setTags((node.tags || []).join("、"));
-      setApproach(node.approachType || "");
+      setSituation((node.situation || []).join("、"));
+      setMyApproach((node.myApproach || []).join("、"));
+      setOrientation(node.orientation || "");
       setMemo(node.memo || "");
       setStatus(node.status || "wip");
       setUsageLevel(node.usageLevel || 2);
@@ -91,6 +94,10 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
       setHandSente(node.handSente || {p:0,l:0,n:0,s:0,g:0,b:0,r:0});
       setHandGote(node.handGote  || {p:0,l:0,n:0,s:0,g:0,b:0,r:0});
       setParentDetailsOpen((node.mergeParentIds || []).length > 0);
+      if (node.label === "新しいノード") {
+        labelInputRef.current?.focus();
+        labelInputRef.current?.select();
+      }
     }
     return () => {
       if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null; }
@@ -120,6 +127,14 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
     setToast(msg);
     setTimeout(() => setToast(""), 1600);
   }, []);
+
+  /** タグピッカーから新しいカスタムタグを追加する（戦法タグ系の入力欄で共有） */
+  const handleAddCustomTag = (tag) => {
+    addCustomTag(tag);
+    setCustomTags(getCustomTags());
+    recordAction("customTag");
+    showToast("タグを追加しました");
+  };
 
   if (!node) return null;
 
@@ -253,8 +268,16 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
     showToast("親ノードを変更しました");
   };
 
-  // 「ついか」内の未入力項目が残っているか（切り口・勝率・戦法タグ）
-  const addIncomplete = (!node.isRoot && !approach) || winRate == null || parseTags(tags).length === 0;
+  // ── 子ノードの変更（既存ノードをこのノードの子にする）──────
+  const handleChangeChild = async (childId) => {
+    setChildChangePickerOpen(false);
+    if (typeof onReparentNode !== "function") return;
+    await onReparentNode(childId, nodeId);
+    showToast("子ノードを変更しました");
+  };
+
+  // 「ついか」内の未入力項目が残っているか（志向・勝率）
+  const addIncomplete = (!node.isRoot && !orientation) || winRate == null;
 
   /** 子孫IDを再帰的に収集してノード削除 */
   const collectDescendantIds = (id) => {
@@ -354,10 +377,9 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
                 </div>
 
                 {parentDetailsOpen && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "2px 0 0 4px" }}>
+                  <div style={{ display: "flex", flexDirection: "row", gap: 8, padding: "2px 0 0 4px" }}>
                     {onSetMergeParents && (
-                      <div>
-                        <SectionLabel style={{ marginBottom: 5 }}>合流元</SectionLabel>
+                      <div style={{ flex: 1, minWidth: 0 }}>
                         <MergeLinkList
                           items={mergeParentIds.map((pid) => tree.nodes[pid]).filter(Boolean)}
                           candidates={mergeParentCandidates}
@@ -371,8 +393,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
                       </div>
                     )}
                     {onReparentNode && (
-                      <div>
-                        <SectionLabel style={{ marginBottom: 5 }}>親を変更</SectionLabel>
+                      <div style={{ flex: 1, minWidth: 0 }}>
                         <LinkPicker
                           candidates={mergeParentCandidates}
                           pickerOpen={parentChangePickerOpen}
@@ -402,6 +423,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
           <div style={{ flex: 1, minWidth: 0 }}>
             <SectionLabel style={{ marginBottom: 5 }}>ノード名</SectionLabel>
             <input
+              ref={labelInputRef}
               value={label}
               onChange={(e) => { setLabel(e.target.value); scheduleSave({ label: e.target.value }); }}
               onBlur={(e) => {
@@ -427,6 +449,29 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
             ))}
           </div>
         </div>
+
+        {/* 相手の戦法・局面の状況 / 自分の戦法 */}
+        {!node.isRoot && (
+          <>
+            <TagPickerField
+              label="相手の戦法"
+              text={situation}
+              onSelectTag={async (next) => { setSituation(next.join("、")); await onUpdate(nodeId, { situation: next }); }}
+              groups={STRATEGY_GROUPS}
+              customTags={customTags}
+              onAddCustomTag={handleAddCustomTag}
+            />
+
+            <TagPickerField
+              label="自分の戦法"
+              text={myApproach}
+              onSelectTag={async (next) => { setMyApproach(next.join("、")); await onUpdate(nodeId, { myApproach: next }); }}
+              groups={STRATEGY_GROUPS}
+              customTags={customTags}
+              onAddCustomTag={handleAddCustomTag}
+            />
+          </>
+        )}
 
         {/* メモ */}
         <div style={{ padding: "0 16px 10px" }}>
@@ -490,24 +535,29 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
         <SectionDivider />
 
         {/* ════════════════ ついか ════════════════ */}
-        <SectionHeader icon="ti-adjustments">
-          {addIncomplete && <span style={{ color: T.gold, marginRight: 4 }}>・</span>}ついか
-        </SectionHeader>
+        <div onClick={() => setAddOpen((v) => !v)} style={{ cursor: "pointer" }}>
+          <SectionHeader icon="ti-adjustments">
+            {addIncomplete && <span style={{ color: T.gold, marginRight: 4 }}>・</span>}ついか
+            <i className={`ti ti-chevron-${addOpen ? "up" : "down"}`} style={{ fontSize: 13, color: T.inkMid, marginLeft: "auto" }} />
+          </SectionHeader>
+        </div>
 
-        {/* 切り口（自分の戦法 / 相手の戦法 / 局面の状況）*/}
+        {addOpen && <>
+
+        {/* 志向（攻め / 受け / バランス / 不明）*/}
         {!node.isRoot && (
           <div style={{ padding: "0 16px 10px" }}>
-            <SectionLabel style={{ marginBottom: 5 }}>切り口</SectionLabel>
+            <SectionLabel style={{ marginBottom: 5 }}>志向</SectionLabel>
             <div style={{ display: "flex", gap: 6 }}>
-              {["自分の戦法", "相手の戦法", "局面の状況"].map((a) => {
-                const selected = approach === a;
-                const meta = APPROACH_META[a] || {};
+              {["攻め", "受け", "バランス", "不明"].map((o) => {
+                const selected = orientation === o;
+                const meta = ORIENTATION_META[o] || {};
                 return (
                   <div
-                    key={a}
+                    key={o}
                     onClick={async () => {
-                      setApproach(a);
-                      await onUpdate(nodeId, { approachType: a });
+                      setOrientation(o);
+                      await onUpdate(nodeId, { orientation: o });
                       recordAction("approach");
                     }}
                     style={{
@@ -525,7 +575,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
                       fontWeight:   selected ? 600 : 400,
                     }}
                   >
-                    {a}
+                    {o}
                   </div>
                 );
               })}
@@ -588,140 +638,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
           </div>
         </div>
 
-        {/* 戦法タグ */}
-        <div style={{ padding: "0 16px 16px" }}>
-          <SectionLabel style={{ marginBottom: 5 }}>戦法タグ（カンマ区切り）</SectionLabel>
-          <div style={{ position: "relative" }}>
-            <input
-              value={tags}
-              onChange={(e) => { setTags(e.target.value); scheduleSave({ tags: parseTags(e.target.value) }); }}
-              onBlur={(e) => { e.target.style.borderColor = T.inkLine; flushSave(); }}
-              placeholder="例：振り飛車, 中飛車"
-              style={{ ...INPUT_STYLE, paddingRight: 40 }}
-              onFocus={(e) => (e.target.style.borderColor = T.gold)}
-            />
-            <button
-              onClick={() => setSuggOpen((v) => !v)}
-              title="候補から選ぶ"
-              style={{
-                position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
-                background: suggOpen ? T.goldLight : "none",
-                border: `0.5px solid ${suggOpen ? T.gold : "transparent"}`,
-                borderRadius: 6, cursor: "pointer",
-                color: suggOpen ? T.gold : T.inkFaint,
-                fontSize: 17, lineHeight: 1, padding: "3px 5px",
-              }}
-            >
-              <i className="ti ti-list" />
-            </button>
-          </div>
-
-          {/* タグプレビュー */}
-          {parseTags(tags).length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
-              {parseTags(tags).map((tag) => (
-                <span key={tag} style={{ fontSize: T.fontSize.sm, padding: "3px 9px", borderRadius: T.radius.sm, background: T.goldLight, color: T.gold, fontFamily: T.fontSerif }}>
-                  {tag}
-                </span>
-              ))}
-            </div>
-          )}
-
-          {/* 候補リスト */}
-          {suggOpen && (() => {
-            const cats = approach
-              ? { [approach]: SUGGESTIONS[approach] || [] }
-              : SUGGESTIONS;
-
-            const current = parseTags(tags);
-
-            const chipStyle = (s) => ({
-              padding: "6px 12px", borderRadius: 20, cursor: "pointer",
-              border: `0.5px solid ${current.includes(s) ? T.gold : T.inkLine}`,
-              fontSize: T.fontSize.base, color: T.ink,
-              background: current.includes(s) ? T.goldLight : T.cream,
-              fontFamily: T.fontSerif, transition: "all 0.12s",
-            });
-            const onSelectSugg = async (s) => {
-              if (current.includes(s)) return;
-              const next = [...current, s];
-              setTags(next.join("、"));
-              await onUpdate(nodeId, { tags: next });
-            };
-
-            return (
-              <div style={{ marginTop: 8 }}>
-                {/* プリセット候補 */}
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {Object.entries(cats).map(([cat, items]) =>
-                    items.map((s) => (
-                      <div key={`${cat}-${s}`} onClick={() => onSelectSugg(s)} style={chipStyle(s)}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = T.goldLight; e.currentTarget.style.borderColor = T.gold; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = current.includes(s) ? T.goldLight : T.cream; e.currentTarget.style.borderColor = current.includes(s) ? T.gold : T.inkLine; }}
-                      >{s}</div>
-                    ))
-                  )}
-                </div>
-
-                {/* カスタムタグ + 追加エリア */}
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: customTags.length > 0 ? 8 : 6, alignItems: "center" }}>
-                  {customTags.map((s) => (
-                    <div key={`custom-${s}`} onClick={() => onSelectSugg(s)} style={chipStyle(s)}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = T.goldLight; e.currentTarget.style.borderColor = T.gold; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = current.includes(s) ? T.goldLight : T.cream; e.currentTarget.style.borderColor = current.includes(s) ? T.gold : T.inkLine; }}
-                    >{s}</div>
-                  ))}
-
-                  {/* ＋ボタン or 入力欄 */}
-                  {!addingTag ? (
-                    <div
-                      onClick={() => { setAddingTag(true); setNewTagInput(""); }}
-                      style={{ padding: "6px 10px", borderRadius: 20, cursor: "pointer", border: `0.5px dashed ${T.gold}`, fontSize: T.fontSize.base, color: T.gold, background: "transparent", display: "flex", alignItems: "center", gap: 4 }}
-                    >
-                      <i className="ti ti-plus" style={{ fontSize: 13 }} />追加
-                    </div>
-                  ) : (
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <input
-                        autoFocus
-                        value={newTagInput}
-                        onChange={(e) => setNewTagInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && newTagInput.trim()) {
-                            addCustomTag(newTagInput.trim());
-                            setCustomTags(getCustomTags());
-                            recordAction("customTag");
-                            setAddingTag(false); setNewTagInput("");
-                            showToast("タグを追加しました");
-                          }
-                          if (e.key === "Escape") { setAddingTag(false); setNewTagInput(""); }
-                        }}
-                        placeholder="新しい戦法タグ"
-                        style={{ padding: "5px 10px", borderRadius: 20, border: `1px solid ${T.gold}`, fontSize: T.fontSize.base, color: T.ink, background: T.cream, fontFamily: T.fontSerif, outline: "none", width: 120 }}
-                      />
-                      <button
-                        onClick={() => {
-                          if (newTagInput.trim()) {
-                            addCustomTag(newTagInput.trim());
-                            setCustomTags(getCustomTags());
-                            recordAction("customTag");
-                            showToast("タグを追加しました");
-                          }
-                          setAddingTag(false); setNewTagInput("");
-                        }}
-                        style={{ background: T.gold, border: "none", borderRadius: 20, padding: "5px 12px", color: T.cream, fontSize: T.fontSize.base, cursor: "pointer", fontFamily: T.fontSerif }}
-                      >確定</button>
-                      <button
-                        onClick={() => { setAddingTag(false); setNewTagInput(""); }}
-                        style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: 16 }}
-                      ><i className="ti ti-x" /></button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
-        </div>
+        </>}
 
         <SectionDivider />
 
@@ -758,18 +675,49 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
               <i className="ti ti-git-branch" style={{ fontSize: 14 }} />ここから分岐を追加
             </div>
 
-            {/* 合流先（このノードが合流する子） */}
-            {!node.isRoot && onSetMergeParents && (
-              <MergeLinkList
-                items={mergeChildren}
-                candidates={mergeChildCandidates}
-                pickerOpen={mergeChildPickerOpen}
-                setPickerOpen={setMergeChildPickerOpen}
-                onAdd={addMergeChild}
-                onRemove={removeMergeChild}
-                addLabel="合流する子を追加"
-                pickLabel="子にするノードを選択"
-              />
+            {/* その他の操作（合流・子の変更）── デフォルト非表示 */}
+            {(onSetMergeParents || onReparentNode) && (
+              <div
+                onClick={() => setChildDetailsOpen((v) => !v)}
+                style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 4px", marginTop: 2, cursor: "pointer", color: T.inkFaint, fontSize: T.fontSize.sm, fontFamily: T.fontSerif }}
+              >
+                <i className="ti ti-chevron-right" style={{ fontSize: 11, transition: "transform 0.15s", transform: childDetailsOpen ? "rotate(90deg)" : "none" }} />
+                その他の操作（合流・子の変更）
+              </div>
+            )}
+
+            {childDetailsOpen && (
+              <div style={{ display: "flex", flexDirection: "row", gap: 8 }}>
+                {!node.isRoot && onSetMergeParents && (
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <MergeLinkList
+                      items={mergeChildren}
+                      candidates={mergeChildCandidates}
+                      pickerOpen={mergeChildPickerOpen}
+                      setPickerOpen={setMergeChildPickerOpen}
+                      onAdd={addMergeChild}
+                      onRemove={removeMergeChild}
+                      addLabel="合流する子を追加"
+                      pickLabel="子にするノードを選択"
+                    />
+                  </div>
+                )}
+                {onReparentNode && (
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <LinkPicker
+                      candidates={mergeChildCandidates}
+                      pickerOpen={childChangePickerOpen}
+                      setPickerOpen={setChildChangePickerOpen}
+                      onPick={handleChangeChild}
+                      label="子ノードを変更"
+                      pickLabel="子にするノードを選択"
+                      icon="ti-arrows-exchange"
+                      color={T.blue}
+                      hoverBg={T.blueBg}
+                    />
+                  </div>
+                )}
+              </div>
             )}
           </div>
 

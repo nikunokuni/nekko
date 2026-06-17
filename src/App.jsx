@@ -67,7 +67,7 @@ export default function App() {
   // ※ myTrees が空のタイミングで呼ばれても DB から直接フェッチして取得する
   const loadTree = useCallback(async (treeId) => {
     setLoading(true);
-    setLastReparent(null);
+    setReparentStack([]);
     try {
       let treeRow = [...myTrees, ...pubTrees].find(t => t.id === treeId);
       if (!treeRow) {
@@ -126,7 +126,7 @@ export default function App() {
     const hasKifu = kifuSnapshots && kifuSnapshots.length > 0;
     const last = hasKifu ? kifuSnapshots[kifuSnapshots.length - 1] : null;
 
-    const { error: nodeError } = await createNode({
+    const { data: rootNode, error: nodeError } = await createNode({
       treeId: data.id, userId: session.user.id,
       parentId: null, label: name, isRoot: true, status: "todo",
       // 棋譜インポートがあれば、ルートノードに最終局面・棋譜を反映する
@@ -137,6 +137,23 @@ export default function App() {
       kifuImported: hasKifu,
     });
     if (nodeError) console.error("createNode error:", nodeError);
+
+    // 相手の戦法（居飛車 / 振り飛車）の子ノードを2つ自動作成する
+    if (rootNode) {
+      const { error: e1 } = await createNode({
+        treeId: data.id, userId: session.user.id,
+        parentId: rootNode.id, label: "居飛車", status: "todo",
+        situation: ["居飛車"], sortOrder: 0,
+      });
+      if (e1) console.error("createNode error:", e1);
+
+      const { error: e2 } = await createNode({
+        treeId: data.id, userId: session.user.id,
+        parentId: rootNode.id, label: "振り飛車", status: "todo",
+        situation: ["振り飛車"], sortOrder: 1,
+      });
+      if (e2) console.error("createNode error:", e2);
+    }
 
     await loadMyTrees();
     // 作成したツリーをそのまま開く（手動で探してタップする手間を省く）

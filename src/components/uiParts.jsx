@@ -3,10 +3,10 @@
 //   InputField / SectionLabel / ModalActionButtons /
 //   BoardSection / MergeLinkList
 // ══════════════════════════════════════════════════════════════════
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import ShogiBoard from "../ShogiBoard";
 import { BOARD_TEMPLATES } from "../data";
-import { T, INPUT_STYLE, BTN_CANCEL_STYLE } from "../theme";
+import { T, INPUT_STYLE, BTN_CANCEL_STYLE, parseTags } from "../theme";
 
 // ──────────────────────────────────────────
 // InputField: ラベル付きテキスト入力フィールド
@@ -228,6 +228,157 @@ export function BoardSection({ boardVisible, boardData, stamps, handSente, handG
           onBranchFromHere={onBranchFromHere}
         />
       </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────
+// TagPickerField: グループ選択→戦法タグ選択のピッカー
+//   groups: [{ label, items }] 形式のグループ配列
+// ──────────────────────────────────────────
+export function TagPickerField({
+  label, text, onSelectTag,
+  groups, customTags, onAddCustomTag,
+}) {
+  const [open,        setOpen]        = useState(false);
+  const [activeGroup, setActiveGroup] = useState(null);
+  const [addingTag,   setAddingTag]   = useState(false);
+  const [newTagInput, setNewTagInput] = useState("");
+
+  const current = parseTags(text);
+
+  const chipStyle = (s) => ({
+    padding: "6px 12px", borderRadius: 20, cursor: "pointer",
+    border: `0.5px solid ${current.includes(s) ? T.gold : T.inkLine}`,
+    fontSize: T.fontSize.base,
+    color: current.includes(s) ? T.gold : T.ink,
+    fontWeight: current.includes(s) ? 600 : 400,
+    background: current.includes(s) ? T.goldLight : T.cream,
+    fontFamily: T.fontSerif, transition: "all 0.12s",
+  });
+
+  const toggleTag = (s) => {
+    const next = current.includes(s) ? current.filter((t) => t !== s) : [...current, s];
+    onSelectTag(next);
+  };
+
+  const confirmNewTag = () => {
+    const tag = newTagInput.trim();
+    if (tag) {
+      onAddCustomTag(tag);
+      if (!current.includes(tag)) onSelectTag([...current, tag]);
+    }
+    setAddingTag(false);
+    setNewTagInput("");
+  };
+
+  const groupItems = activeGroup ? (groups.find((g) => g.label === activeGroup)?.items ?? []) : [];
+
+  return (
+    <div style={{ padding: "0 16px 16px" }}>
+      {/* ラベル（タップで開閉） */}
+      <div
+        onClick={() => { setOpen((v) => !v); if (open) setActiveGroup(null); }}
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}
+      >
+        <SectionLabel style={{ marginBottom: 5 }}>{label}</SectionLabel>
+        <i className={`ti ti-chevron-${open ? "up" : "down"}`} style={{ fontSize: 13, color: T.inkMid }} />
+      </div>
+
+      {/* 選択済みタグ（閉じているときのプレビュー） */}
+      {!open && current.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+          {current.map((tag) => (
+            <span key={tag} style={{ fontSize: T.fontSize.sm, padding: "3px 9px", borderRadius: T.radius.sm, background: T.goldLight, color: T.gold, fontFamily: T.fontSerif }}>
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {open && (
+        <div style={{ marginTop: 8 }}>
+
+          {/* グループボタン：タップでグループ名タグを選択 + サブ一覧を開く */}
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {groups.map((g) => {
+              const open2  = activeGroup === g.label;
+              const tagged = !g.noGroupTag && current.includes(g.label);
+              return (
+                <div
+                  key={g.label}
+                  onClick={() => {
+                    if (!g.noGroupTag) toggleTag(g.label);
+                    setActiveGroup(open2 ? null : g.label);
+                  }}
+                  style={{
+                    padding: "7px 16px", borderRadius: T.radius.md, cursor: "pointer",
+                    fontSize: T.fontSize.base, fontFamily: T.fontSerif, transition: "all 0.12s",
+                    border: (open2 || tagged) ? `1.5px solid ${T.gold}` : `0.5px solid ${T.inkLine}`,
+                    background: (open2 || tagged) ? T.goldLight : T.cream,
+                    color: (open2 || tagged) ? T.gold : T.inkMid,
+                    fontWeight: (open2 || tagged) ? 600 : 400,
+                    display: "flex", alignItems: "center", gap: 5,
+                  }}
+                >
+                  {tagged && <i className="ti ti-check" style={{ fontSize: 11 }} />}
+                  {g.label}
+                  <i className={`ti ti-chevron-${open2 ? "up" : "down"}`} style={{ fontSize: 11, opacity: 0.6 }} />
+                </div>
+              );
+            })}
+          </div>
+
+          {/* 選択グループの戦法チップ */}
+          {activeGroup && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+              {groupItems.map((s) => (
+                <div key={s} onClick={() => toggleTag(s)} style={chipStyle(s)}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = T.gold; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = current.includes(s) ? T.gold : T.inkLine; }}
+                >{s}</div>
+              ))}
+            </div>
+          )}
+
+          {/* カスタムタグ + 追加（サブ） */}
+          {(customTags.length > 0 || !activeGroup) && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10, alignItems: "center" }}>
+              {customTags.map((s) => (
+                <div key={s} onClick={() => toggleTag(s)} style={chipStyle(s)}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = T.gold; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = current.includes(s) ? T.gold : T.inkLine; }}
+                >{s}</div>
+              ))}
+              {!addingTag ? (
+                <div
+                  onClick={() => { setAddingTag(true); setNewTagInput(""); }}
+                  title="新しいタグを追加"
+                  style={{ padding: "6px 10px", borderRadius: 20, cursor: "pointer", border: `0.5px dashed ${T.inkLine}`, fontSize: T.fontSize.sm, color: T.inkFaint, background: "transparent", display: "flex", alignItems: "center", gap: 3 }}
+                >
+                  <i className="ti ti-plus" style={{ fontSize: 11 }} />追加
+                </div>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <input
+                    autoFocus
+                    value={newTagInput}
+                    onChange={(e) => setNewTagInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") confirmNewTag();
+                      if (e.key === "Escape") { setAddingTag(false); setNewTagInput(""); }
+                    }}
+                    placeholder="新しいタグ"
+                    style={{ padding: "5px 10px", borderRadius: 20, border: `1px solid ${T.gold}`, fontSize: T.fontSize.base, color: T.ink, background: T.cream, fontFamily: T.fontSerif, outline: "none", width: 120 }}
+                  />
+                  <button onClick={confirmNewTag} style={{ background: T.gold, border: "none", borderRadius: 20, padding: "5px 12px", color: T.cream, fontSize: T.fontSize.base, cursor: "pointer", fontFamily: T.fontSerif }}>確定</button>
+                  <button onClick={() => { setAddingTag(false); setNewTagInput(""); }} style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: 16 }}><i className="ti ti-x" /></button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

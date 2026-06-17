@@ -6,7 +6,7 @@ import { useState } from "react";
 import { BackBtn } from "./components";
 import { signIn, signUp } from "./db";
 import { recordAction, getCustomTags } from "./rewards";
-import { SUGGESTIONS } from "./data";
+import { STRATEGY_GROUPS } from "./data";
 import { T } from "./theme";
 
 // ──────────────────────────────────────────────────
@@ -247,7 +247,7 @@ function PublicTreeCard({ tree, isCopied, isCopying, isLiked, onCopy, onLike }) 
 // TagFilter: タグ絞り込みバー
 // ──────────────────────────────────────────────────
 function TagFilter({ activeTag, onSelect }) {
-  const presetTags = Object.values(SUGGESTIONS).flat();
+  const presetTags = STRATEGY_GROUPS.flatMap((g) => g.items);
   const customTags = getCustomTags();
   const allTags = ["すべて", ...new Set([...presetTags, ...customTags])];
 
