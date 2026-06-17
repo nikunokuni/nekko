@@ -122,8 +122,9 @@ function roundedOrtho(points, r) {
   return d;
 }
 
-export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparent, onUndoReparent }) {
+export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparent, onUndoReparent, onMemoSave }) {
   const [drawerOpen,   setDrawerOpen]   = useState(false);
+  const [memoValue,    setMemoValue]    = useState(tree?.quick_memo || "");
   const [canvasOffset, setCanvasOffset] = useState({ x: 20, y: 20 });
   const [dragging,     setDragging]     = useState(false);
   const [scale,        setScale]        = useState(1);
@@ -599,6 +600,39 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
           </div>
           <div style={{ flex: 1, overflowY: "auto" }}>
             <Accordion nodes={nodes} rootChildIds={rootNode?.childIds || []} onSelect={jumpToNode} />
+          </div>
+
+          {/* 一言メモ */}
+          <div style={{ borderTop: `0.5px solid ${T.inkLine}`, padding: "12px 14px", flexShrink: 0 }}>
+            <div style={{ fontSize: T.fontSize.sm, color: T.inkFaint, fontFamily: T.fontSerif, marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
+              <i className="ti ti-notes" style={{ fontSize: 12 }} />一言メモ
+            </div>
+            <textarea
+              value={memoValue}
+              onChange={(e) => setMemoValue(e.target.value)}
+              onBlur={() => {
+                const trimmed = memoValue.trim();
+                if (trimmed !== (tree?.quick_memo || "").trim()) {
+                  onMemoSave?.(tree.id, trimmed);
+                }
+              }}
+              placeholder="メモをさっと入力..."
+              rows={3}
+              style={{
+                width: "100%", boxSizing: "border-box",
+                border: `0.5px solid ${T.inkLine}`,
+                borderRadius: T.radius.md,
+                background: T.goldLight,
+                padding: "8px 10px",
+                fontSize: T.fontSize.base,
+                color: T.ink,
+                fontFamily: T.fontSerif,
+                resize: "none",
+                outline: "none",
+                lineHeight: 1.6,
+              }}
+              onFocus={(e) => (e.target.style.borderColor = T.gold)}
+            />
           </div>
         </div>
       </div>

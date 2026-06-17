@@ -29,26 +29,104 @@ export function getActions() {
 // ── カスタム戦法タグ ─────────────────────────────
 const CUSTOM_TAGS_KEY = "nekko_custom_tags";
 
-/** ユーザーが追加したカスタム戦法タグ一覧を返す */
-export function getCustomTags() {
+/**
+ * ストレージから生データを返す。
+ * 旧形式（文字列配列）は { name, group: null }[] に変換して返す。
+ */
+function loadRawCustomTags() {
   try {
     const raw = localStorage.getItem(CUSTOM_TAGS_KEY);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return parsed.map((item) =>
+      typeof item === "string" ? { name: item, group: null } : item
+    );
   } catch { return []; }
 }
 
-/** カスタム戦法タグを追加する（重複は無視） */
-export function addCustomTag(name) {
+/** ユーザーが追加したカスタム戦法タグ名一覧を返す（後方互換：文字列配列） */
+export function getCustomTags() {
+  return loadRawCustomTags().map((t) => t.name);
+}
+
+/** ユーザーが追加したカスタム戦法タグを { name, group }[] 形式で返す */
+export function getCustomTagsByGroup() {
+  return loadRawCustomTags();
+}
+
+/** カスタム戦法タグを追加する（重複は無視）。group を指定するとグループに紐付く */
+export function addCustomTag(name, group = null) {
   try {
     const trimmed = name.trim();
     if (!trimmed) return;
-    const tags = getCustomTags();
-    if (!tags.includes(trimmed)) {
-      tags.push(trimmed);
+    const tags = loadRawCustomTags();
+    if (!tags.some((t) => t.name === trimmed)) {
+      tags.push({ name: trimmed, group });
       localStorage.setItem(CUSTOM_TAGS_KEY, JSON.stringify(tags));
     }
   } catch {}
 }
+// ── コメント用カスタムタグ ────────────────────────
+const COMMENT_TAGS_KEY = "nekko_comment_tags";
+
+export function getCommentCustomTags() {
+  try {
+    const raw = localStorage.getItem(COMMENT_TAGS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return parsed.map((item) =>
+      typeof item === "string" ? { name: item, group: null } : item
+    );
+  } catch { return []; }
+}
+
+export function addCommentCustomTag(name, group = null) {
+  try {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const tags = getCommentCustomTags();
+    if (!tags.some((t) => t.name === trimmed)) {
+      tags.push({ name: trimmed, group });
+      localStorage.setItem(COMMENT_TAGS_KEY, JSON.stringify(tags));
+    }
+  } catch {}
+}
+
+// ── 金曜夜トースト ────────────────────────────────
+const FRIDAY_TOAST_KEY = "nekko_friday_toast_week";
+
+/** ISO週番号（例: "2025-W23"）を返す */
+function isoWeekKey(d) {
+  const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7));
+  const year = tmp.getUTCFullYear();
+  const week = Math.ceil(((tmp - new Date(Date.UTC(year, 0, 1))) / 86400000 + 1) / 7);
+  return `${year}-W${String(week).padStart(2, "0")}`;
+}
+
+/**
+ * 今がトースト表示タイミングかどうかを返す。
+ * 条件: 金曜日（日本時間）かつ 18:00 以降、かつ今週まだ未表示。
+ */
+export function shouldShowFridayToast() {
+  try {
+    const now  = new Date();
+    const jst  = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Tokyo" }));
+    if (jst.getDay() !== 5) return false;        // 金曜以外は不要
+    if (jst.getHours() < 18) return false;       // 18時前は不要
+    const week = isoWeekKey(jst);
+    return localStorage.getItem(FRIDAY_TOAST_KEY) !== week;
+  } catch { return false; }
+}
+
+/** 今週の金曜トーストを表示済みとしてマークする */
+export function markFridayToastShown() {
+  try {
+    const jst  = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }));
+    localStorage.setItem(FRIDAY_TOAST_KEY, isoWeekKey(jst));
+  } catch {}
+}
+
 const toDateKey = (d) => d.toISOString().slice(0, 10);
 
 /** 今日のログインを記録する（同日2回目以降は無視） */

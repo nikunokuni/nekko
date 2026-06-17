@@ -14,9 +14,9 @@ import {
   fetchMyTrees, fetchPublicTrees, fetchNodes,
   createTree, createNode, updateNode, updateTree, deleteTree, copyTree,
   buildTreeFromNodes, publishTree, deleteNodes, unpublishTree,
-  countUserNodes, likeTree, collectTreeTags,
+  countUserNodes, likeTree, collectTreeTags, fetchAllWipNodes,
 } from "./db";
-import { recordLogin, getLoginStats, recordAction, getActions } from "./rewards";
+import { recordLogin, getLoginStats, recordAction, getActions, shouldShowFridayToast, markFridayToastShown } from "./rewards";
 import { cloneBoard } from "./theme";
 
 export default function App() {
@@ -31,6 +31,7 @@ export default function App() {
   const [nodeCount,        setNodeCount]        = useState(0);
   const [loginStats,       setLoginStats]       = useState({ totalDays: 0, streak: 0 });
   const [reparentStack,    setReparentStack]    = useState([]); // マインドマップの親付け替えUndo用（開いた時点からの履歴）
+  const [fridayToast,      setFridayToast]      = useState("");
 
   // ── Auth bootstrap ────────────────────────────
   useEffect(() => {
@@ -49,6 +50,17 @@ export default function App() {
     loadMyTrees();
     loadPublicTrees();
     countUserNodes(session.user.id).then(setNodeCount);
+
+    // 金曜夜トースト
+    if (shouldShowFridayToast()) {
+      fetchAllWipNodes(session.user.id).then(({ data }) => {
+        if (!data || data.length === 0) return;
+        const node = data[Math.floor(Math.random() * data.length)];
+        setFridayToast(`「${node.label}」この戦法について研究してみよう`);
+        markFridayToastShown();
+        setTimeout(() => setFridayToast(""), 6000);
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
@@ -386,6 +398,32 @@ export default function App() {
   // ── レンダリング ─────────────────────────────
   return (
     <div style={{ height:"100dvh", background:"#faf4e8", display:"flex", flexDirection:"column" }}>
+
+      {/* 金曜夜トースト（全画面共通） */}
+      {fridayToast && (
+        <div style={{
+          position:     "fixed",
+          top:          16,
+          left:         "50%",
+          transform:    "translateX(-50%)",
+          zIndex:       200,
+          background:   "rgba(26,15,0,0.88)",
+          color:        "#faf4e8",
+          fontSize:     14,
+          fontFamily:   "'Noto Serif JP', serif",
+          padding:      "10px 20px",
+          borderRadius: 24,
+          whiteSpace:   "nowrap",
+          display:      "flex",
+          alignItems:   "center",
+          gap:          8,
+          boxShadow:    "0 4px 20px rgba(26,15,0,0.3)",
+        }}>
+          <i className="ti ti-book" style={{ fontSize: 14 }} />
+          {fridayToast}
+        </div>
+      )}
+
       <div style={{ flex:1, overflow:"hidden", position:"relative", minHeight:0 }}>
         {loading && (
           <div style={{ position:"absolute", inset:0, background:"rgba(250,244,232,0.8)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:100 }}>
@@ -428,7 +466,8 @@ export default function App() {
         {screen==="map" && activeTree && (
           <MindMap tree={activeTree} onNodeSelect={handleNodeSelect}
             onBack={() => setScreen("list")} onReparent={handleReparentNode}
-            canUndoReparent={reparentStack.length > 0} onUndoReparent={handleUndoReparent}/>
+            canUndoReparent={reparentStack.length > 0} onUndoReparent={handleUndoReparent}
+            onMemoSave={handleMemoSave}/>
         )}
         {screen==="node" && activeTree && activeNodeId && (
           <NodeDetail tree={activeTree} nodeId={activeNodeId}

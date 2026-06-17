@@ -47,6 +47,27 @@ export const USAGE_META = {
 // ── 勝率ラジオの選択肢（割単位）──
 export const WIN_RATE_LEVELS = [1, 3, 5, 7, 9];
 
+// ── 一言コメントのプリセットグループ ────────────────
+export const COMMENT_GROUPS = [
+  {
+    label: '感触',
+    noGroupTag: true,
+    items: ['気持ちよく勝てた','研究が活きた','罠にかかった','悔しい負け','良い将棋だった','展開が難しかった','定跡から外れた','逆転勝ち','逆転負け'],
+  },
+  {
+    label: '課題',
+    noGroupTag: true,
+    items: ['時間切れ','読み抜け','序盤ミス','中盤ミス','終盤ミス','もっと研究が必要'],
+  },
+];
+
+// ── 好き度ラジオの選択肢 ──────────────────────────
+export const LIKE_LEVELS = [
+  { value: 1, label: '普通' },
+  { value: 2, label: '好き' },
+  { value: 3, label: '大好き' },
+];
+
 // ── 志向（戦法の方向性）表示メタ ──────────────────
 // マインドマップのノード・線の色分けに使用する
 export const ORIENTATION_META = {

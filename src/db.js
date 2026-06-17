@@ -90,6 +90,16 @@ export async function fetchNodes(treeId) {
     .order("sort_order", { ascending: true });
 }
 
+/** ユーザーの全ツリーから未完成（wip / todo）かつルートでないノードを取得 */
+export async function fetchAllWipNodes(userId) {
+  return supabase
+    .from("nodes")
+    .select("id, label, tree_id, status")
+    .eq("user_id", userId)
+    .in("status", ["wip", "todo"])
+    .eq("is_root", false);
+}
+
 export async function createNode({
   treeId, userId, parentId, label,
   status = "todo", approachType, board = null,

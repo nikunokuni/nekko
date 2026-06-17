@@ -7,9 +7,9 @@ import {
   StatusChip, MergeTag, Divider, BackBtn,
 } from "../components";
 import {
-  STATUS_META, ORIENTATION_META, STRATEGY_GROUPS, WIN_RATE_LEVELS,
+  STATUS_META, ORIENTATION_META, STRATEGY_GROUPS, WIN_RATE_LEVELS, LIKE_LEVELS, COMMENT_GROUPS,
 } from "../data";
-import { recordAction, getCustomTags, addCustomTag } from "../rewards";
+import { recordAction, getCustomTagsByGroup, addCustomTag, getCommentCustomTags, addCommentCustomTag } from "../rewards";
 import { T, INPUT_STYLE, cloneBoard } from "../theme";
 import { SectionLabel, BoardSection, MergeLinkList, LinkPicker, TagPickerField } from "../components/uiParts";
 
@@ -41,13 +41,19 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
   const [status,       setStatus]       = useState("wip");
   const [usageLevel,   setUsageLevel]   = useState(2);
   const [winRate,      setWinRate]      = useState(null);
+  const [likeLevel,    setLikeLevel]    = useState(null);
   const [boardVisible, setBoardVisible] = useState(false);
   const [boardData,    setBoardData]    = useState(null);
   const [stamps,       setStamps]       = useState([]);
   const [handSente,   setHandSente]   = useState({p:0,l:0,n:0,s:0,g:0,b:0,r:0});
   const [handGote,    setHandGote]    = useState({p:0,l:0,n:0,s:0,g:0,b:0,r:0});
   const [toast,        setToast]        = useState("");
-  const [customTags,   setCustomTags]   = useState(() => getCustomTags());
+  const [customTags,        setCustomTags]        = useState(() => getCustomTagsByGroup());
+  const [commentTags,       setCommentTags]       = useState("");
+  const [commentCustomTags, setCommentCustomTags] = useState(() => getCommentCustomTags());
+  const [aim,         setAim]         = useState("");
+  const [caution,     setCaution]     = useState("");
+  const [nextStudy,   setNextStudy]   = useState("");
   const [mergePickerOpen,        setMergePickerOpen]        = useState(false);
   const [mergeChildPickerOpen,   setMergeChildPickerOpen]   = useState(false);
   const [parentDetailsOpen,      setParentDetailsOpen]      = useState(false);
@@ -88,6 +94,11 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
       setStatus(node.status || "wip");
       setUsageLevel(node.usageLevel || 2);
       setWinRate(node.winRate ?? null);
+      setLikeLevel(node.likeLevel ?? null);
+      setCommentTags((node.commentTags || []).join("、"));
+      setAim(node.aim || "");
+      setCaution(node.caution || "");
+      setNextStudy(node.nextStudy || "");
       setBoardVisible(!!node.board);
       setBoardData(node.board || null);
       setStamps(node.stamps || []);
@@ -129,9 +140,9 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
   }, []);
 
   /** タグピッカーから新しいカスタムタグを追加する（戦法タグ系の入力欄で共有） */
-  const handleAddCustomTag = (tag) => {
-    addCustomTag(tag);
-    setCustomTags(getCustomTags());
+  const handleAddCustomTag = (tag, group) => {
+    addCustomTag(tag, group);
+    setCustomTags(getCustomTagsByGroup());
     recordAction("customTag");
     showToast("タグを追加しました");
   };
@@ -637,6 +648,68 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
             {winRate != null ? `${winRate}割くらい勝てる` : "未設定"}
           </div>
         </div>
+
+        {/* 好き度 */}
+        <div style={{ padding: "0 16px 10px" }}>
+          <SectionLabel style={{ marginBottom: 5 }}>好き度</SectionLabel>
+          <div style={{ display: "flex", alignItems: "center" }}>
+            {LIKE_LEVELS.map((lvl, i) => (
+              <div key={lvl.value} style={{ display: "flex", alignItems: "center", flex: i < LIKE_LEVELS.length - 1 ? 1 : "0 0 auto" }}>
+                <input
+                  type="radio"
+                  name="likeLevel"
+                  checked={likeLevel === lvl.value}
+                  onChange={async () => {
+                    setLikeLevel(lvl.value);
+                    await onUpdate(nodeId, { likeLevel: lvl.value });
+                  }}
+                  style={{ width: 15, height: 15, margin: 0, accentColor: T.gold, cursor: "pointer", flexShrink: 0 }}
+                />
+                {i < LIKE_LEVELS.length - 1 && <div style={{ flex: 1, height: 1, background: T.inkLine, margin: "0 3px" }} />}
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+            {LIKE_LEVELS.map((lvl) => (
+              <span key={lvl.value} style={{ fontSize: T.fontSize.xs, color: likeLevel === lvl.value ? T.gold : T.inkMid, fontFamily: T.fontSerif, fontWeight: likeLevel === lvl.value ? 600 : 400 }}>
+                {lvl.label}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* セクションメモ：ここでの狙い・気を付けること・次に調べること */}
+        {[
+          { label: "ここでの狙い",     value: aim,       set: setAim,       key: "aim",       placeholder: "この局面・戦法で目指すこと" },
+          { label: "気を付けること",   value: caution,   set: setCaution,   key: "caution",   placeholder: "ミスしやすい点・落とし穴" },
+          { label: "次に調べること",   value: nextStudy, set: setNextStudy, key: "nextStudy", placeholder: "宿題・深掘りしたい手順" },
+        ].map(({ label, value, set, key, placeholder }) => (
+          <div key={key} style={{ padding: "0 16px 10px" }}>
+            <SectionLabel style={{ marginBottom: 5 }}>{label}</SectionLabel>
+            <textarea
+              value={value}
+              onChange={(e) => set(e.target.value)}
+              onBlur={async (e) => { e.target.style.borderColor = T.inkLine; await onUpdate(nodeId, { [key]: value }); }}
+              placeholder={placeholder}
+              rows={2}
+              style={{ width: "100%", border: `0.5px solid ${T.inkLine}`, borderRadius: T.radius.sm, padding: "8px 12px", fontSize: T.fontSize.base, color: T.ink, background: T.cream, resize: "none", fontFamily: T.fontSerif, lineHeight: 1.7, outline: "none", boxSizing: "border-box" }}
+              onFocus={(e) => (e.target.style.borderColor = T.gold)}
+            />
+          </div>
+        ))}
+
+        {/* 一言コメント */}
+        <TagPickerField
+          label="一言コメント"
+          text={commentTags}
+          onSelectTag={async (next) => { setCommentTags(next.join("、")); await onUpdate(nodeId, { commentTags: next }); }}
+          groups={COMMENT_GROUPS}
+          customTags={commentCustomTags}
+          onAddCustomTag={(tag, group) => {
+            addCommentCustomTag(tag, group);
+            setCommentCustomTags(getCommentCustomTags());
+          }}
+        />
 
         </>}
 

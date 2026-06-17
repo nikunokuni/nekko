@@ -265,7 +265,7 @@ export function TagPickerField({
   const confirmNewTag = () => {
     const tag = newTagInput.trim();
     if (tag) {
-      onAddCustomTag(tag);
+      onAddCustomTag(tag, activeGroup ?? null);
       if (!current.includes(tag)) onSelectTag([...current, tag]);
     }
     setAddingTag(false);
@@ -273,6 +273,11 @@ export function TagPickerField({
   };
 
   const groupItems = activeGroup ? (groups.find((g) => g.label === activeGroup)?.items ?? []) : [];
+  // customTags は { name, group }[] 形式。アクティブグループに属するものとそれ以外に分ける
+  const groupCustomItems = activeGroup
+    ? customTags.filter((t) => t.group === activeGroup).map((t) => t.name)
+    : [];
+  const ungroupedCustomTags = customTags.filter((t) => !t.group || !groups.some((g) => g.label === t.group)).map((t) => t.name);
 
   return (
     <div style={{ padding: "0 16px 16px" }}>
@@ -338,13 +343,19 @@ export function TagPickerField({
                   onMouseLeave={(e) => { e.currentTarget.style.borderColor = current.includes(s) ? T.gold : T.inkLine; }}
                 >{s}</div>
               ))}
+              {groupCustomItems.map((s) => (
+                <div key={s} onClick={() => toggleTag(s)} style={chipStyle(s)}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = T.gold; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = current.includes(s) ? T.gold : T.inkLine; }}
+                >{s}</div>
+              ))}
             </div>
           )}
 
-          {/* カスタムタグ + 追加（サブ） */}
-          {(customTags.length > 0 || !activeGroup) && (
+          {/* カスタムタグ（グループ未所属）+ 追加ボタン */}
+          {(ungroupedCustomTags.length > 0 || !activeGroup) && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10, alignItems: "center" }}>
-              {customTags.map((s) => (
+              {ungroupedCustomTags.map((s) => (
                 <div key={s} onClick={() => toggleTag(s)} style={chipStyle(s)}
                   onMouseEnter={(e) => { e.currentTarget.style.borderColor = T.gold; }}
                   onMouseLeave={(e) => { e.currentTarget.style.borderColor = current.includes(s) ? T.gold : T.inkLine; }}
