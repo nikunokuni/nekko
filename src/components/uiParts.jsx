@@ -335,7 +335,7 @@ export function TagPickerField({
             })}
           </div>
 
-          {/* 選択グループの戦法チップ */}
+          {/* 選択グループの戦法チップ + グループ内追加ボタン */}
           {activeGroup && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
               {groupItems.map((s) => (
@@ -350,22 +350,12 @@ export function TagPickerField({
                   onMouseLeave={(e) => { e.currentTarget.style.borderColor = current.includes(s) ? T.gold : T.inkLine; }}
                 >{s}</div>
               ))}
-            </div>
-          )}
 
-          {/* カスタムタグ（グループ未所属）+ 追加ボタン */}
-          {(ungroupedCustomTags.length > 0 || !activeGroup) && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10, alignItems: "center" }}>
-              {ungroupedCustomTags.map((s) => (
-                <div key={s} onClick={() => toggleTag(s)} style={chipStyle(s)}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = T.gold; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = current.includes(s) ? T.gold : T.inkLine; }}
-                >{s}</div>
-              ))}
+              {/* グループ内タグ追加 */}
               {!addingTag ? (
                 <div
                   onClick={() => { setAddingTag(true); setNewTagInput(""); }}
-                  title="新しいタグを追加"
+                  title={`${activeGroup}に新しいタグを追加`}
                   style={{ padding: "6px 10px", borderRadius: 20, cursor: "pointer", border: `0.5px dashed ${T.inkLine}`, fontSize: T.fontSize.sm, color: T.inkFaint, background: "transparent", display: "flex", alignItems: "center", gap: 3 }}
                 >
                   <i className="ti ti-plus" style={{ fontSize: 11 }} />追加
@@ -387,6 +377,18 @@ export function TagPickerField({
                   <button onClick={() => { setAddingTag(false); setNewTagInput(""); }} style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: 16 }}><i className="ti ti-x" /></button>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* グループ未所属のカスタムタグのみ表示（追加ボタンはグループ内に移動済み） */}
+          {ungroupedCustomTags.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+              {ungroupedCustomTags.map((s) => (
+                <div key={s} onClick={() => toggleTag(s)} style={chipStyle(s)}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = T.gold; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = current.includes(s) ? T.gold : T.inkLine; }}
+                >{s}</div>
+              ))}
             </div>
           )}
         </div>

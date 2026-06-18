@@ -69,6 +69,23 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
   const pendingPatch = useRef({});
   const saveTimer    = useRef(null);
   const labelInputRef = useRef(null);
+  // beforeunload 用に最新の nodeId / onUpdate を ref で保持
+  const nodeIdRef    = useRef(nodeId);
+  const onUpdateRef  = useRef(onUpdate);
+  useEffect(() => { nodeIdRef.current = nodeId; }, [nodeId]);
+  useEffect(() => { onUpdateRef.current = onUpdate; }, [onUpdate]);
+
+  // タブ閉じ・ブラウザ戻るなどアプリを経由しない離脱でも pending patch を保存する
+  useEffect(() => {
+    const handler = () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      const patch = pendingPatch.current;
+      pendingPatch.current = {};
+      if (Object.keys(patch).length > 0) onUpdateRef.current(nodeIdRef.current, patch);
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, []);
 
   const flushSave = async () => {
     if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null; }
@@ -604,6 +621,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
                 <input
                   type="radio"
                   name="usageLevel"
+                  value={lvl}
                   checked={usageLevel === lvl}
                   onChange={async () => {
                     setUsageLevel(lvl);
@@ -630,6 +648,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
                 <input
                   type="radio"
                   name="winRate"
+                  value={lvl}
                   checked={winRate === lvl}
                   onChange={async () => {
                     setWinRate(lvl);
@@ -659,6 +678,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
                 <input
                   type="radio"
                   name="likeLevel"
+                  value={lvl.value}
                   checked={likeLevel === lvl.value}
                   onChange={async () => {
                     setLikeLevel(lvl.value);
@@ -695,8 +715,8 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
               <SectionLabel style={{ marginBottom: 5 }}>{label}</SectionLabel>
               <textarea
                 value={value}
-                onChange={(e) => set(e.target.value)}
-                onBlur={async (e) => { e.target.style.borderColor = T.inkLine; await onUpdate(nodeId, { [key]: value }); }}
+                onChange={(e) => { set(e.target.value); scheduleSave({ [key]: e.target.value }); }}
+                onBlur={(e) => { e.target.style.borderColor = T.inkLine; flushSave(); }}
                 placeholder={placeholder}
                 rows={2}
                 style={{ width: "100%", border: `0.5px solid ${T.inkLine}`, borderRadius: T.radius.sm, padding: "8px 12px", fontSize: T.fontSize.base, color: T.ink, background: T.cream, resize: "none", fontFamily: T.fontSerif, lineHeight: 1.7, outline: "none", boxSizing: "border-box" }}

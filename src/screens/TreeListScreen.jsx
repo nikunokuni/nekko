@@ -114,10 +114,23 @@ function CreateTreeModal({ onClose, onCreate }) {
 function EditTreeModal({ tree, onClose, onSave, onPublish, onUnpublish }) {
   const [name,         setName]         = useState(tree.name);
   const [active,       setActive]       = useState(tree.active);
-  const [saving,       setSaving]       = useState(false);
   const [publishing,   setPublishing]   = useState(false);
   const [unpublishing, setUnpublishing] = useState(false);
   const [publishError, setPublishError] = useState("");
+
+  // 戦法名：フォーカスを外した時点で保存
+  const handleNameBlur = async () => {
+    const trimmed = name.trim();
+    if (!trimmed) { setName(tree.name); return; }
+    if (trimmed !== tree.name) await onSave(tree.id, { name: trimmed, active });
+  };
+
+  // ステータス：タップした時点で即時保存
+  const handleActiveChange = async (val) => {
+    if (val === active) return;
+    setActive(val);
+    await onSave(tree.id, { name: name.trim() || tree.name, active: val });
+  };
 
   const handlePublish = async () => {
     if (publishing || typeof onPublish !== "function") return;
@@ -149,14 +162,6 @@ function EditTreeModal({ tree, onClose, onSave, onPublish, onUnpublish }) {
     }
   };
 
-  const handleSave = async () => {
-    if (!name.trim()) return;
-    setSaving(true);
-    await onSave(tree.id, { name: name.trim(), active });
-    setSaving(false);
-    onClose();
-  };
-
   return (
     <div style={MODAL_OVERLAY_STYLE} onClick={onClose}>
       <div style={MODAL_SHEET_STYLE} onClick={(e) => e.stopPropagation()}>
@@ -164,9 +169,20 @@ function EditTreeModal({ tree, onClose, onSave, onPublish, onUnpublish }) {
           ツリーを編集
         </div>
 
-        <InputField label="戦法名"              value={name} onChange={setName} placeholder="例：中飛車" />
+        {/* 戦法名：blur 時に自動保存 */}
+        <div style={{ marginBottom: 20 }}>
+          <SectionLabel style={{ marginBottom: 8 }}>戦法名</SectionLabel>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={handleNameBlur}
+            placeholder="例：中飛車"
+            style={{ width: "100%", boxSizing: "border-box", border: `0.5px solid rgba(26,15,0,0.2)`, borderRadius: "10px", padding: "11px 14px", fontSize: "15px", color: "#1a0f00", background: "#fff8ee", fontFamily: "'Noto Serif JP', serif", outline: "none" }}
+            onFocus={(e) => (e.target.style.borderColor = "#c8a96e")}
+          />
+        </div>
 
-        {/* ステータス切り替え */}
+        {/* ステータス：タップ時に即時保存 */}
         <div style={{ marginBottom: 20 }}>
           <SectionLabel style={{ marginBottom: 8 }}>ステータス</SectionLabel>
           <div style={{ display: "flex", gap: 8 }}>
@@ -175,20 +191,20 @@ function EditTreeModal({ tree, onClose, onSave, onPublish, onUnpublish }) {
               return (
                 <div
                   key={label}
-                  onClick={() => setActive(val)}
+                  onClick={() => handleActiveChange(val)}
                   style={{
                     flex:       1,
                     textAlign:  "center",
                     padding:    "9px",
-                    borderRadius: T.radius.md,
+                    borderRadius: "10px",
                     cursor:     "pointer",
-                    fontSize:   T.fontSize.lg,
-                    fontFamily: T.fontSerif,
+                    fontSize:   "14px",
+                    fontFamily: "'Noto Serif JP', serif",
                     transition: "all 0.15s",
-                    border:     selected ? `1.5px solid ${T.gold}`  : `0.5px solid ${T.inkLine}`,
-                    background: selected ? T.goldLight               : T.cream,
-                    color:      selected ? T.gold                    : T.inkMid,
-                    fontWeight: selected ? 600                       : 400,
+                    border:     selected ? `1.5px solid #c8a96e` : `0.5px solid rgba(26,15,0,0.15)`,
+                    background: selected ? "#fdf3dc"             : "#faf4e8",
+                    color:      selected ? "#c8a96e"             : "rgba(26,15,0,0.45)",
+                    fontWeight: selected ? 600                   : 400,
                   }}
                 >
                   {label}
@@ -197,9 +213,10 @@ function EditTreeModal({ tree, onClose, onSave, onPublish, onUnpublish }) {
             })}
           </div>
         </div>
-{/* 公開ボタン / 公開取り消しボタン */}
+
+        {/* 公開ボタン / 公開取り消しボタン */}
         {publishError && (
-          <div style={{ fontSize: T.fontSize.sm, color: T.red, marginBottom: 8, textAlign: "center" }}>
+          <div style={{ fontSize: "12px", color: "#c0392b", marginBottom: 8, textAlign: "center" }}>
             {publishError}
           </div>
         )}
@@ -208,21 +225,11 @@ function EditTreeModal({ tree, onClose, onSave, onPublish, onUnpublish }) {
             onClick={handlePublish}
             disabled={publishing || typeof onPublish !== "function"}
             style={{
-              width:          "100%",
-              padding:        11,
-              borderRadius:   T.radius.lg,
-              border:         `0.5px solid ${T.green}`,
-              background:     T.greenBg,
-              color:          T.green,
-              fontSize:       T.fontSize.lg,
-              fontFamily:     T.fontSerif,
-              fontWeight:     600,
-              cursor:         publishing ? "default" : "pointer",
-              marginBottom:   10,
-              display:        "flex",
-              alignItems:     "center",
-              justifyContent: "center",
-              gap:            6,
+              width: "100%", padding: 11, borderRadius: "12px",
+              border: `0.5px solid #3B6D11`, background: "#EAF3DE", color: "#3B6D11",
+              fontSize: "14px", fontFamily: "'Noto Serif JP', serif", fontWeight: 600,
+              cursor: publishing ? "default" : "pointer", marginBottom: 10,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
             }}
           >
             <i className="ti ti-world" style={{ fontSize: 14 }} />
@@ -230,26 +237,19 @@ function EditTreeModal({ tree, onClose, onSave, onPublish, onUnpublish }) {
           </button>
         ) : (
           <div style={{ marginBottom: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: T.fontSize.md, color: T.green, padding: "4px 0 8px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: "12px", color: "#3B6D11", padding: "4px 0 8px" }}>
               <i className="ti ti-world-check" style={{ fontSize: 13 }} /> 公開中
             </div>
             <button
               onClick={handleUnpublish}
               disabled={unpublishing || typeof onUnpublish !== "function"}
               style={{
-                width:          "100%",
-                padding:        9,
-                borderRadius:   T.radius.lg,
-                border:         `0.5px solid ${T.inkLine}`,
-                background:     "transparent",
-                color:          T.inkMid,
-                fontSize:       T.fontSize.base,
-                fontFamily:     T.fontSerif,
-                cursor:         unpublishing ? "default" : "pointer",
-                display:        "flex",
-                alignItems:     "center",
-                justifyContent: "center",
-                gap:            6,
+                width: "100%", padding: 9, borderRadius: "12px",
+                border: `0.5px solid rgba(26,15,0,0.15)`, background: "transparent",
+                color: "rgba(26,15,0,0.45)", fontSize: "13px",
+                fontFamily: "'Noto Serif JP', serif",
+                cursor: unpublishing ? "default" : "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
               }}
             >
               <i className="ti ti-world-off" style={{ fontSize: 13 }} />
@@ -258,12 +258,18 @@ function EditTreeModal({ tree, onClose, onSave, onPublish, onUnpublish }) {
           </div>
         )}
 
-        <ModalActionButtons
-          onCancel={onClose}
-          onConfirm={handleSave}
-          confirmLabel={saving ? "保存中..." : "保存する"}
-          disabled={!name.trim() || saving}
-        />
+        {/* 閉じるボタン */}
+        <button
+          onClick={onClose}
+          style={{
+            width: "100%", padding: 11, borderRadius: "12px",
+            border: `0.5px solid rgba(26,15,0,0.15)`, background: "transparent",
+            color: "rgba(26,15,0,0.45)", fontSize: "14px",
+            fontFamily: "'Noto Serif JP', serif", cursor: "pointer", marginTop: 4,
+          }}
+        >
+          閉じる
+        </button>
       </div>
     </div>
   );
@@ -334,6 +340,15 @@ export function TreeCard({ tree, onOpen, onEdit, onDelete, onMemoSave }) {
   const [menuOpen,  setMenuOpen]  = useState(false);
   const [memoOpen,  setMemoOpen]  = useState(false);
   const [memoValue, setMemoValue] = useState(tree.quick_memo || "");
+
+  const nodeList      = (Array.isArray(tree.nodes) ? tree.nodes : []).filter((n) => !n.is_root);
+  const nodeCount     = nodeList.length;
+  const doneCount     = nodeList.filter((n) => n.status === "done").length;
+  const completionPct = nodeCount > 0 ? Math.round((doneCount / nodeCount) * 100) : 0;
+  const daysAgo       = tree.updated_at
+    ? Math.floor((Date.now() - new Date(tree.updated_at)) / 86400000)
+    : null;
+  const updatedLabel  = daysAgo === null ? "" : daysAgo === 0 ? "今日" : daysAgo === 1 ? "昨日" : `${daysAgo}日前`;
 
   const handleMenuToggle = (e) => { e.stopPropagation(); setMenuOpen((v) => !v); };
   const handleEdit       = (e) => { e.stopPropagation(); setMenuOpen(false); onEdit(tree); };
@@ -429,15 +444,27 @@ export function TreeCard({ tree, onOpen, onEdit, onDelete, onMemoSave }) {
           </div>
         )}
 
-        {/* 2行目: タグ + 更新日 */}
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-          {(tree.tags || []).map((tag) => (
-            <span key={tag} style={{ fontSize: T.fontSize.sm, padding: "2px 7px", borderRadius: T.radius.sm, background: "rgba(26,15,0,0.06)", color: T.inkMid, fontFamily: T.fontSerif }}>
-              {tag}
-            </span>
-          ))}
-          <span style={{ fontSize: T.fontSize.sm, color: T.inkFaint, marginLeft: "auto" }}>
-            {new Date(tree.updated_at).toLocaleDateString("ja-JP")}
+        {/* 2行目: タグ */}
+        {(tree.tags || []).length > 0 && (
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 6 }}>
+            {(tree.tags || []).map((tag) => (
+              <span key={tag} style={{ fontSize: T.fontSize.sm, padding: "2px 7px", borderRadius: T.radius.sm, background: "rgba(26,15,0,0.06)", color: T.inkMid, fontFamily: T.fontSerif }}>
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* 3行目: ミニバッジ（ノード数 / 完成率 / 更新日） */}
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <span style={{ fontSize: T.fontSize.sm, color: T.inkMid, fontFamily: T.fontSerif }}>
+            🌱 {nodeCount}
+          </span>
+          <span style={{ fontSize: T.fontSize.sm, padding: "1px 7px", borderRadius: T.radius.sm, background: completionPct === 100 ? "#EAF3DE" : "rgba(26,15,0,0.05)", color: completionPct === 100 ? "#3B6D11" : T.inkMid, fontFamily: T.fontSerif }}>
+            完成 {completionPct}%
+          </span>
+          <span style={{ fontSize: T.fontSize.sm, color: T.inkFaint, marginLeft: "auto", fontFamily: T.fontSerif }}>
+            {updatedLabel}
           </span>
         </div>
       </div>

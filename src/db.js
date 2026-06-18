@@ -47,7 +47,7 @@ export async function getProfile(userId) {
 export async function fetchMyTrees(userId) {
   return supabase
     .from("trees")
-    .select("*")
+    .select("*, nodes(id, status, is_root)")
     .eq("user_id", userId)
     .order("created_at", { ascending: true });
 }
@@ -115,6 +115,11 @@ export async function createNode({
   situation = [],
   myApproach = [],
   orientation = null,
+  likeLevel = null,
+  aim = "",
+  caution = "",
+  nextStudy = "",
+  commentTags = [],
 }) {
   const result = await supabase
     .from("nodes")
@@ -133,6 +138,11 @@ export async function createNode({
       situation: situation ?? [],
       my_approach: myApproach ?? [],
       orientation,
+      like_level: likeLevel,
+      aim,
+      caution,
+      next_study: nextStudy,
+      comment_tags: commentTags,
     })
     .select()
     .single();
@@ -165,6 +175,11 @@ export async function updateNode(nodeId, patch) {
     situation:      "situation",
     myApproach:     "my_approach",
     orientation:    "orientation",
+    likeLevel:      "like_level",
+    aim:            "aim",
+    caution:        "caution",
+    nextStudy:      "next_study",
+    commentTags:    "comment_tags",
   };
   const dbPatch = {};
   for (const [k, v] of Object.entries(patch)) {
@@ -212,6 +227,11 @@ export function buildTreeFromNodes(treeRow, flatNodes) {
       situation:      n.situation || [],
       myApproach:     n.my_approach || [],
       orientation:    n.orientation || null,
+      likeLevel:      n.like_level ?? null,
+      aim:            n.aim || "",
+      caution:        n.caution || "",
+      nextStudy:      n.next_study || "",
+      commentTags:    n.comment_tags || [],
       childIds:      [],
     };
   });
@@ -237,11 +257,24 @@ export function buildTreeFromNodes(treeRow, flatNodes) {
   };
 }
 
-// 全ノードの戦法タグを重複なく集約する（ツリー全体のタグ）
+// 頻度 4以上のノードの「自分の戦法(myApproach)」を頻度降順で集約し、上位4個を返す
 export function collectTreeTags(nodeMap) {
-  const set = new Set();
-  Object.values(nodeMap).forEach(n => (n.tags || []).forEach(t => set.add(t)));
-  return [...set];
+  const sorted = Object.values(nodeMap)
+    .filter(n => !n.isRoot && (n.usageLevel || 0) >= 4)
+    .sort((a, b) => (b.usageLevel || 0) - (a.usageLevel || 0));
+
+  const seen = new Set();
+  const tags = [];
+  for (const n of sorted) {
+    for (const t of (n.myApproach || [])) {
+      if (!seen.has(t)) {
+        seen.add(t);
+        tags.push(t);
+        if (tags.length >= 4) return tags;
+      }
+    }
+  }
+  return tags;
 }
 
 // ── Likes ─────────────────────────────────────────

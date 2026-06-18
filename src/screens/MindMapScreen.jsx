@@ -2,7 +2,7 @@
 // MindMapScreen.jsx  ―  SVGマインドマップ
 //   （ドラッグ操作・目次ドロワー付き）
 // ══════════════════════════════════════════════════════════════════
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { Accordion } from "../components";
 import { STATUS_META, USAGE_META, ORIENTATION_META } from "../data";
 import { T } from "../theme";
@@ -155,9 +155,10 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
     "🌳";
   const growthIconSize = totalNodeCount * 3;
 
-  const { positions, edges } = rootId
-    ? layoutTree(nodes, rootId)
-    : { positions: {}, edges: [] };
+  const { positions, edges } = useMemo(
+    () => rootId ? layoutTree(nodes, rootId) : { positions: {}, edges: [] },
+    [nodes, rootId]
+  );
 
   // 合流エッジ（追加の親 → 子）。紫の点線で、ノードを避けて描画する
   const mergeEdges = [];

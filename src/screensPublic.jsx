@@ -5,8 +5,7 @@
 import { useState } from "react";
 import { BackBtn } from "./components";
 import { signIn, signUp } from "./db";
-import { recordAction, getCustomTags } from "./rewards";
-import { STRATEGY_GROUPS } from "./data";
+import { recordAction } from "./rewards";
 import { T } from "./theme";
 
 // ──────────────────────────────────────────────────
@@ -246,10 +245,8 @@ function PublicTreeCard({ tree, isCopied, isCopying, isLiked, onCopy, onLike }) 
 // ──────────────────────────────────────────────────
 // TagFilter: タグ絞り込みバー
 // ──────────────────────────────────────────────────
-function TagFilter({ activeTag, onSelect }) {
-  const presetTags = STRATEGY_GROUPS.flatMap((g) => g.items);
-  const customTags = getCustomTags();
-  const allTags = ["すべて", ...new Set([...presetTags, ...customTags])];
+function TagFilter({ trees, activeTag, onSelect }) {
+  const allTags = ["すべて", ...new Set((trees || []).flatMap((t) => t.tags || []))];
 
   return (
     <div style={{ display: "flex", gap: 6, padding: "10px 16px", overflowX: "auto", flexShrink: 0 }}>
@@ -338,7 +335,7 @@ export function PublicTrees({ trees, profile, onBack, onCopy, onLike, onRefresh 
       </div>
 
       {/* タグフィルター */}
-      <TagFilter activeTag={activeTag} onSelect={setActiveTag} />
+      <TagFilter trees={trees} activeTag={activeTag} onSelect={setActiveTag} />
 
       {/* ツリー一覧 */}
       <div style={{ flex: 1, overflowY: "auto", padding: "0 16px 16px" }}>

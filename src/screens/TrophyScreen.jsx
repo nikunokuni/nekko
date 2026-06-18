@@ -125,6 +125,22 @@ export function TrophyScreen({ onBack, treeCount, nodeCount, loginStats, extraSt
                   <div style={{ fontSize: T.fontSize.xs, color: T.inkFaint, textAlign: "center", lineHeight: 1.4, fontFamily: T.fontSerif }}>
                     {b.desc}
                   </div>
+
+                  {/* 未獲得かつ数値進捗があるバッジのプログレスバー */}
+                  {!earned && b.progress && (() => {
+                    const { current, max } = b.progress(stats);
+                    const pct = Math.min(100, Math.round((current / max) * 100));
+                    return (
+                      <div style={{ width: "100%", marginTop: 6 }}>
+                        <div style={{ height: 4, background: "rgba(26,15,0,0.08)", borderRadius: 2, overflow: "hidden" }}>
+                          <div style={{ height: "100%", width: `${pct}%`, background: T.gold, borderRadius: 2, transition: "width 0.4s" }} />
+                        </div>
+                        <div style={{ fontSize: T.fontSize.xs, color: T.inkFaint, textAlign: "center", marginTop: 2, fontFamily: T.fontSerif }}>
+                          {current} / {max}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}

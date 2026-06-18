@@ -231,7 +231,7 @@ export default function App() {
       const nodes = { ...prev.nodes, [nodeId]: { ...prev.nodes[nodeId], ...patch } };
       const next = { ...prev, nodes };
       // 戦法タグが変わった場合、ツリー全体のタグ（全ノードのタグの集合）を再計算して保存する
-      if (patch.tags) {
+      if (patch.situation || patch.myApproach || patch.usageLevel) {
         const aggregated = collectTreeTags(nodes);
         next.tags = aggregated;
         updateTree(prev.id, { tags: aggregated });
