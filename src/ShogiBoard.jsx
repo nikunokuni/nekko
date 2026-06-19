@@ -145,7 +145,7 @@ function NavBtn({ onClick, disabled, icon }) {
       onClick={onClick}
       disabled={disabled}
       style={{
-        width:32, height:32, borderRadius:6, border:'0.5px solid rgba(26,15,0,0.18)',
+        width:32, height:32, flexShrink:0, borderRadius:6, border:'0.5px solid rgba(26,15,0,0.18)',
         background:'#faf4e8', cursor: disabled ? 'default' : 'pointer',
         color: disabled ? '#ccc' : '#a07840',
         fontSize:16, display:'flex', alignItems:'center', justifyContent:'center',
@@ -523,7 +523,8 @@ export default function ShogiBoard({
       {/* ── 棋譜ナビ（保存済み棋譜がある場合） ── */}
       {!readOnly && kifuLen > 0 && !isRecording && (
         <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, rowGap: 6,
+          flexWrap: 'wrap',
           marginTop: 8, padding: '6px 12px', borderRadius: 8,
           background: playbackIdx !== null ? '#f0e8d4' : '#faf4e8',
           border: `0.5px solid ${playbackIdx !== null ? '#a07840' : 'rgba(26,15,0,0.15)'}`,
@@ -537,7 +538,7 @@ export default function ShogiBoard({
             onClick={() => setPlaybackIdx(idx => idx === null ? moveCount : Math.max(0, idx - 1))} />
 
           {/* 手数表示 */}
-          <div style={{ fontFamily:"'Noto Serif JP',serif", fontSize:12, color:'#1a0f00', minWidth:80, textAlign:'center' }}>
+          <div style={{ fontFamily:"'Noto Serif JP',serif", fontSize:12, color:'#1a0f00', minWidth:80, flexShrink:0, whiteSpace:'nowrap', textAlign:'center' }}>
             {playbackIdx === null
               ? <span style={{color:'rgba(26,15,0,0.4)'}}>棋譜 {moveCount}手</span>
               : playbackIdx === 0
@@ -558,7 +559,7 @@ export default function ShogiBoard({
           {playbackIdx !== null && (
             <button onClick={() => setPlaybackIdx(null)} style={{
               padding:'3px 8px', borderRadius:6, border:'0.5px solid rgba(26,15,0,0.18)',
-              background:'transparent', cursor:'pointer', fontSize:10,
+              background:'transparent', cursor:'pointer', fontSize:10, flexShrink:0, whiteSpace:'nowrap',
               color:'rgba(26,15,0,0.5)', fontFamily:"'Noto Serif JP',serif",
             }}>
               ✕ 閉じる
