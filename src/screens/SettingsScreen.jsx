@@ -3,7 +3,14 @@
 // ══════════════════════════════════════════════════════════════════
 import { T } from "../theme";
 
-export function SettingsScreen({ onBack }) {
+const FONT_SCALE_OPTIONS = [
+  { label: "小",   value: 0.85 },
+  { label: "標準", value: 1 },
+  { label: "大",   value: 1.15 },
+  { label: "特大", value: 1.3 },
+];
+
+export function SettingsScreen({ onBack, fontScale, onFontScaleChange }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: T.cream }}>
       {/* ヘッダー */}
@@ -16,8 +23,74 @@ export function SettingsScreen({ onBack }) {
         </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", display: "flex", alignItems: "center", justifyContent: "center", color: T.inkFaint, fontSize: T.fontSize.lg }}>
-        準備中です
+      <div style={{ flex: 1, overflowY: "auto", padding: "20px 18px 32px" }}>
+
+        {/* 文字サイズ */}
+        <div style={{ fontSize: T.fontSize.md, color: T.inkMid, marginBottom: 10, letterSpacing: "0.08em" }}>
+          文字サイズ
+        </div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 28 }}>
+          {FONT_SCALE_OPTIONS.map((opt) => {
+            const active = fontScale === opt.value;
+            return (
+              <button
+                key={opt.label}
+                onClick={() => onFontScaleChange(opt.value)}
+                style={{
+                  flex: 1,
+                  padding: "10px 0",
+                  borderRadius: T.radius.md,
+                  border: `0.5px solid ${active ? T.gold : T.inkLine}`,
+                  background: active ? T.gold : "transparent",
+                  color: active ? T.cream : T.inkMid,
+                  fontFamily: T.fontSerif,
+                  fontSize: T.fontSize.lg,
+                  cursor: "pointer",
+                }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* その他 */}
+        <div style={{ fontSize: T.fontSize.md, color: T.inkMid, marginBottom: 10, letterSpacing: "0.08em" }}>
+          その他
+        </div>
+        <div style={{ borderRadius: T.radius.md, border: `0.5px solid ${T.inkLine}`, overflow: "hidden" }}>
+          <a
+            href="https://x.com/nikunnokuni"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: "flex", alignItems: "center", gap: 10,
+              padding: "14px 16px",
+              fontSize: T.fontSize.lg,
+              color: T.ink,
+              fontFamily: T.fontSerif,
+              textDecoration: "none",
+              borderBottom: `0.5px solid ${T.inkLineFaint}`,
+            }}
+          >
+            <i className="ti ti-brand-x" style={{ fontSize: 16, color: T.gold }} />
+            <span style={{ flex: 1 }}>作った人へのリンク</span>
+            <i className="ti ti-external-link" style={{ fontSize: 14, color: T.inkFaint }} />
+          </a>
+          <div
+            style={{
+              display: "flex", alignItems: "center", gap: 10,
+              padding: "14px 16px",
+              fontSize: T.fontSize.lg,
+              color: T.inkFaint,
+              fontFamily: T.fontSerif,
+            }}
+          >
+            <i className="ti ti-message-2" style={{ fontSize: 16, color: T.inkFaint }} />
+            <span style={{ flex: 1 }}>ご意見・感想・バグ報告</span>
+            <span style={{ fontSize: T.fontSize.sm }}>準備中</span>
+          </div>
+        </div>
       </div>
     </div>
   );

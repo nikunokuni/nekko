@@ -33,6 +33,12 @@ export default function App() {
   const [loginStats,       setLoginStats]       = useState({ totalDays: 0, streak: 0 });
   const [reparentStack,    setReparentStack]    = useState([]); // マインドマップの親付け替えUndo用（開いた時点からの履歴）
   const [fridayToast,      setFridayToast]      = useState("");
+  const [fontScale,        setFontScale]        = useState(() => Number(localStorage.getItem("nekko_font_scale")) || 1);
+
+  const handleFontScaleChange = (scale) => {
+    setFontScale(scale);
+    localStorage.setItem("nekko_font_scale", String(scale));
+  };
 
   // ── Auth bootstrap ────────────────────────────
   useEffect(() => {
@@ -398,7 +404,7 @@ export default function App() {
 
   // ── レンダリング ─────────────────────────────
   return (
-    <div style={{ height:"100dvh", background:"#faf4e8", display:"flex", flexDirection:"column" }}>
+    <div style={{ height:"100dvh", background:"#faf4e8", display:"flex", flexDirection:"column", zoom: fontScale }}>
 
       {/* 金曜夜トースト（全画面共通） */}
       {fridayToast && (
@@ -480,7 +486,8 @@ export default function App() {
             onBranchFromKifu={handleBranchFromKifu}/>
         )}
         {screen==="settings" && (
-          <SettingsScreen onBack={() => setScreen("list")} />
+          <SettingsScreen onBack={() => setScreen("list")}
+            fontScale={fontScale} onFontScaleChange={handleFontScaleChange}/>
         )}
         {screen==="public" && (
           <PublicTrees trees={pubTrees} profile={profile}
