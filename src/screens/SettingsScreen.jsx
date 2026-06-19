@@ -59,6 +59,20 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange }) {
           その他
         </div>
         <div style={{ borderRadius: T.radius.md, border: `0.5px solid ${T.inkLine}`, overflow: "hidden" }}>
+          <div
+            style={{
+              display: "flex", alignItems: "center", gap: 10,
+              padding: "14px 16px",
+              fontSize: T.fontSize.lg,
+              color: T.inkFaint,
+              fontFamily: T.fontSerif,
+              borderBottom: `0.5px solid ${T.inkLineFaint}`,
+            }}
+          >
+            <i className="ti ti-help-circle" style={{ fontSize: 16, color: T.inkFaint }} />
+            <span style={{ flex: 1 }}>使い方</span>
+            <span style={{ fontSize: T.fontSize.sm }}>準備中</span>
+          </div>
           <a
             href="https://x.com/nikunnokuni"
             target="_blank"
