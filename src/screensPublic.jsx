@@ -303,8 +303,17 @@ export function PublicTrees({ trees, profile, onBack, onCopy, onLike, onRefresh 
   const handleLike = async (id) => {
     if (likedIds.has(id)) return;
     setLikedIds((prev) => new Set([...prev, id]));
-    recordAction("liked");
-    try { await onLike?.(id); } catch {}
+    try {
+      await onLike?.(id);
+      recordAction("liked");
+    } catch (e) {
+      console.error("いいねに失敗しました", e);
+      setLikedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
   };
 
   return (

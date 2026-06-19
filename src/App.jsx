@@ -342,6 +342,22 @@ export default function App() {
   const handleDeleteNode = async (idsToDelete, parentId) => {
     try {
       await deleteNodes(idsToDelete);
+
+      // 削除されるノードを合流元（mergeParentIds）に含む他ノードがあれば、
+      // ダングリング参照を残さないようクリーンアップする
+      const orphanedMergeTargets = Object.values(activeTree?.nodes || {}).filter(
+        (n) => !idsToDelete.includes(n.id) && (n.mergeParentIds || []).some((id) => idsToDelete.includes(id))
+      );
+      await Promise.all(
+        orphanedMergeTargets.map((n) => {
+          const newMergeParentIds = n.mergeParentIds.filter((id) => !idsToDelete.includes(id));
+          return updateNode(n.id, {
+            mergeParentIds: newMergeParentIds,
+            isMergeTarget: newMergeParentIds.length > 0,
+          });
+        })
+      );
+
       setActiveTree((prev) => {
         const newNodes = { ...prev.nodes };
         idsToDelete.forEach((id) => delete newNodes[id]);
@@ -353,6 +369,15 @@ export default function App() {
             ),
           };
         }
+        orphanedMergeTargets.forEach((n) => {
+          if (!newNodes[n.id]) return;
+          const newMergeParentIds = n.mergeParentIds.filter((id) => !idsToDelete.includes(id));
+          newNodes[n.id] = {
+            ...newNodes[n.id],
+            mergeParentIds: newMergeParentIds,
+            isMergeTarget: newMergeParentIds.length > 0,
+          };
+        });
         return { ...prev, nodes: newNodes };
       });
       // 削除後、親ノードか（なければ）マップに戻る

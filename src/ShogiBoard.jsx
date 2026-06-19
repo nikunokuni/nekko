@@ -534,7 +534,7 @@ export default function ShogiBoard({
 
           {/* < 前へ */}
           <NavBtn icon="ti-chevron-left" disabled={playbackIdx === 0}
-            onClick={() => setPlaybackIdx(idx => idx === null ? moveCount : Math.max(0, idx - 1))} />
+            onClick={() => setPlaybackIdx(idx => idx === null ? 0 : Math.max(0, idx - 1))} />
 
           {/* 手数表示 */}
           <div style={{ fontFamily:"'Noto Serif JP',serif", fontSize:12, color:'#1a0f00', minWidth:80, textAlign:'center' }}>
