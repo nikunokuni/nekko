@@ -8,6 +8,7 @@ import { TreeList } from "./screens/TreeListScreen";
 import { MindMap } from "./screens/MindMapScreen";
 import { NodeDetail } from "./screens/NodeDetailScreen";
 import { TrophyScreen } from "./screens/TrophyScreen";
+import { SettingsScreen } from "./screens/SettingsScreen";
 import {
   supabase,
   getSession, getProfile, signOut,
@@ -436,6 +437,7 @@ export default function App() {
             onOpen={handleOpenTree}
             onPublic={() => { setScreen("public"); loadPublicTrees(); }}
             onTrophy={() => setScreen("trophy")}
+            onSettings={() => setScreen("settings")}
             onNewTree={handleNewTree} onSignOut={handleSignOut}
             onDeleteTree={handleDeleteTree} onEditTree={handleEditTree}
             onPublish={handlePublishTree} onUnpublish={handleUnpublishTree}
@@ -476,6 +478,9 @@ export default function App() {
             onDeleteNode={handleDeleteNode} onSetMergeParents={handleSetMergeParents}
             onReparentNode={handleReparentNode}
             onBranchFromKifu={handleBranchFromKifu}/>
+        )}
+        {screen==="settings" && (
+          <SettingsScreen onBack={() => setScreen("list")} />
         )}
         {screen==="public" && (
           <PublicTrees trees={pubTrees} profile={profile}

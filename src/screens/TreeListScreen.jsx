@@ -515,7 +515,7 @@ export function TreeCard({ tree, onOpen, onEdit, onDelete, onMemoSave }) {
 // ══════════════════════════════════════════════════════════════════
 // TreeList: ツリー一覧画面
 // ══════════════════════════════════════════════════════════════════
-export function TreeList({ trees, profile, onOpen, onPublic, onTrophy, onNewTree, onSignOut, onDeleteTree, onEditTree, onPublish, onUnpublish, onMemoSave }) {
+export function TreeList({ trees, profile, onOpen, onPublic, onTrophy, onSettings, onNewTree, onSignOut, onDeleteTree, onEditTree, onPublish, onUnpublish, onMemoSave }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editTarget,      setEditTarget]      = useState(null);
   const [deleteTarget,    setDeleteTarget]    = useState(null);
@@ -553,6 +553,9 @@ export function TreeList({ trees, profile, onOpen, onPublic, onTrophy, onNewTree
           </button>
           <button onClick={onSignOut} style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: 18, padding: 2 }}>
             <i className="ti ti-logout" />
+          </button>
+          <button onClick={onSettings} style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: 18, padding: 2 }}>
+            <i className="ti ti-settings" />
           </button>
         </div>
       </div>
