@@ -215,6 +215,12 @@ export default function ShogiBoard({
   const stampsPropStr = JSON.stringify(stampsProp);
   useEffect(() => { setStamps(stampsProp); }, [stampsPropStr]); // eslint-disable-line
 
+  const hSentePropStr = JSON.stringify(hSenteProp);
+  useEffect(() => { setHandSente(hSenteProp); }, [hSentePropStr]); // eslint-disable-line
+
+  const hGotePropStr = JSON.stringify(hGoteProp);
+  useEffect(() => { setHandGote(hGoteProp); }, [hGotePropStr]); // eslint-disable-line
+
   // 再生中に表示する盤面・持ち駒（kifu スナップショットを参照）
   const playSnap    = playbackIdx !== null ? kifuProp[playbackIdx] : null;
   const dispBoard   = playSnap ? playSnap.board     : board;
