@@ -1,0 +1,16 @@
+{
+  "name": "ねっこ",
+  "short_name": "ねっこ",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d0800",
+  "theme_color": "#0d0800",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
