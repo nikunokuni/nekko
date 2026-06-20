@@ -112,7 +112,7 @@ export function BoardSection({ boardVisible, boardData, stamps, handSente, handG
             marginBottom:   12,
           }}
         >
-          <i className="ti ti-chess" style={{ fontSize: 24, color: T.gold }} />
+          <i className="ti ti-chess" style={{ fontSize: "1.5rem", color: T.gold }} />
           <span style={{ fontSize: T.fontSize.base, color: T.inkMid }}>タップして盤面を追加</span>
         </div>
       </div>
@@ -134,30 +134,30 @@ export function BoardSection({ boardVisible, boardData, stamps, handSente, handG
               background: tmplOpen ? T.goldLight : "none",
             }}
           >
-            <i className="ti ti-template" style={{ fontSize: 12 }} />テンプレート
+            <i className="ti ti-template" style={{ fontSize: "0.75rem" }} />テンプレート
           </button>
 
           {/* 非表示 */}
           <button onClick={onToggle} style={toolbarBtnStyle(T.gold)}>
-            <i className="ti ti-minus" style={{ fontSize: 12 }} />非表示
+            <i className="ti ti-minus" style={{ fontSize: "0.75rem" }} />非表示
           </button>
 
           {/* 元に戻す（編集開始時点の盤面に戻す） */}
           {canUndo && (
             <button onClick={onUndo} title="この画面を開いたときの盤面に戻す" style={toolbarBtnStyle(T.blue)}>
-              <i className="ti ti-history" style={{ fontSize: 12 }} />元に戻す
+              <i className="ti ti-history" style={{ fontSize: "0.75rem" }} />元に戻す
             </button>
           )}
 
           {/* 盤面を削除 */}
           <button onClick={onDelete} style={toolbarBtnStyle(T.gray, T.inkLine)}>
-            <i className="ti ti-trash" style={{ fontSize: 12 }} />盤面を削除
+            <i className="ti ti-trash" style={{ fontSize: "0.75rem" }} />盤面を削除
           </button>
 
           {/* 棋譜を削除 */}
           {kifu && kifu.length > 0 && (
             <button onClick={onKifuDelete} title="入力前の盤面に戻す" style={toolbarBtnStyle(T.gray, T.inkLine)}>
-              <i className="ti ti-arrow-back-up" style={{ fontSize: 12 }} />棋譜を削除
+              <i className="ti ti-arrow-back-up" style={{ fontSize: "0.75rem" }} />棋譜を削除
             </button>
           )}
         </div>
@@ -211,7 +211,7 @@ export function BoardSection({ boardVisible, boardData, stamps, handSente, handG
             fontSize:     T.fontSize.md,
             color:        T.blue,
           }}>
-            <i className="ti ti-copy" style={{ fontSize: 13 }} />
+            <i className="ti ti-copy" style={{ fontSize: "0.8125rem" }} />
             親ノード「{parentLabel}」の盤面を引き継いでいます
           </div>
         )}
@@ -288,7 +288,7 @@ export function TagPickerField({
         style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: noToggle ? "default" : "pointer" }}
       >
         <SectionLabel style={{ marginBottom: 5 }}>{label}</SectionLabel>
-        {!noToggle && <i className={`ti ti-chevron-${open ? "up" : "down"}`} style={{ fontSize: 13, color: T.inkMid }} />}
+        {!noToggle && <i className={`ti ti-chevron-${open ? "up" : "down"}`} style={{ fontSize: "0.8125rem", color: T.inkMid }} />}
       </div>
 
       {/* 選択済みタグ（閉じているときのプレビュー） */}
@@ -327,9 +327,9 @@ export function TagPickerField({
                     display: "flex", alignItems: "center", gap: 5,
                   }}
                 >
-                  {tagged && <i className="ti ti-check" style={{ fontSize: 11 }} />}
+                  {tagged && <i className="ti ti-check" style={{ fontSize: "0.6875rem" }} />}
                   {g.label}
-                  <i className={`ti ti-chevron-${open2 ? "up" : "down"}`} style={{ fontSize: 11, opacity: 0.6 }} />
+                  <i className={`ti ti-chevron-${open2 ? "up" : "down"}`} style={{ fontSize: "0.6875rem", opacity: 0.6 }} />
                 </div>
               );
             })}
@@ -358,7 +358,7 @@ export function TagPickerField({
                   title={`${activeGroup}に新しいタグを追加`}
                   style={{ padding: "6px 10px", borderRadius: 20, cursor: "pointer", border: `0.5px dashed ${T.inkLine}`, fontSize: T.fontSize.sm, color: T.inkFaint, background: "transparent", display: "flex", alignItems: "center", gap: 3 }}
                 >
-                  <i className="ti ti-plus" style={{ fontSize: 11 }} />追加
+                  <i className="ti ti-plus" style={{ fontSize: "0.6875rem" }} />追加
                 </div>
               ) : (
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -374,7 +374,7 @@ export function TagPickerField({
                     style={{ padding: "5px 10px", borderRadius: 20, border: `1px solid ${T.gold}`, fontSize: T.fontSize.base, color: T.ink, background: T.cream, fontFamily: T.fontSerif, outline: "none", width: 120 }}
                   />
                   <button onClick={confirmNewTag} style={{ background: T.gold, border: "none", borderRadius: 20, padding: "5px 12px", color: T.cream, fontSize: T.fontSize.base, cursor: "pointer", fontFamily: T.fontSerif }}>確定</button>
-                  <button onClick={() => { setAddingTag(false); setNewTagInput(""); }} style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: 16 }}><i className="ti ti-x" /></button>
+                  <button onClick={() => { setAddingTag(false); setNewTagInput(""); }} style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: "1rem" }}><i className="ti ti-x" /></button>
                 </div>
               )}
             </div>
@@ -409,13 +409,13 @@ export function LinkPicker({ candidates, pickerOpen, setPickerOpen, onPick, labe
       onMouseEnter={(e) => (e.currentTarget.style.background = hoverBg)}
       onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
     >
-      <i className={`ti ${icon}`} style={{ fontSize: 14 }} />{label}
+      <i className={`ti ${icon}`} style={{ fontSize: "0.875rem" }} />{label}
     </div>
   ) : (
     <div style={{ border: `0.5px solid ${T.inkLine}`, borderRadius: T.radius.sm, overflow: "hidden" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", borderBottom: `0.5px solid ${T.inkLineFaint}`, background: T.goldLight }}>
         <span style={{ fontSize: T.fontSize.sm, color: T.inkMid }}>{pickLabel}</span>
-        <button onClick={() => setPickerOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: T.gray, fontSize: 13 }}>
+        <button onClick={() => setPickerOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: T.gray, fontSize: "0.8125rem" }}>
           <i className="ti ti-x" />
         </button>
       </div>
@@ -450,9 +450,9 @@ export function MergeLinkList({ items, candidates, pickerOpen, setPickerOpen, on
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       {items.map((n) => (
         <div key={n.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: T.radius.sm, border: `0.5px solid ${T.purple}`, background: "#f3edf9" }}>
-          <i className="ti ti-arrow-merge" style={{ fontSize: 14, color: T.purple }} />
+          <i className="ti ti-arrow-merge" style={{ fontSize: "0.875rem", color: T.purple }} />
           <span style={{ fontSize: T.fontSize.base, color: T.ink, flex: 1 }}>{n.label}</span>
-          <button onClick={() => onRemove(n.id)} style={{ background: "none", border: "none", cursor: "pointer", color: T.gray, fontSize: 14, padding: 2 }}>
+          <button onClick={() => onRemove(n.id)} style={{ background: "none", border: "none", cursor: "pointer", color: T.gray, fontSize: "0.875rem", padding: 2 }}>
             <i className="ti ti-x" />
           </button>
         </div>

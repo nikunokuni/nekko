@@ -114,7 +114,7 @@ export function AuthScreen({ onAuth }) {
     }}>
       {/* ロゴ */}
       <div style={{ textAlign: "center", marginBottom: 40 }}>
-        <div style={{ fontFamily: T.fontTitle, fontSize: 42, color: "#e8d4a8", letterSpacing: "0.4em", marginBottom: 6 }}>
+        <div style={{ fontFamily: T.fontTitle, fontSize: "2.625rem", color: "#e8d4a8", letterSpacing: "0.4em", marginBottom: 6 }}>
           ね<span style={{ color: "#c8a96e" }}>っ</span>こ
         </div>
         <div style={{ fontSize: T.fontSize.base, color: "rgba(200,169,110,0.45)", letterSpacing: "0.2em" }}>将棋研究ノート</div>
@@ -183,7 +183,7 @@ export function AuthScreen({ onAuth }) {
         </button>
       </form>
 
-      <div style={{ marginTop: 20, fontSize: 11, color: "rgba(200,169,110,0.25)", textAlign: "center" }}>
+      <div style={{ marginTop: 20, fontSize: "0.6875rem", color: "rgba(200,169,110,0.25)", textAlign: "center" }}>
         Powered by Supabase
       </div>
     </div>
@@ -313,7 +313,7 @@ export function PublicTrees({ trees, profile, onBack, onCopy, onLike, onRefresh 
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "16px 14px 12px", borderBottom: "0.5px solid rgba(26,15,0,0.12)" }}>
         <BackBtn onClick={onBack} />
         <div style={{ fontFamily: T.fontTitle, fontSize: T.fontSize.h, color: T.ink, flex: 1 }}>みんなのツリー</div>
-        <button onClick={onRefresh} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: 18 }}>
+        <button onClick={onRefresh} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.125rem" }}>
           <i className="ti ti-refresh" />
         </button>
       </div>
@@ -341,7 +341,7 @@ export function PublicTrees({ trees, profile, onBack, onCopy, onLike, onRefresh 
       <div style={{ flex: 1, overflowY: "auto", padding: "0 16px 16px" }}>
         {filtered.length === 0 ? (
           <div style={{ textAlign: "center", padding: "50px 0", fontSize: T.fontSize.base, color: T.gray, fontFamily: T.fontSerif }}>
-            <i className="ti ti-mood-empty" style={{ fontSize: 32, display: "block", marginBottom: 10 }} />
+            <i className="ti ti-mood-empty" style={{ fontSize: "2rem", display: "block", marginBottom: 10 }} />
             見つかりませんでした
           </div>
         ) : (

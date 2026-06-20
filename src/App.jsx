@@ -40,6 +40,11 @@ export default function App() {
     localStorage.setItem("nekko_font_scale", String(scale));
   };
 
+  // 文字サイズ設定をルート要素のfont-sizeに反映（rem単位の基準値として使われる）
+  useEffect(() => {
+    document.documentElement.style.fontSize = `${16 * fontScale}px`;
+  }, [fontScale]);
+
   // ── Auth bootstrap ────────────────────────────
   useEffect(() => {
     getSession().then(s => setSession(s));
@@ -396,7 +401,7 @@ export default function App() {
   if (session === undefined) {
     return (
       <div style={{ minHeight:"100dvh", background:"#0d0800", display:"flex", alignItems:"center", justifyContent:"center" }}>
-        <div style={{ color:"rgba(200,169,110,0.4)", fontSize:14, letterSpacing:"0.2em" }}>読み込み中...</div>
+        <div style={{ color:"rgba(200,169,110,0.4)", fontSize:"0.875rem", letterSpacing:"0.2em" }}>読み込み中...</div>
       </div>
     );
   }
@@ -404,7 +409,7 @@ export default function App() {
 
   // ── レンダリング ─────────────────────────────
   return (
-    <div style={{ height:"100dvh", background:"#faf4e8", display:"flex", flexDirection:"column", zoom: fontScale }}>
+    <div style={{ height:"100dvh", background:"#faf4e8", display:"flex", flexDirection:"column" }}>
 
       {/* 金曜夜トースト（全画面共通） */}
       {fridayToast && (
@@ -416,7 +421,7 @@ export default function App() {
           zIndex:       200,
           background:   "rgba(26,15,0,0.88)",
           color:        "#faf4e8",
-          fontSize:     14,
+          fontSize:     "0.875rem",
           fontFamily:   "'Noto Serif JP', serif",
           padding:      "10px 20px",
           borderRadius: 24,
@@ -426,7 +431,7 @@ export default function App() {
           gap:          8,
           boxShadow:    "0 4px 20px rgba(26,15,0,0.3)",
         }}>
-          <i className="ti ti-book" style={{ fontSize: 14 }} />
+          <i className="ti ti-book" style={{ fontSize: "0.875rem" }} />
           {fridayToast}
         </div>
       )}
@@ -434,7 +439,7 @@ export default function App() {
       <div style={{ flex:1, overflow:"hidden", position:"relative", minHeight:0 }}>
         {loading && (
           <div style={{ position:"absolute", inset:0, background:"rgba(250,244,232,0.8)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:100 }}>
-            <div style={{ color:"#a07840", fontSize:13, letterSpacing:"0.15em" }}>読み込み中...</div>
+            <div style={{ color:"#a07840", fontSize:"0.8125rem", letterSpacing:"0.15em" }}>読み込み中...</div>
           </div>
         )}
 

@@ -75,7 +75,7 @@ function CreateTreeModal({ onClose, onCreate }) {
               color: T.gold, fontSize: T.fontSize.base, fontFamily: T.fontSerif,
             }}
           >
-            <i className="ti ti-file-upload" style={{ fontSize: 14 }} />
+            <i className="ti ti-file-upload" style={{ fontSize: "0.875rem" }} />
             {kifuFileName || "KIF / CSA ファイルを選択"}
           </label>
           <input
@@ -87,7 +87,7 @@ function CreateTreeModal({ onClose, onCreate }) {
           />
           {kifuSnapshots && (
             <div style={{ marginTop: 8, fontSize: T.fontSize.sm, color: T.green, fontFamily: T.fontSerif }}>
-              <i className="ti ti-check" style={{ fontSize: 12 }} /> {kifuSnapshots.length - 1}手の棋譜を読み込みました
+              <i className="ti ti-check" style={{ fontSize: "0.75rem" }} /> {kifuSnapshots.length - 1}手の棋譜を読み込みました
             </div>
           )}
           {kifuError && (
@@ -177,7 +177,7 @@ function EditTreeModal({ tree, onClose, onSave, onPublish, onUnpublish }) {
             onChange={(e) => setName(e.target.value)}
             onBlur={handleNameBlur}
             placeholder="例：中飛車"
-            style={{ width: "100%", boxSizing: "border-box", border: `0.5px solid rgba(26,15,0,0.2)`, borderRadius: "10px", padding: "11px 14px", fontSize: "15px", color: "#1a0f00", background: "#fff8ee", fontFamily: "'Noto Serif JP', serif", outline: "none" }}
+            style={{ width: "100%", boxSizing: "border-box", border: `0.5px solid rgba(26,15,0,0.2)`, borderRadius: "10px", padding: "11px 14px", fontSize: "0.9375rem", color: "#1a0f00", background: "#fff8ee", fontFamily: "'Noto Serif JP', serif", outline: "none" }}
             onFocus={(e) => (e.target.style.borderColor = "#c8a96e")}
           />
         </div>
@@ -198,7 +198,7 @@ function EditTreeModal({ tree, onClose, onSave, onPublish, onUnpublish }) {
                     padding:    "9px",
                     borderRadius: "10px",
                     cursor:     "pointer",
-                    fontSize:   "14px",
+                    fontSize:   "0.875rem",
                     fontFamily: "'Noto Serif JP', serif",
                     transition: "all 0.15s",
                     border:     selected ? `1.5px solid #c8a96e` : `0.5px solid rgba(26,15,0,0.15)`,
@@ -216,7 +216,7 @@ function EditTreeModal({ tree, onClose, onSave, onPublish, onUnpublish }) {
 
         {/* 公開ボタン / 公開取り消しボタン */}
         {publishError && (
-          <div style={{ fontSize: "12px", color: "#c0392b", marginBottom: 8, textAlign: "center" }}>
+          <div style={{ fontSize: "0.75rem", color: "#c0392b", marginBottom: 8, textAlign: "center" }}>
             {publishError}
           </div>
         )}
@@ -227,18 +227,18 @@ function EditTreeModal({ tree, onClose, onSave, onPublish, onUnpublish }) {
             style={{
               width: "100%", padding: 11, borderRadius: "12px",
               border: `0.5px solid #3B6D11`, background: "#EAF3DE", color: "#3B6D11",
-              fontSize: "14px", fontFamily: "'Noto Serif JP', serif", fontWeight: 600,
+              fontSize: "0.875rem", fontFamily: "'Noto Serif JP', serif", fontWeight: 600,
               cursor: publishing ? "default" : "pointer", marginBottom: 10,
               display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
             }}
           >
-            <i className="ti ti-world" style={{ fontSize: 14 }} />
+            <i className="ti ti-world" style={{ fontSize: "0.875rem" }} />
             {publishing ? "公開中..." : "このツリーを公開する"}
           </button>
         ) : (
           <div style={{ marginBottom: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: "12px", color: "#3B6D11", padding: "4px 0 8px" }}>
-              <i className="ti ti-world-check" style={{ fontSize: 13 }} /> 公開中
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: "0.75rem", color: "#3B6D11", padding: "4px 0 8px" }}>
+              <i className="ti ti-world-check" style={{ fontSize: "0.8125rem" }} /> 公開中
             </div>
             <button
               onClick={handleUnpublish}
@@ -246,13 +246,13 @@ function EditTreeModal({ tree, onClose, onSave, onPublish, onUnpublish }) {
               style={{
                 width: "100%", padding: 9, borderRadius: "12px",
                 border: `0.5px solid rgba(26,15,0,0.15)`, background: "transparent",
-                color: "rgba(26,15,0,0.45)", fontSize: "13px",
+                color: "rgba(26,15,0,0.45)", fontSize: "0.8125rem",
                 fontFamily: "'Noto Serif JP', serif",
                 cursor: unpublishing ? "default" : "pointer",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
               }}
             >
-              <i className="ti ti-world-off" style={{ fontSize: 13 }} />
+              <i className="ti ti-world-off" style={{ fontSize: "0.8125rem" }} />
               {unpublishing ? "取り消し中..." : "公開を取り消す"}
             </button>
           </div>
@@ -264,7 +264,7 @@ function EditTreeModal({ tree, onClose, onSave, onPublish, onUnpublish }) {
           style={{
             width: "100%", padding: 11, borderRadius: "12px",
             border: `0.5px solid rgba(26,15,0,0.15)`, background: "transparent",
-            color: "rgba(26,15,0,0.45)", fontSize: "14px",
+            color: "rgba(26,15,0,0.45)", fontSize: "0.875rem",
             fontFamily: "'Noto Serif JP', serif", cursor: "pointer", marginTop: 4,
           }}
         >
@@ -309,7 +309,7 @@ function DeleteTreeModal({ tree, onClose, onConfirm }) {
         {/* ゴミ箱アイコン */}
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
           <div style={{ width: 48, height: 48, borderRadius: 24, background: T.redBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <i className="ti ti-trash" style={{ fontSize: 22, color: T.red }} />
+            <i className="ti ti-trash" style={{ fontSize: "1.375rem", color: T.red }} />
           </div>
         </div>
 
@@ -386,7 +386,7 @@ export function TreeCard({ tree, onOpen, onEdit, onDelete, onMemoSave }) {
           <button
             onClick={handleMemoToggle}
             title={memoValue || "一言メモ"}
-            style={{ background: "none", border: "none", cursor: "pointer", color: memoValue ? T.gold : T.inkFaint, fontSize: 16, padding: "2px 4px", borderRadius: 6, lineHeight: 1 }}
+            style={{ background: "none", border: "none", cursor: "pointer", color: memoValue ? T.gold : T.inkFaint, fontSize: "1rem", padding: "2px 4px", borderRadius: 6, lineHeight: 1 }}
           >
             <i className="ti ti-notes" />
           </button>
@@ -412,7 +412,7 @@ export function TreeCard({ tree, onOpen, onEdit, onDelete, onMemoSave }) {
 
           <button
             onClick={handleMenuToggle}
-            style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: 16, padding: "2px 4px", borderRadius: 6, lineHeight: 1 }}
+            style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: "1rem", padding: "2px 4px", borderRadius: 6, lineHeight: 1 }}
           >
             <i className="ti ti-dots-vertical" />
           </button>
@@ -493,7 +493,7 @@ export function TreeCard({ tree, onOpen, onEdit, onDelete, onMemoSave }) {
               onMouseEnter={(e) => (e.currentTarget.style.background = T.goldLight)}
               onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
             >
-              <i className="ti ti-pencil" style={{ fontSize: 14, color: T.gold }} />編集
+              <i className="ti ti-pencil" style={{ fontSize: "0.875rem", color: T.gold }} />編集
             </div>
             <div style={{ height: "0.5px", background: T.inkLineFaint }} />
             <div
@@ -502,7 +502,7 @@ export function TreeCard({ tree, onOpen, onEdit, onDelete, onMemoSave }) {
               onMouseEnter={(e) => (e.currentTarget.style.background = T.redBg)}
               onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
             >
-              <i className="ti ti-trash" style={{ fontSize: 14 }} />削除
+              <i className="ti ti-trash" style={{ fontSize: "0.875rem" }} />削除
             </div>
           </div>
         </>
@@ -528,7 +528,7 @@ export function TreeList({ trees, profile, onOpen, onPublic, onTrophy, onSetting
       {/* ── ヘッダー ── */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px 12px", borderBottom: `0.5px solid rgba(26,15,0,0.12)` }}>
         <div>
-          <div style={{ fontFamily: T.fontTitle, fontSize: 22, color: T.ink, letterSpacing: "0.2em" }}>
+          <div style={{ fontFamily: T.fontTitle, fontSize: "1.375rem", color: T.ink, letterSpacing: "0.2em" }}>
             ね<span style={{ color: T.gold }}>っ</span>こ
           </div>
           {profile && (
@@ -539,22 +539,22 @@ export function TreeList({ trees, profile, onOpen, onPublic, onTrophy, onSetting
         </div>
 
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <button onClick={onPublic} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: 20, padding: 2 }}>
+          <button onClick={onPublic} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
             <i className="ti ti-world" />
           </button>
-          <button onClick={onTrophy} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: 20, padding: 2 }}>
+          <button onClick={onTrophy} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
             <i className="ti ti-trophy" />
           </button>
           <button
             onClick={() => setShowCreateModal(true)}
             style={{ background: T.gold, border: "none", cursor: "pointer", color: T.cream, fontSize: T.fontSize.lg, padding: "6px 14px", borderRadius: T.radius.md, fontFamily: T.fontSerif, display: "flex", alignItems: "center", gap: 4 }}
           >
-            <i className="ti ti-plus" style={{ fontSize: 13 }} /> 新規
+            <i className="ti ti-plus" style={{ fontSize: "0.8125rem" }} /> 新規
           </button>
-          <button onClick={onSignOut} style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: 18, padding: 2 }}>
+          <button onClick={onSignOut} style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: "1.125rem", padding: 2 }}>
             <i className="ti ti-logout" />
           </button>
-          <button onClick={onSettings} style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: 18, padding: 2 }}>
+          <button onClick={onSettings} style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: "1.125rem", padding: 2 }}>
             <i className="ti ti-settings" />
           </button>
         </div>
@@ -564,7 +564,7 @@ export function TreeList({ trees, profile, onOpen, onPublic, onTrophy, onSetting
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
         {trees.length === 0 ? (
           <div style={{ textAlign: "center", padding: "60px 0", color: T.inkFaint, fontSize: T.fontSize.lg }}>
-            <i className="ti ti-plant" style={{ fontSize: 40, display: "block", marginBottom: 12 }} />
+            <i className="ti ti-plant" style={{ fontSize: "2.5rem", display: "block", marginBottom: 12 }} />
             ツリーがまだありません<br />
             <span style={{ fontSize: T.fontSize.md }}>「新規」から最初のツリーを作りましょう</span>
           </div>

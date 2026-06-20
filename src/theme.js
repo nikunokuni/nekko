@@ -45,7 +45,8 @@ export const T = {
 
   // ── 角丸・サイズ ─────────────────────────────────
   radius:     { sm: 8, md: 10, lg: 12, xl: 20 },
-  fontSize:   { xs: 9, sm: 10, md: 11, base: 12, lg: 13, xl: 14, xxl: 15, h: 16 },
+  // rem基準（ルートのfont-sizeは16px×文字サイズ設定で動的に変わる）
+  fontSize:   { xs: "0.5625rem", sm: "0.625rem", md: "0.6875rem", base: "0.75rem", lg: "0.8125rem", xl: "0.875rem", xxl: "0.9375rem", h: "1rem" },
 };
 
 

@@ -334,7 +334,7 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: T.cream, position: "relative" }}>
       {/* ── トップバー ── */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 14px 10px", borderBottom: `0.5px solid ${T.inkLine}` }}>
-        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: 18, padding: 2, lineHeight: 1 }}>
+        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.125rem", padding: 2, lineHeight: 1 }}>
           <i className="ti ti-chevron-left" />
         </button>
         <div style={{ flex: 1 }}>
@@ -535,7 +535,7 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
                 width: 38, height: 38, border: "none",
                 borderTop: i > 0 ? `0.5px solid ${T.inkLine}` : "none",
                 background: "transparent", cursor: "pointer",
-                color: T.gold, fontSize: 16,
+                color: T.gold, fontSize: "1rem",
                 display: "flex", alignItems: "center", justifyContent: "center",
               }}
             >
@@ -567,7 +567,7 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
               boxShadow:    "0 2px 10px rgba(26,15,0,0.12)",
             }}
           >
-            <i className="ti ti-arrow-back-up" style={{ fontSize: 14 }} />
+            <i className="ti ti-arrow-back-up" style={{ fontSize: "0.875rem" }} />
             元に戻す
           </button>
         )}
@@ -595,7 +595,7 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
         }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 14px 10px", borderBottom: `0.5px solid ${T.inkLine}`, flexShrink: 0 }}>
             <span style={{ fontFamily: T.fontTitle, fontSize: T.fontSize.xl, color: T.ink, letterSpacing: "0.2em" }}>目次</span>
-            <button onClick={() => setDrawerOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: 16 }}>
+            <button onClick={() => setDrawerOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1rem" }}>
               <i className="ti ti-x" />
             </button>
           </div>
@@ -606,7 +606,7 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
           {/* 一言メモ */}
           <div style={{ borderTop: `0.5px solid ${T.inkLine}`, padding: "12px 14px", flexShrink: 0 }}>
             <div style={{ fontSize: T.fontSize.sm, color: T.inkFaint, fontFamily: T.fontSerif, marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
-              <i className="ti ti-notes" style={{ fontSize: 12 }} />一言メモ
+              <i className="ti ti-notes" style={{ fontSize: "0.75rem" }} />一言メモ
             </div>
             <textarea
               value={memoValue}

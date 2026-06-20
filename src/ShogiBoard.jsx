@@ -148,7 +148,7 @@ function NavBtn({ onClick, disabled, icon }) {
         width:32, height:32, flexShrink:0, borderRadius:6, border:'0.5px solid rgba(26,15,0,0.18)',
         background:'#faf4e8', cursor: disabled ? 'default' : 'pointer',
         color: disabled ? '#ccc' : '#a07840',
-        fontSize:16, display:'flex', alignItems:'center', justifyContent:'center',
+        fontSize:"1rem", display:'flex', alignItems:'center', justifyContent:'center',
       }}
     >
       <i className={`ti ${icon}`}/>
@@ -163,8 +163,8 @@ function HandArea({ hand, isSente, selectedHand, onSelectPiece, readOnly }) {
     <div style={{ minHeight:40, background:'#f0e6cc', borderRadius:6, padding:'4px 8px',
       marginBottom:4, display:'flex', alignItems:'center', gap:4, flexWrap:'wrap',
       border:'1px solid rgba(120,80,10,0.2)' }}>
-      <span style={{ fontSize:10, color:'rgba(26,15,0,0.45)', minWidth:60 }}>{label}</span>
-      {pieces.length === 0 && <span style={{ fontSize:11, color:'rgba(26,15,0,0.3)' }}>なし</span>}
+      <span style={{ fontSize:"0.625rem", color:'rgba(26,15,0,0.45)', minWidth:60 }}>{label}</span>
+      {pieces.length === 0 && <span style={{ fontSize:"0.6875rem", color:'rgba(26,15,0,0.3)' }}>なし</span>}
       {pieces.map(k => (
         <HandPiece key={k} k={k} count={hand[k]} isSente={isSente}
           isSelected={selectedHand?.piece === k && selectedHand?.isSente === isSente}
@@ -434,7 +434,7 @@ export default function ShogiBoard({
 
   const btnStyle = (active) => ({
     display: 'flex', alignItems: 'center', gap: 4,
-    padding: '4px 9px', borderRadius: 8, fontSize: 11, cursor: 'pointer',
+    padding: '4px 9px', borderRadius: 8, fontSize: "0.6875rem", cursor: 'pointer',
     border: '0.5px solid', fontFamily: "'Noto Serif JP',serif",
     borderColor: active ? '#a07840' : 'rgba(26,15,0,0.18)',
     background:  active ? '#f0e8d4' : '#faf4e8',
@@ -449,7 +449,7 @@ export default function ShogiBoard({
         <div style={{ display:'flex', gap:6, marginBottom:6, flexWrap:'wrap', alignItems:'center' }}>
           {[['move','動かす','ti-arrows-move'],['stamp','スタンプ','ti-stamp'],['erase','消す','ti-eraser']].map(([t,lbl,icon]) => (
             <button key={t} onClick={() => { setTool(t); setSelected(null); setSelectedHand(null); setArrowStart(null); }} style={btnStyle(tool===t)}>
-              <i className={`ti ${icon}`} style={{fontSize:13}}/>{lbl}
+              <i className={`ti ${icon}`} style={{fontSize:"0.8125rem"}}/>{lbl}
             </button>
           ))}
 
@@ -459,11 +459,11 @@ export default function ShogiBoard({
               <button onClick={startRecording} style={{
                 ...btnStyle(false), borderColor:'#854F0B', color:'#854F0B', gap:5,
               }}>
-                <i className="ti ti-record-mail" style={{fontSize:13}}/>棋譜を記録
+                <i className="ti ti-record-mail" style={{fontSize:"0.8125rem"}}/>棋譜を記録
               </button>
             ) : (
               <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                <span style={{ fontSize:11, color:'#A93226', fontFamily:"'Noto Serif JP',serif", display:'flex', alignItems:'center', gap:4 }}>
+                <span style={{ fontSize:"0.6875rem", color:'#A93226', fontFamily:"'Noto Serif JP',serif", display:'flex', alignItems:'center', gap:4 }}>
                   <span style={{ width:7, height:7, borderRadius:'50%', background:'#A93226', display:'inline-block' }}/>
                   {recordingRef.current.snaps.length - 1}手
                 </span>
@@ -481,12 +481,12 @@ export default function ShogiBoard({
       {/* スタンプ選択 */}
       {!readOnly && tool === 'stamp' && playbackIdx === null && (
         <div style={{ display:'flex', gap:5, marginBottom:6, alignItems:'center', flexWrap:'wrap' }}>
-          <span style={{fontSize:10,color:'rgba(26,15,0,0.5)'}}>スタンプ：</span>
+          <span style={{fontSize:"0.625rem",color:'rgba(26,15,0,0.5)'}}>スタンプ：</span>
           {Object.entries(STAMP_CHAR).map(([k,ch]) => (
             <div key={k} onClick={() => { setCurrentStamp(k); setArrowStart(null); }} style={{
               width:28, height:28, borderRadius:'50%', cursor:'pointer',
               display:'flex', alignItems:'center', justifyContent:'center',
-              fontSize:14, color:STAMP_COLOR[k], background:'#faf4e8',
+              fontSize:"0.875rem", color:STAMP_COLOR[k], background:'#faf4e8',
               border: currentStamp===k ? `1.5px solid ${STAMP_COLOR[k]}` : '1.5px solid transparent',
             }}>{ch}</div>
           ))}
@@ -538,7 +538,7 @@ export default function ShogiBoard({
             onClick={() => setPlaybackIdx(idx => idx === null ? moveCount : Math.max(0, idx - 1))} />
 
           {/* 手数表示 */}
-          <div style={{ fontFamily:"'Noto Serif JP',serif", fontSize:12, color:'#1a0f00', minWidth:80, flexShrink:0, whiteSpace:'nowrap', textAlign:'center' }}>
+          <div style={{ fontFamily:"'Noto Serif JP',serif", fontSize:"0.75rem", color:'#1a0f00', minWidth:80, flexShrink:0, whiteSpace:'nowrap', textAlign:'center' }}>
             {playbackIdx === null
               ? <span style={{color:'rgba(26,15,0,0.4)'}}>棋譜 {moveCount}手</span>
               : playbackIdx === 0
@@ -559,7 +559,7 @@ export default function ShogiBoard({
           {playbackIdx !== null && (
             <button onClick={() => setPlaybackIdx(null)} style={{
               padding:'3px 8px', borderRadius:6, border:'0.5px solid rgba(26,15,0,0.18)',
-              background:'transparent', cursor:'pointer', fontSize:10, flexShrink:0, whiteSpace:'nowrap',
+              background:'transparent', cursor:'pointer', fontSize:"0.625rem", flexShrink:0, whiteSpace:'nowrap',
               color:'rgba(26,15,0,0.5)', fontFamily:"'Noto Serif JP',serif",
             }}>
               ✕ 閉じる
@@ -576,16 +576,16 @@ export default function ShogiBoard({
             display:'flex', alignItems:'center', justifyContent:'center', gap:6,
             width:'100%', marginTop:8, padding:'8px 12px', borderRadius:8,
             border:'0.5px solid #a07840', background:'#f0e8d4', color:'#1a0f00',
-            fontSize:12, cursor:'pointer', fontFamily:"'Noto Serif JP',serif",
+            fontSize:"0.75rem", cursor:'pointer', fontFamily:"'Noto Serif JP',serif",
           }}
         >
-          <i className="ti ti-git-branch" style={{fontSize:13}}/>この局面で分岐
+          <i className="ti ti-git-branch" style={{fontSize:"0.8125rem"}}/>この局面で分岐
         </button>
       )}
 
       {/* ヒント文 */}
       {!readOnly && playbackIdx === null && (
-        <div style={{fontSize:10,color:'#B4B2A9',marginTop:4,textAlign:'center'}}>
+        <div style={{fontSize:"0.625rem",color:'#B4B2A9',marginTop:4,textAlign:'center'}}>
           {isRecording
             ? '駒を動かすと手順が記録されます'
             : tool==='move' ? '駒をタップして選択 → 移動先をタップ'
@@ -604,15 +604,15 @@ export default function ShogiBoard({
           <div style={{ background:'#faf4e8', borderRadius:12, padding:'24px 28px',
             textAlign:'center', fontFamily:"'Noto Serif JP',serif",
             boxShadow:'0 4px 24px rgba(0,0,0,0.3)', minWidth:200 }}>
-            <div style={{fontSize:15,marginBottom:16,color:'#1a0f00'}}>成りますか？</div>
+            <div style={{fontSize:"0.9375rem",marginBottom:16,color:'#1a0f00'}}>成りますか？</div>
             <div style={{display:'flex',gap:12,justifyContent:'center'}}>
               <button onClick={() => confirmPromotion(true)} style={{
                 padding:'8px 20px', borderRadius:8, border:'none',
-                background:'#a07840', color:'#fff', fontSize:13,
+                background:'#a07840', color:'#fff', fontSize:"0.8125rem",
                 cursor:'pointer', fontFamily:"'Noto Serif JP',serif" }}>成る</button>
               <button onClick={() => confirmPromotion(false)} style={{
                 padding:'8px 20px', borderRadius:8, border:'1px solid rgba(26,15,0,0.25)',
-                background:'#faf4e8', color:'#1a0f00', fontSize:13,
+                background:'#faf4e8', color:'#1a0f00', fontSize:"0.8125rem",
                 cursor:'pointer', fontFamily:"'Noto Serif JP',serif" }}>成らない</button>
             </div>
           </div>

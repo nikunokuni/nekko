@@ -17,7 +17,7 @@ import { SectionLabel, BoardSection, MergeLinkList, LinkPicker, TagPickerField }
 function SectionHeader({ icon, children }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "14px 16px 8px", fontSize: T.fontSize.base, fontWeight: 600, color: T.inkMid, letterSpacing: "0.04em", fontFamily: T.fontSerif }}>
-      <i className={`ti ${icon}`} style={{ fontSize: 13, color: T.gold }} />{children}
+      <i className={`ti ${icon}`} style={{ fontSize: "0.8125rem", color: T.gold }} />{children}
     </div>
   );
 }
@@ -345,7 +345,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
           gap:          6,
           boxShadow:    "0 4px 16px rgba(26,15,0,0.25)",
         }}>
-          <i className="ti ti-check" style={{ fontSize: 13 }} />{toast}
+          <i className="ti ti-check" style={{ fontSize: "0.8125rem" }} />{toast}
         </div>
       )}
 
@@ -380,14 +380,14 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
                     onMouseEnter={(e) => (e.currentTarget.style.background = T.goldLight)}
                     onMouseLeave={(e) => (e.currentTarget.style.background = T.cream)}
                   >
-                    <i className="ti ti-corner-left-up" style={{ fontSize: 14, color: T.gray }} />
+                    <i className="ti ti-corner-left-up" style={{ fontSize: "0.875rem", color: T.gray }} />
                     <span style={{ fontSize: T.fontSize.base, color: T.ink, flex: 1 }}>{parent.label}</span>
-                    <i className="ti ti-chevron-right" style={{ fontSize: 14, color: T.gray }} />
+                    <i className="ti ti-chevron-right" style={{ fontSize: "0.875rem", color: T.gray }} />
                   </div>
                 )}
                 {parent && node.branchFromMoveIndex != null && (
                   <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px" }}>
-                    <i className="ti ti-git-branch" style={{ fontSize: 13, color: T.gray }} />
+                    <i className="ti ti-git-branch" style={{ fontSize: "0.8125rem", color: T.gray }} />
                     <span style={{ fontSize: T.fontSize.sm, color: T.gray }}>
                       {node.branchFromMoveIndex === 0
                         ? `「${parent.label}」の初期局面から分岐`
@@ -401,7 +401,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
                   onClick={() => setParentDetailsOpen((v) => !v)}
                   style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 4px", marginTop: 2, cursor: "pointer", color: T.inkFaint, fontSize: T.fontSize.sm, fontFamily: T.fontSerif }}
                 >
-                  <i className="ti ti-chevron-right" style={{ fontSize: 11, transition: "transform 0.15s", transform: parentDetailsOpen ? "rotate(90deg)" : "none" }} />
+                  <i className="ti ti-chevron-right" style={{ fontSize: "0.6875rem", transition: "transform 0.15s", transform: parentDetailsOpen ? "rotate(90deg)" : "none" }} />
                   その他の操作（合流・親の変更）
                 </div>
 
@@ -567,7 +567,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
         <div onClick={() => setAddOpen((v) => !v)} style={{ cursor: "pointer" }}>
           <SectionHeader icon="ti-adjustments">
             {addIncomplete && <span style={{ color: T.gold, marginRight: 4 }}>・</span>}ついか
-            <i className={`ti ti-chevron-${addOpen ? "up" : "down"}`} style={{ fontSize: 13, color: T.inkMid, marginLeft: "auto" }} />
+            <i className={`ti ti-chevron-${addOpen ? "up" : "down"}`} style={{ fontSize: "0.8125rem", color: T.inkMid, marginLeft: "auto" }} />
           </SectionHeader>
         </div>
 
@@ -702,7 +702,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
           style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 16px 6px", cursor: "pointer" }}
         >
           <SectionLabel style={{ marginBottom: 0 }}>コメント</SectionLabel>
-          <i className={`ti ti-chevron-${commentOpen ? "up" : "down"}`} style={{ fontSize: 13, color: T.inkMid }} />
+          <i className={`ti ti-chevron-${commentOpen ? "up" : "down"}`} style={{ fontSize: "0.8125rem", color: T.inkMid }} />
         </div>
 
         {commentOpen && <>
@@ -761,7 +761,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
                   <span style={{ fontSize: T.fontSize.base, color: T.ink, flex: 1 }}>{child.label}</span>
                   {child.isMergeTarget && <MergeTag />}
                   <StatusChip status={child.status} />
-                  <i className="ti ti-chevron-right" style={{ fontSize: 14, color: T.gray }} />
+                  <i className="ti ti-chevron-right" style={{ fontSize: "0.875rem", color: T.gray }} />
                 </div>
               );
             })}
@@ -773,7 +773,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
               onMouseEnter={(e) => (e.currentTarget.style.background = T.goldLight)}
               onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
             >
-              <i className="ti ti-git-branch" style={{ fontSize: 14 }} />ここから分岐を追加
+              <i className="ti ti-git-branch" style={{ fontSize: "0.875rem" }} />ここから分岐を追加
             </div>
 
             {/* その他の操作（合流・子の変更）── デフォルト非表示 */}
@@ -782,7 +782,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
                 onClick={() => setChildDetailsOpen((v) => !v)}
                 style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 4px", marginTop: 2, cursor: "pointer", color: T.inkFaint, fontSize: T.fontSize.sm, fontFamily: T.fontSerif }}
               >
-                <i className="ti ti-chevron-right" style={{ fontSize: 11, transition: "transform 0.15s", transform: childDetailsOpen ? "rotate(90deg)" : "none" }} />
+                <i className="ti ti-chevron-right" style={{ fontSize: "0.6875rem", transition: "transform 0.15s", transform: childDetailsOpen ? "rotate(90deg)" : "none" }} />
                 その他の操作（合流・子の変更）
               </div>
             )}
@@ -830,7 +830,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
                   onClick={() => setDeleteConfirm(true)}
                   style={{ width: "100%", padding: "9px", borderRadius: T.radius.md, border: `0.5px solid ${T.red}`, background: T.redBg, color: T.red, fontSize: T.fontSize.base, fontFamily: T.fontSerif, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
                 >
-                  <i className="ti ti-trash" style={{ fontSize: 13 }} />
+                  <i className="ti ti-trash" style={{ fontSize: "0.8125rem" }} />
                   このノードを削除する
                 </button>
               ) : (

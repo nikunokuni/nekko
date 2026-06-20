@@ -15,10 +15,10 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange }) {
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: T.cream }}>
       {/* ヘッダー */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "16px 18px 12px", borderBottom: `0.5px solid ${T.inkLine}` }}>
-        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: 18, padding: 2, lineHeight: 1 }}>
+        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.125rem", padding: 2, lineHeight: 1 }}>
           <i className="ti ti-chevron-left" />
         </button>
-        <div style={{ flex: 1, fontFamily: T.fontTitle, fontSize: 18, color: T.ink, letterSpacing: "0.1em" }}>
+        <div style={{ flex: 1, fontFamily: T.fontTitle, fontSize: "1.125rem", color: T.ink, letterSpacing: "0.1em" }}>
           設定
         </div>
       </div>
@@ -69,7 +69,7 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange }) {
               borderBottom: `0.5px solid ${T.inkLineFaint}`,
             }}
           >
-            <i className="ti ti-help-circle" style={{ fontSize: 16, color: T.inkFaint }} />
+            <i className="ti ti-help-circle" style={{ fontSize: "1rem", color: T.inkFaint }} />
             <span style={{ flex: 1 }}>使い方</span>
             <span style={{ fontSize: T.fontSize.sm }}>準備中</span>
           </div>
@@ -87,9 +87,9 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange }) {
               borderBottom: `0.5px solid ${T.inkLineFaint}`,
             }}
           >
-            <i className="ti ti-brand-x" style={{ fontSize: 16, color: T.gold }} />
+            <i className="ti ti-brand-x" style={{ fontSize: "1rem", color: T.gold }} />
             <span style={{ flex: 1 }}>作った人へのリンク</span>
-            <i className="ti ti-external-link" style={{ fontSize: 14, color: T.inkFaint }} />
+            <i className="ti ti-external-link" style={{ fontSize: "0.875rem", color: T.inkFaint }} />
           </a>
           <div
             style={{
@@ -100,7 +100,7 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange }) {
               fontFamily: T.fontSerif,
             }}
           >
-            <i className="ti ti-message-2" style={{ fontSize: 16, color: T.inkFaint }} />
+            <i className="ti ti-message-2" style={{ fontSize: "1rem", color: T.inkFaint }} />
             <span style={{ flex: 1 }}>ご意見・感想・バグ報告</span>
             <span style={{ fontSize: T.fontSize.sm }}>準備中</span>
           </div>

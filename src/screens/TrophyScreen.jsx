@@ -39,10 +39,10 @@ export function TrophyScreen({ onBack, treeCount, nodeCount, loginStats, extraSt
       {showConfetti && <Confetti />}
       {/* ヘッダー */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "16px 18px 12px", borderBottom: `0.5px solid ${T.inkLine}` }}>
-        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: 18, padding: 2, lineHeight: 1 }}>
+        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.125rem", padding: 2, lineHeight: 1 }}>
           <i className="ti ti-chevron-left" />
         </button>
-        <div style={{ flex: 1, fontFamily: T.fontTitle, fontSize: 18, color: T.ink, letterSpacing: "0.1em" }}>
+        <div style={{ flex: 1, fontFamily: T.fontTitle, fontSize: "1.125rem", color: T.ink, letterSpacing: "0.1em" }}>
           トロフィー
         </div>
         <span style={{ fontSize: T.fontSize.base, color: T.gold, fontFamily: T.fontSerif }}>
@@ -64,9 +64,9 @@ export function TrophyScreen({ onBack, treeCount, nodeCount, loginStats, extraSt
                 display: "flex", flexDirection: "column", gap: 4,
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: T.fontSize.md, color: T.inkMid }}>
-                  <i className={`ti ${s.icon}`} style={{ fontSize: 13, color: T.gold }} />{s.label}
+                  <i className={`ti ${s.icon}`} style={{ fontSize: "0.8125rem", color: T.gold }} />{s.label}
                 </div>
-                <div style={{ fontSize: 26, fontWeight: 700, color: T.ink, fontFamily: T.fontTitle, lineHeight: 1.1 }}>
+                <div style={{ fontSize: "1.625rem", fontWeight: 700, color: T.ink, fontFamily: T.fontTitle, lineHeight: 1.1 }}>
                   {s.value}
                   <span style={{ fontSize: T.fontSize.md, fontWeight: 400, color: T.inkMid, marginLeft: 3 }}>{s.unit}</span>
                 </div>
@@ -98,13 +98,13 @@ export function TrophyScreen({ onBack, treeCount, nodeCount, loginStats, extraSt
                     display: "flex", alignItems: "center", justifyContent: "center",
                     border: earned ? `1.5px solid ${b.color}55` : "none",
                   }}>
-                    <i className={`ti ${b.icon}`} style={{ fontSize: 22, color: earned ? b.color : T.gray }} />
+                    <i className={`ti ${b.icon}`} style={{ fontSize: "1.375rem", color: earned ? b.color : T.gray }} />
                   </div>
 
                   {/* 未獲得ロック */}
                   {!earned && (
                     <div style={{ position: "absolute", top: 9, right: 9 }}>
-                      <i className="ti ti-lock" style={{ fontSize: 10, color: T.gray }} />
+                      <i className="ti ti-lock" style={{ fontSize: "0.625rem", color: T.gray }} />
                     </div>
                   )}
                   {/* 獲得チェック */}
@@ -115,7 +115,7 @@ export function TrophyScreen({ onBack, treeCount, nodeCount, loginStats, extraSt
                       background: T.gold,
                       display: "flex", alignItems: "center", justifyContent: "center",
                     }}>
-                      <i className="ti ti-check" style={{ fontSize: 9, color: T.cream }} />
+                      <i className="ti ti-check" style={{ fontSize: "0.5625rem", color: T.cream }} />
                     </div>
                   )}
 

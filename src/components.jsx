@@ -42,7 +42,7 @@ export function MergeTag() {
       border:'0.5px solid rgba(107,63,160,0.3)',
       fontFamily:T.fontSerif,
     }}>
-      <i className="ti ti-git-merge" style={{fontSize:8}}/>合流
+      <i className="ti ti-git-merge" style={{fontSize:"0.5rem"}}/>合流
     </span>
   );
 }
@@ -57,7 +57,7 @@ export function BackBtn({ onClick }) {
   return (
     <button onClick={onClick} style={{
       background:'none', border:'none', cursor:'pointer',
-      color:T.gold, fontSize:18, padding:'2px', lineHeight:1,
+      color:T.gold, fontSize:"1.125rem", padding:'2px', lineHeight:1,
     }}>
       <i className="ti ti-chevron-left"/>
     </button>
