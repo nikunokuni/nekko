@@ -73,7 +73,7 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange }) {
               borderBottom: `0.5px solid ${T.inkLineFaint}`,
             }}
           >
-            <i className="ti ti-help-circle" style={{ fontSize: "1rem", color: T.inkFaint }} />
+            <i className="ti ti-help-circle" style={{ fontSize: "1rem", color: T.gold }} />
             <span style={{ flex: 1 }}>使い方</span>
             <i className="ti ti-external-link" style={{ fontSize: "0.875rem", color: T.inkFaint }} />
           </a>
@@ -108,7 +108,7 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange }) {
               textDecoration: "none",
             }}
           >
-            <i className="ti ti-message-2" style={{ fontSize: "1rem", color: T.inkFaint }} />
+            <i className="ti ti-message-2" style={{ fontSize: "1rem", color: T.gold }} />
             <span style={{ flex: 1 }}>ご意見・感想・バグ報告</span>
             <i className="ti ti-external-link" style={{ fontSize: "0.875rem", color: T.inkFaint }} />
           </a>

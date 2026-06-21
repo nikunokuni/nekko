@@ -545,6 +545,9 @@ export function TreeList({ trees, profile, onOpen, onPublic, onTrophy, onSetting
           <button onClick={onTrophy} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
             <i className="ti ti-trophy" />
           </button>
+          <button onClick={onSettings} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.125rem", padding: 2 }}>
+            <i className="ti ti-settings" />
+          </button>
           <button
             onClick={() => setShowCreateModal(true)}
             style={{ background: T.gold, border: "none", cursor: "pointer", color: T.cream, fontSize: T.fontSize.lg, padding: "6px 14px", borderRadius: T.radius.md, fontFamily: T.fontSerif, display: "flex", alignItems: "center", gap: 4 }}
@@ -553,9 +556,6 @@ export function TreeList({ trees, profile, onOpen, onPublic, onTrophy, onSetting
           </button>
           <button onClick={onSignOut} style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: "1.125rem", padding: 2 }}>
             <i className="ti ti-logout" />
-          </button>
-          <button onClick={onSettings} style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: "1.125rem", padding: 2 }}>
-            <i className="ti ti-settings" />
           </button>
         </div>
       </div>
