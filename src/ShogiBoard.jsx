@@ -210,6 +210,13 @@ export default function ShogiBoard({
   const boardPropStr = boardProp ? JSON.stringify(boardProp) : null;
   useEffect(() => {
     if (boardProp) setBoard(JSON.parse(JSON.stringify(boardProp)));
+    // 記録中に盤面が外部（親コンポーネント）から書き換えられた場合、
+    // 記録済みスナップショットは古い盤面を基準にしているため整合性が取れなくなる。
+    // 中途半端な棋譜が保存されるのを防ぐため、記録を中断する。
+    if (recordingRef.current.active) {
+      recordingRef.current = { active: false, snaps: [] };
+      setIsRecording(false);
+    }
   }, [boardPropStr]); // eslint-disable-line
 
   const stampsPropStr = JSON.stringify(stampsProp);

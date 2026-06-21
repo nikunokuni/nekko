@@ -127,7 +127,15 @@ export function markFridayToastShown() {
   } catch {}
 }
 
-const toDateKey = (d) => d.toISOString().slice(0, 10);
+// 日本時間基準の日付キーを返す（UTC基準だと JST 朝9時に日付が切り替わってしまい、
+// 金曜トースト判定（JST基準）とログイン日数判定の基準がズレてしまうため統一する）
+const toDateKey = (d) => {
+  const jst = new Date(d.toLocaleString("en-US", { timeZone: "Asia/Tokyo" }));
+  const y = jst.getFullYear();
+  const m = String(jst.getMonth() + 1).padStart(2, "0");
+  const day = String(jst.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
 
 /** 今日のログインを記録する（同日2回目以降は無視） */
 export function recordLogin() {

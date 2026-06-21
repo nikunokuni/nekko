@@ -12,6 +12,8 @@ export function TrophyScreen({ onBack, treeCount, nodeCount, loginStats, extraSt
 
   const earnedIds  = new Set(BADGE_DEFS.filter((b) => b.check(stats)).map((b) => b.id));
   const earnedCount = earnedIds.size;
+  // ソート済みキーにして依存配列に渡す（Set はそのままだと参照が毎回変わり比較できないため）
+  const earnedIdsKey = [...earnedIds].sort().join(",");
 
   // ── 新規獲得バッジの紙吹雪演出 ────────────────────
   const [showConfetti, setShowConfetti] = useState(false);
@@ -24,8 +26,9 @@ export function TrophyScreen({ onBack, treeCount, nodeCount, loginStats, extraSt
       markBadgesSeen([...earnedIds]);
       return () => clearTimeout(timer);
     }
+    // earnedIdsKey が変わった時（=画面を開いたまま新しいバッジを獲得した時）に再実行する
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [earnedIdsKey]);
 
   const statItems = [
     { icon: "ti-binary-tree", label: "ツリー",      value: treeCount, unit: "個" },

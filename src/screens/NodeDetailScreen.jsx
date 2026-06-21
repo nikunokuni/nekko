@@ -77,14 +77,24 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
 
   // タブ閉じ・ブラウザ戻るなどアプリを経由しない離脱でも pending patch を保存する
   useEffect(() => {
-    const handler = () => {
+    const flushPending = () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
       const patch = pendingPatch.current;
       pendingPatch.current = {};
       if (Object.keys(patch).length > 0) onUpdateRef.current(nodeIdRef.current, patch);
     };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
+    // beforeunload はページが本当に閉じる直前にしか発火せず、非同期保存が完了する前に
+    // 通信が中断されることがある。visibilitychange（タブ切替・バックグラウンド化）は
+    // ページがまだ生きている状態で発火するため、保存リクエストが完了する時間を確保できる。
+    const onVisibilityChange = () => { if (document.visibilityState === "hidden") flushPending(); };
+    window.addEventListener("beforeunload", flushPending);
+    window.addEventListener("pagehide", flushPending);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("beforeunload", flushPending);
+      window.removeEventListener("pagehide", flushPending);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, []);
 
   const flushSave = async () => {
