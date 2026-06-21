@@ -56,22 +56,28 @@ export default function App() {
   useEffect(() => {
     if (session === undefined) return; // まだ確定していない
     if (!session) return;              // 未ログイン
-    getProfile(session.user.id).then(({ data }) => setProfile(data));
+    getProfile(session.user.id)
+      .then(({ data }) => setProfile(data))
+      .catch((e) => console.error("getProfile error:", e));
     recordLogin();
     setLoginStats(getLoginStats());
     loadMyTrees();
     loadPublicTrees();
-    countUserNodes(session.user.id).then(setNodeCount);
+    countUserNodes(session.user.id)
+      .then(setNodeCount)
+      .catch((e) => console.error("countUserNodes error:", e));
 
     // 金曜夜トースト
     if (shouldShowFridayToast()) {
-      fetchAllWipNodes(session.user.id).then(({ data }) => {
-        if (!data || data.length === 0) return;
-        const node = data[Math.floor(Math.random() * data.length)];
-        setFridayToast(`「${node.label}」この戦法について研究してみよう`);
-        markFridayToastShown();
-        setTimeout(() => setFridayToast(""), 6000);
-      });
+      fetchAllWipNodes(session.user.id)
+        .then(({ data }) => {
+          if (!data || data.length === 0) return;
+          const node = data[Math.floor(Math.random() * data.length)];
+          setFridayToast(`「${node.label}」この戦法について研究してみよう`);
+          markFridayToastShown();
+          setTimeout(() => setFridayToast(""), 6000);
+        })
+        .catch((e) => console.error("fetchAllWipNodes error:", e));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
@@ -94,8 +100,8 @@ export default function App() {
     setReparentStack([]);
     try {
       let treeRow = [...myTrees, ...pubTrees].find(t => t.id === treeId);
-      if (!treeRow) {
-        const { data } = await fetchMyTrees(session?.user?.id);
+      if (!treeRow && session?.user?.id) {
+        const { data } = await fetchMyTrees(session.user.id);
         treeRow = (data || []).find(t => t.id === treeId);
       }
       if (!treeRow) return null;
