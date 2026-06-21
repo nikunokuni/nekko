@@ -59,20 +59,24 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange }) {
           その他
         </div>
         <div style={{ borderRadius: T.radius.md, border: `0.5px solid ${T.inkLine}`, overflow: "hidden" }}>
-          <div
+          <a
+            href="https://note.com/nikujuku/n/ne1774a6d11a3"
+            target="_blank"
+            rel="noopener noreferrer"
             style={{
               display: "flex", alignItems: "center", gap: 10,
               padding: "14px 16px",
               fontSize: T.fontSize.lg,
-              color: T.inkFaint,
+              color: T.ink,
               fontFamily: T.fontSerif,
+              textDecoration: "none",
               borderBottom: `0.5px solid ${T.inkLineFaint}`,
             }}
           >
             <i className="ti ti-help-circle" style={{ fontSize: "1rem", color: T.inkFaint }} />
             <span style={{ flex: 1 }}>使い方</span>
-            <span style={{ fontSize: T.fontSize.sm }}>準備中</span>
-          </div>
+            <i className="ti ti-external-link" style={{ fontSize: "0.875rem", color: T.inkFaint }} />
+          </a>
           <a
             href="https://x.com/nikunnokuni"
             target="_blank"
@@ -91,19 +95,23 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange }) {
             <span style={{ flex: 1 }}>作った人へのリンク</span>
             <i className="ti ti-external-link" style={{ fontSize: "0.875rem", color: T.inkFaint }} />
           </a>
-          <div
+          <a
+            href="https://x.gd/xHwM4"
+            target="_blank"
+            rel="noopener noreferrer"
             style={{
               display: "flex", alignItems: "center", gap: 10,
               padding: "14px 16px",
               fontSize: T.fontSize.lg,
-              color: T.inkFaint,
+              color: T.ink,
               fontFamily: T.fontSerif,
+              textDecoration: "none",
             }}
           >
             <i className="ti ti-message-2" style={{ fontSize: "1rem", color: T.inkFaint }} />
             <span style={{ flex: 1 }}>ご意見・感想・バグ報告</span>
-            <span style={{ fontSize: T.fontSize.sm }}>準備中</span>
-          </div>
+            <i className="ti ti-external-link" style={{ fontSize: "0.875rem", color: T.inkFaint }} />
+          </a>
         </div>
       </div>
     </div>
