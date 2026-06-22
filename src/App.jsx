@@ -2,7 +2,7 @@
 // App.jsx  ―  アプリのルート
 //   セッション管理 / 画面遷移 / DB 操作の統括
 // ══════════════════════════════════════════════════
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { AuthScreen, PublicTrees } from "./screensPublic";
 import { TreeList } from "./screens/TreeListScreen";
 import { MindMap } from "./screens/MindMapScreen";
@@ -14,10 +14,24 @@ import {
   getSession, getProfile, signOut,
   fetchMyTrees, fetchPublicTrees, fetchNodes,
   createTree, createNode, updateNode, updateTree, deleteTree, copyTree,
-  buildTreeFromNodes, publishTree, deleteNodes, unpublishTree,
+  buildTreeFromNodes, nodeRowToNode, publishTree, deleteNodes, unpublishTree,
   countUserNodes, likeTree, collectTreeTags, fetchAllWipNodes,
   fetchMyLikedTreeIds,
 } from "./db";
+
+// 新規作成したノード行を、全件再フェッチせずローカルツリーへマージする
+function addNodeToTree(prev, row) {
+  if (!prev || !row) return prev;
+  const node  = nodeRowToNode(row);
+  const nodes = { ...prev.nodes, [node.id]: node };
+  if (node.parentId && nodes[node.parentId]) {
+    nodes[node.parentId] = {
+      ...nodes[node.parentId],
+      childIds: [...(nodes[node.parentId].childIds || []), node.id],
+    };
+  }
+  return { ...prev, nodes, rootId: prev.rootId ?? (node.isRoot ? node.id : null) };
+}
 import { recordLogin, getLoginStats, recordAction, getActions, shouldShowFridayToast, markFridayToastShown } from "./rewards";
 import { cloneBoard } from "./theme";
 
@@ -54,6 +68,9 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // 金曜トーストの自動消去タイマー（アンマウント/再実行時に破棄してリークを防ぐ）
+  const fridayTimer = useRef(null);
+
   // session 確定後にプロフィール・ツリーを取得
   useEffect(() => {
     if (session === undefined) return; // まだ確定していない
@@ -77,10 +94,12 @@ export default function App() {
           const node = data[Math.floor(Math.random() * data.length)];
           setFridayToast(`「${node.label}」この戦法について研究してみよう`);
           markFridayToastShown();
-          setTimeout(() => setFridayToast(""), 6000);
+          if (fridayTimer.current) clearTimeout(fridayTimer.current);
+          fridayTimer.current = setTimeout(() => setFridayToast(""), 6000);
         })
         .catch((e) => console.error("fetchAllWipNodes error:", e));
     }
+    return () => { if (fridayTimer.current) clearTimeout(fridayTimer.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
@@ -146,12 +165,13 @@ export default function App() {
 
     // ルートノードがなければ自動作成
     if (!tree.rootId) {
-      const treeRow = myTrees.find(t => t.id === treeId);
+      // ラベルは読み込んだツリーの名前を使う。myTrees に限定すると公開ツリー経由や
+      // 一覧未ロード時に名前が取れず "戦法" 固定になってしまうため。
       await createNode({
         treeId,
         userId: session.user.id,
         parentId: null,
-        label: treeRow?.name || "戦法",
+        label: tree.name || "戦法",
         isRoot: true,
         status: "todo",
         board: cloneBoard(null),
@@ -182,20 +202,21 @@ export default function App() {
     });
     if (nodeError) console.error("createNode error:", nodeError);
 
-    // 相手の戦法（居飛車 / 振り飛車）の子ノードを2つ自動作成する
+    // 相手の戦法（居飛車 / 振り飛車）の子ノードを2つ自動作成する（並行実行で往復を短縮）
     if (rootNode) {
-      const { error: e1 } = await createNode({
-        treeId: data.id, userId: session.user.id,
-        parentId: rootNode.id, label: "居飛車", status: "todo",
-        situation: ["居飛車"], sortOrder: 0,
-      });
+      const [{ error: e1 }, { error: e2 }] = await Promise.all([
+        createNode({
+          treeId: data.id, userId: session.user.id,
+          parentId: rootNode.id, label: "居飛車", status: "todo",
+          situation: ["居飛車"], sortOrder: 0,
+        }),
+        createNode({
+          treeId: data.id, userId: session.user.id,
+          parentId: rootNode.id, label: "振り飛車", status: "todo",
+          situation: ["振り飛車"], sortOrder: 1,
+        }),
+      ]);
       if (e1) console.error("createNode error:", e1);
-
-      const { error: e2 } = await createNode({
-        treeId: data.id, userId: session.user.id,
-        parentId: rootNode.id, label: "振り飛車", status: "todo",
-        situation: ["振り飛車"], sortOrder: 1,
-      });
       if (e2) console.error("createNode error:", e2);
     }
 
@@ -262,19 +283,30 @@ export default function App() {
   const handleNodeUpdate = async (nodeId, patch) => {
     const { error } = await updateNode(nodeId, patch);
     if (error) { alert("保存に失敗しました。もう一度お試しください。"); return; }
-    // ローカル state も即時反映
+
+    // 戦法タグが変わった場合のみ、ツリー全体のタグ（全ノードのタグの集合）を再計算する。
+    // 集約値は updater の外（closureのactiveTree）で1回だけ計算し、副作用（DB保存・別state更新）も
+    // updater の外で実行する。setActiveTree の更新関数内で副作用を起こすと StrictMode で2回走り、
+    // updateTree がDBへ二重書き込みされるため。
+    const recomputeTags = !!(patch.situation || patch.myApproach || patch.usageLevel);
+    let aggregated = null;
+    if (recomputeTags && activeTree) {
+      const updatedNodes = { ...activeTree.nodes, [nodeId]: { ...activeTree.nodes[nodeId], ...patch } };
+      aggregated = collectTreeTags(updatedNodes);
+    }
+
+    // ローカル state も即時反映（純粋な更新のみ）
     setActiveTree(prev => {
+      if (!prev) return prev;
       const nodes = { ...prev.nodes, [nodeId]: { ...prev.nodes[nodeId], ...patch } };
-      const next = { ...prev, nodes };
-      // 戦法タグが変わった場合、ツリー全体のタグ（全ノードのタグの集合）を再計算して保存する
-      if (patch.situation || patch.myApproach || patch.usageLevel) {
-        const aggregated = collectTreeTags(nodes);
-        next.tags = aggregated;
-        updateTree(prev.id, { tags: aggregated });
-        setMyTrees(mt => mt.map(t => t.id === prev.id ? { ...t, tags: aggregated } : t));
-      }
-      return next;
+      return aggregated ? { ...prev, nodes, tags: aggregated } : { ...prev, nodes };
     });
+
+    if (aggregated && activeTree) {
+      const treeId = activeTree.id;
+      updateTree(treeId, { tags: aggregated });
+      setMyTrees(mt => mt.map(t => t.id === treeId ? { ...t, tags: aggregated } : t));
+    }
   };
 
   // ── ノードの親を付け替える（マインドマップのドラッグ操作） ──
@@ -349,8 +381,9 @@ export default function App() {
       status:   "wip",
     });
     if (!newNode) return;
-    await loadTree(activeTree.id);
-    refreshNodeCount();
+    // 全件再フェッチせず、作成ノードをローカルツリーへマージ（ネットワーク往復を削減）
+    setActiveTree(prev => addNodeToTree(prev, newNode));
+    setNodeCount(c => c + 1);
     setActiveNodeId(newNode.id);
     setScreen("node");
   };
@@ -371,8 +404,9 @@ export default function App() {
       branchFromMoveIndex: moveIndex ?? null,
     });
     if (!newNode) return;
-    await loadTree(activeTree.id);
-    refreshNodeCount();
+    // 全件再フェッチせず、作成ノードをローカルツリーへマージ（ネットワーク往復を削減）
+    setActiveTree(prev => addNodeToTree(prev, newNode));
+    setNodeCount(c => c + 1);
     setActiveNodeId(newNode.id);
     setScreen("node");
   };

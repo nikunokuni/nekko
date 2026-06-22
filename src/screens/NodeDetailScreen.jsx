@@ -2,7 +2,7 @@
 // NodeDetailScreen.jsx  ―  ノード詳細編集画面
 //   親ノード / きほん / ついか / 子ノード
 // ══════════════════════════════════════════════════════════════════
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   StatusChip, MergeTag, Divider, BackBtn,
 } from "../components";
@@ -68,6 +68,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
   // デバウンス付き自動保存（ノード名・メモ・タグなど、入力ごとに即時送信したくないフィールド用）
   const pendingPatch = useRef({});
   const saveTimer    = useRef(null);
+  const toastTimer   = useRef(null);
   const labelInputRef = useRef(null);
   // beforeunload 用に最新の nodeId / onUpdate を ref で保持
   const nodeIdRef    = useRef(nodeId);
@@ -164,8 +165,12 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
   /** 「保存しました」トーストを一定時間表示する */
   const showToast = useCallback((msg = "保存しました") => {
     setToast(msg);
-    setTimeout(() => setToast(""), 1600);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(""), 1600);
   }, []);
+
+  // アンマウント時に未発火のトーストタイマーを破棄する（unmount後のsetState警告を防ぐ）
+  useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
 
   /** タグピッカーから新しいカスタムタグを追加する（戦法タグ系の入力欄で共有） */
   const handleAddCustomTag = (tag, group) => {
@@ -174,6 +179,71 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
     recordAction("customTag");
     showToast("タグを追加しました");
   };
+
+  // ── 合流（追加の親子リンク）候補をメモ化（O(n²)の毎レンダリング再計算を防ぐ）──
+  // 子→親（合流）の逆引きマップを1回だけ構築し、到達集合の算出を共有する。
+  const { mergeChildren, mergeParentCandidates, mergeChildCandidates } = useMemo(() => {
+    const allNodes = Object.values(tree.nodes);
+    const cur = tree.nodes[nodeId];
+
+    // 合流子の逆引きマップ：親ID → その親へ合流している子IDの配列
+    const mergeChildrenMap = new Map();
+    for (const n of allNodes) {
+      for (const pid of (n.mergeParentIds || [])) {
+        const arr = mergeChildrenMap.get(pid);
+        if (arr) arr.push(n.id); else mergeChildrenMap.set(pid, [n.id]);
+      }
+    }
+
+    // startId から実子＋合流子をたどって到達できるノードID集合（循環判定用）
+    const reach = (startId) => {
+      const seen  = new Set();
+      const stack = [startId];
+      while (stack.length) {
+        const c    = stack.pop();
+        const real = tree.nodes[c]?.childIds || [];
+        const mrg  = mergeChildrenMap.get(c) || [];
+        for (const cid of real) if (!seen.has(cid)) { seen.add(cid); stack.push(cid); }
+        for (const cid of mrg)  if (!seen.has(cid)) { seen.add(cid); stack.push(cid); }
+      }
+      return seen;
+    };
+
+    const mergeParentIdsLocal = cur?.mergeParentIds || [];
+    const downstream = reach(nodeId);
+
+    // このノードに合流させる「親」候補：自分・実親・既存の合流親・下流（子孫）を除く
+    // （親ノードの変更先候補も同じ条件のため共用）
+    const parentCands = allNodes.filter((n) =>
+      n.id !== nodeId &&
+      n.id !== cur?.parentId &&
+      !mergeParentIdsLocal.includes(n.id) &&
+      !downstream.has(n.id)
+    );
+
+    // このノードを親とする「子」候補：自分・実子・既存の合流子・このノードを下流に持つノード(=祖先)を除く
+    const childCands = allNodes.filter((n) =>
+      n.id !== nodeId &&
+      n.parentId !== nodeId &&
+      !(n.mergeParentIds || []).includes(nodeId) &&
+      !reach(n.id).has(nodeId)
+    );
+
+    // このノードへ合流している子（逆引き）
+    const children = (mergeChildrenMap.get(nodeId) || []).map((id) => tree.nodes[id]).filter(Boolean);
+
+    return { mergeChildren: children, mergeParentCandidates: parentCands, mergeChildCandidates: childCands };
+  }, [tree.nodes, nodeId]);
+
+  // 盤面を編集開始時点の状態に戻せるか（毎レンダリングの JSON.stringify 比較をメモ化）
+  const canUndoBoard = useMemo(() => !!boardSnapshot && (
+    boardVisible !== boardSnapshot.boardVisible ||
+    JSON.stringify(boardData)         !== JSON.stringify(boardSnapshot.boardData) ||
+    JSON.stringify(stamps)            !== JSON.stringify(boardSnapshot.stamps) ||
+    JSON.stringify(handSente)         !== JSON.stringify(boardSnapshot.handSente) ||
+    JSON.stringify(handGote)          !== JSON.stringify(boardSnapshot.handGote) ||
+    JSON.stringify(node?.kifu || [])  !== JSON.stringify(boardSnapshot.kifu)
+  ), [boardSnapshot, boardVisible, boardData, stamps, handSente, handGote, node]);
 
   if (!node) return null;
 
@@ -197,16 +267,6 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
     }
     setBoardVisible((v) => !v);
   };
-
-  // 盤面を編集開始時点の状態に戻せるか
-  const canUndoBoard = !!boardSnapshot && (
-    boardVisible !== boardSnapshot.boardVisible ||
-    JSON.stringify(boardData)       !== JSON.stringify(boardSnapshot.boardData) ||
-    JSON.stringify(stamps)          !== JSON.stringify(boardSnapshot.stamps) ||
-    JSON.stringify(handSente)       !== JSON.stringify(boardSnapshot.handSente) ||
-    JSON.stringify(handGote)        !== JSON.stringify(boardSnapshot.handGote) ||
-    JSON.stringify(node.kifu || []) !== JSON.stringify(boardSnapshot.kifu)
-  );
 
   /** 盤面まわり（盤面・コマ台・棋譜）を編集開始時点に戻す */
   const handleUndoBoard = async () => {
@@ -237,40 +297,6 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
   //   ・親 → 子（mergeChildren）も同じデータから算出できる（双方向参照）
   //   ・実子＋合流子をたどった到達集合で循環（双方が親になる等）を防ぐ
   const mergeParentIds = node.mergeParentIds || [];
-  const mergeChildren  = Object.values(tree.nodes).filter((n) => (n.mergeParentIds || []).includes(nodeId));
-
-  /** id から実子＋合流子をたどって到達できるノードID集合（循環判定用） */
-  const reachableFrom = (startId) => {
-    const seen  = new Set();
-    const stack = [startId];
-    while (stack.length) {
-      const cur  = stack.pop();
-      const real = tree.nodes[cur]?.childIds || [];
-      const mrg  = Object.values(tree.nodes).filter((n) => (n.mergeParentIds || []).includes(cur)).map((n) => n.id);
-      [...real, ...mrg].forEach((cid) => { if (!seen.has(cid)) { seen.add(cid); stack.push(cid); } });
-    }
-    return seen;
-  };
-
-  // このノードに合流させる「親」候補：自分・実親・既存の合流親・下流（子孫）を除く
-  // （親ノードの変更先候補も同じ条件のため共用する）
-  const mergeParentCandidates = (() => {
-    const downstream = reachableFrom(nodeId);
-    return Object.values(tree.nodes).filter((n) =>
-      n.id !== nodeId &&
-      n.id !== node.parentId &&
-      !mergeParentIds.includes(n.id) &&
-      !downstream.has(n.id)
-    );
-  })();
-
-  // このノードを親とする「子」候補：自分・実子・既存の合流子・このノードを下流に持つノード(=祖先)を除く
-  const mergeChildCandidates = Object.values(tree.nodes).filter((n) =>
-    n.id !== nodeId &&
-    n.parentId !== nodeId &&
-    !(n.mergeParentIds || []).includes(nodeId) &&
-    !reachableFrom(n.id).has(nodeId)
-  );
 
   const addMergeParent = async (pid) => {
     setMergePickerOpen(false);

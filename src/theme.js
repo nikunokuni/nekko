@@ -115,4 +115,4 @@ export const parseTags = (str) =>
  * board が null の場合は INITIAL_BOARD のコピーを返す
  */
 export const cloneBoard = (board) =>
-  JSON.parse(JSON.stringify(board ?? INITIAL_BOARD));
+  (board ?? INITIAL_BOARD).map((row) => [...row]);

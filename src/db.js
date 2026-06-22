@@ -214,40 +214,46 @@ export async function countUserNodes(userId) {
   return count ?? 0;
 }
 
+// ── DBのノード行（snake_case）を内部ノード形式（camelCase）へ変換する ──
+// childIds は呼び出し側で親子関係を構築する際に埋める（既存値があれば維持）
+export function nodeRowToNode(n) {
+  return {
+    id:            n.id,
+    label:         n.label,
+    status:        n.status,
+    approachType:  n.approach_type,
+    parentId:      n.parent_id,
+    board:         n.board,
+    stamps:        n.stamps  || [],
+    memo:          n.memo    || "",
+    isRoot:        n.is_root,
+    isMergeTarget:  n.is_merge_target,
+    mergeParentIds: n.merge_parent_ids || [],
+    handSente:      n.hand_sente || {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
+    handGote:       n.hand_gote  || {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
+    kifu:           n.kifu || [],
+    tags:           n.tags || [],
+    kifuImported:   n.kifu_imported || false,
+    branchFromMoveIndex: n.branch_from_move_index ?? null,
+    usageLevel:     n.usage_level ?? 2,
+    winRate:        n.win_rate ?? null,
+    situation:      n.situation || [],
+    myApproach:     n.my_approach || [],
+    orientation:    n.orientation || null,
+    likeLevel:      n.like_level ?? null,
+    aim:            n.aim || "",
+    caution:        n.caution || "",
+    nextStudy:      n.next_study || "",
+    commentTags:    n.comment_tags || [],
+    childIds:      [],
+  };
+}
+
 // ── フラットなノード配列からツリーオブジェクトを組み立てる ──
 export function buildTreeFromNodes(treeRow, flatNodes) {
   const nodeMap = {};
   flatNodes.forEach(n => {
-    nodeMap[n.id] = {
-      id:            n.id,
-      label:         n.label,
-      status:        n.status,
-      approachType:  n.approach_type,
-      parentId:      n.parent_id,
-      board:         n.board,
-      stamps:        n.stamps  || [],
-      memo:          n.memo    || "",
-      isRoot:        n.is_root,
-      isMergeTarget:  n.is_merge_target,
-      mergeParentIds: n.merge_parent_ids || [],
-      handSente:      n.hand_sente || {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
-      handGote:       n.hand_gote  || {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
-      kifu:           n.kifu || [],
-      tags:           n.tags || [],
-      kifuImported:   n.kifu_imported || false,
-      branchFromMoveIndex: n.branch_from_move_index ?? null,
-      usageLevel:     n.usage_level ?? 2,
-      winRate:        n.win_rate ?? null,
-      situation:      n.situation || [],
-      myApproach:     n.my_approach || [],
-      orientation:    n.orientation || null,
-      likeLevel:      n.like_level ?? null,
-      aim:            n.aim || "",
-      caution:        n.caution || "",
-      nextStudy:      n.next_study || "",
-      commentTags:    n.comment_tags || [],
-      childIds:      [],
-    };
+    nodeMap[n.id] = nodeRowToNode(n);
   });
 
   // 親子関係を構築

@@ -161,14 +161,17 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
   );
 
   // 合流エッジ（追加の親 → 子）。紫の点線で、ノードを避けて描画する
-  const mergeEdges = [];
-  Object.values(nodes).forEach((n) => {
-    (n.mergeParentIds || []).forEach((pid) => {
-      const from = positions[pid];
-      const to   = positions[n.id];
-      if (from && to) mergeEdges.push({ from, to });
+  const mergeEdges = useMemo(() => {
+    const out = [];
+    Object.values(nodes).forEach((n) => {
+      (n.mergeParentIds || []).forEach((pid) => {
+        const from = positions[pid];
+        const to   = positions[n.id];
+        if (from && to) out.push({ from, to });
+      });
     });
-  });
+    return out;
+  }, [nodes, positions]);
 
   // ── ノードドラッグで親付け替え ─────────────────
   /** あるノードの子孫ID集合（循環防止） */
@@ -243,14 +246,23 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
     window.addEventListener("touchend", handleUp);
   };
 
-  // キャンバスサイズ = 全ノード座標の最大値 + 余白
-  const posValues = Object.values(positions);
-  const maxNodeX  = posValues.length ? Math.max(...posValues.map((p) => p.x)) : 0;
-  // 合流線を通す右側チャンネル（全ノードより右）。線ごとに少しずらす
-  const channelBaseX = maxNodeX + NODE_W + 24;
-  const baseTotalW = maxNodeX + NODE_W + 60;
-  const totalW = posValues.length ? Math.max(baseTotalW, channelBaseX + mergeEdges.length * 8 + 24) : NODE_W + 60;
-  const totalH = posValues.length ? Math.max(...posValues.map((p) => p.y)) + NODE_H + 80 : NODE_H + 80;
+  // キャンバスサイズ = 全ノード座標の最大値 + 余白（パン/ズームのたびに再計算しないようメモ化）
+  const { channelBaseX, totalW, totalH } = useMemo(() => {
+    const posValues = Object.values(positions);
+    if (!posValues.length) {
+      return { channelBaseX: NODE_W + 24, totalW: NODE_W + 60, totalH: NODE_H + 80 };
+    }
+    let maxX = -Infinity, maxY = -Infinity;
+    for (const p of posValues) { if (p.x > maxX) maxX = p.x; if (p.y > maxY) maxY = p.y; }
+    // 合流線を通す右側チャンネル（全ノードより右）。線ごとに少しずらす
+    const channelBaseX = maxX + NODE_W + 24;
+    const baseTotalW   = maxX + NODE_W + 60;
+    return {
+      channelBaseX,
+      totalW: Math.max(baseTotalW, channelBaseX + mergeEdges.length * 8 + 24),
+      totalH: maxY + NODE_H + 80,
+    };
+  }, [positions, mergeEdges]);
 
   // ── ドラッグ操作（マウス） ──────────────────────
   const onMouseDown = useCallback((e) => {

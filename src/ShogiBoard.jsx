@@ -114,19 +114,33 @@ function drawPiece(ctx, cx, cy, cellSize, pieceKey, highlighted) {
 const HAND_ORDER = ['r','b','g','s','n','l','p'];
 const HAND_LABEL = { r:'飛',b:'角',g:'金',s:'銀',n:'桂',l:'香',p:'歩' };
 
+// 持ち駒スプライトのキャッシュ。駒種・先後・選択・枚数が同じなら描画結果（オフスクリーンcanvas）を再利用する。
+// グラデーション・五角形パス・影の描画はコストが高いため、組み合わせごとに一度だけ描いて使い回す。
+const handPieceCache = new Map();
+function getHandPieceSprite(pieceKey, isSelected, count) {
+  const cacheKey = `${pieceKey}|${isSelected ? 1 : 0}|${count}`;
+  let off = handPieceCache.get(cacheKey);
+  if (off) return off;
+  off = document.createElement('canvas');
+  off.width = 32; off.height = 32;
+  const ctx = off.getContext('2d');
+  drawPiece(ctx, 16, 17, 32, pieceKey, isSelected);
+  if (count > 1) {
+    ctx.font = `bold 9px 'Noto Serif JP',serif`;
+    ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+    ctx.fillStyle = '#a07840'; ctx.fillText(String(count), 31, 31);
+  }
+  handPieceCache.set(cacheKey, off);
+  return off;
+}
+
 function HandPiece({ k, count, isSente, isSelected, onClick, readOnly }) {
   const ref = useRef(null);
   useEffect(() => {
     const canvas = ref.current; if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    const size = 32;
-    ctx.clearRect(0, 0, size, size);
-    drawPiece(ctx, size/2, size/2 + 1, size, isSente ? k : k.toUpperCase(), isSelected);
-    if (count > 1) {
-      ctx.font = `bold 9px 'Noto Serif JP',serif`;
-      ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
-      ctx.fillStyle = '#a07840'; ctx.fillText(String(count), size - 1, size - 1);
-    }
+    ctx.clearRect(0, 0, 32, 32);
+    ctx.drawImage(getHandPieceSprite(isSente ? k : k.toUpperCase(), isSelected, count), 0, 0);
   }, [k, isSente, isSelected, count]);
   return (
     <canvas ref={ref} width={32} height={32} onClick={() => !readOnly && onClick()}

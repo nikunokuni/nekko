@@ -2,7 +2,7 @@
 // screensPublic.jsx  ―  認証・公開ツリー画面
 //   AuthScreen / PublicTrees
 // ══════════════════════════════════════════════════
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { BackBtn } from "./components";
 import { signIn, signUp } from "./db";
 import { recordAction } from "./rewards";
@@ -193,7 +193,7 @@ export function AuthScreen({ onAuth }) {
 // ──────────────────────────────────────────────────
 // PublicTreeCard: 公開ツリー1件分のカード
 // ──────────────────────────────────────────────────
-function PublicTreeCard({ tree, isCopied, isCopying, isLiked, onCopy, onLike }) {
+function PublicTreeCard({ tree, isCopied, isCopying, isLiked, justLiked, onCopy, onLike }) {
   const author = tree.profiles?.display_name || tree.profiles?.username || "匿名";
 
   return (
@@ -215,7 +215,7 @@ function PublicTreeCard({ tree, isCopied, isCopying, isLiked, onCopy, onLike }) 
           }}
         >
           <i className={`ti ti-heart${isLiked ? "-filled" : ""}`} style={{ fontSize: T.fontSize.xxl }} />
-          {(tree.liked_by || 0) + (isLiked ? 1 : 0)}
+          {(tree.liked_by || 0) + (justLiked ? 1 : 0)}
         </button>
       </div>
 
@@ -280,6 +280,10 @@ export function PublicTrees({ trees, profile, likedTreeIds, onBack, onCopy, onLi
   const [copiedId,  setCopiedId]  = useState(null);
   const [copying,   setCopying]   = useState(null);
   const [likedIds,  setLikedIds]  = useState(new Set());
+  // この画面で新しく押したいいねだけを別管理する。
+  // サーバの liked_by には既存（復元）のいいねが既に含まれるため、表示の +1 補正は
+  // 「今セッションで押した分」だけに限定しないと、再訪時に常に1多く表示されてしまう。
+  const [justLikedIds, setJustLikedIds] = useState(new Set());
 
   // サーバー上の既存いいねを反映（画面再訪時に「未いいね」へ戻る／重複いいねを防ぐ）
   const likedTreeIdsStr = JSON.stringify(likedTreeIds || []);
@@ -293,12 +297,16 @@ export function PublicTrees({ trees, profile, likedTreeIds, onBack, onCopy, onLi
     return matchTag && matchQ;
   });
 
+  const copiedTimer = useRef(null);
+  useEffect(() => () => { if (copiedTimer.current) clearTimeout(copiedTimer.current); }, []);
+
   const handleCopy = async (id) => {
     setCopying(id);
     try {
       await onCopy(id);
       setCopiedId(id);
-      setTimeout(() => setCopiedId(null), 2500);
+      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+      copiedTimer.current = setTimeout(() => setCopiedId(null), 2500);
     } catch (e) {
       console.error("コピーに失敗しました", e);
     } finally {
@@ -309,6 +317,7 @@ export function PublicTrees({ trees, profile, likedTreeIds, onBack, onCopy, onLi
   const handleLike = async (id) => {
     if (likedIds.has(id)) return;
     setLikedIds((prev) => new Set([...prev, id]));
+    setJustLikedIds((prev) => new Set([...prev, id]));
     recordAction("liked");
     try { await onLike?.(id); } catch {}
   };
@@ -358,6 +367,7 @@ export function PublicTrees({ trees, profile, likedTreeIds, onBack, onCopy, onLi
               isCopied={copiedId === t.id}
               isCopying={copying === t.id}
               isLiked={likedIds.has(t.id)}
+              justLiked={justLikedIds.has(t.id)}
               onCopy={handleCopy}
               onLike={handleLike}
             />
