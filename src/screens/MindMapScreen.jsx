@@ -153,7 +153,7 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
     totalNodeCount <= 10 ? "🌱" :
     totalNodeCount <= 20 ? "🌼" :
     "🌳";
-  const growthIconSize = totalNodeCount * 3;
+  const growthIconSize = Math.min(300, totalNodeCount * 3);
 
   const { positions, edges } = useMemo(
     () => rootId ? layoutTree(nodes, rootId) : { positions: {}, edges: [] },
@@ -190,10 +190,14 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
   };
 
   /** キャンバス座標にあるノードを返す（除外集合・自身を除く） */
+  // 描画時と同じく頻度(usageScale)による拡大を考慮して当たり判定の矩形を求める
   const nodeAtPoint = (cx, cy, excludeSet, selfId) => {
     for (const [id, pos] of Object.entries(positions)) {
       if (id === selfId || excludeSet.has(id)) continue;
-      if (cx >= pos.x && cx <= pos.x + NODE_W && cy >= pos.y && cy <= pos.y + NODE_H) return id;
+      const usageScale = id === rootId ? 1 : (USAGE_META[nodes[id]?.usageLevel]?.scale ?? 1);
+      const w = NODE_W * usageScale, h = NODE_H * usageScale;
+      const rx = pos.x - (w - NODE_W) / 2, ry = pos.y - (h - NODE_H) / 2;
+      if (cx >= rx && cx <= rx + w && cy >= ry && cy <= ry + h) return id;
     }
     return null;
   };
@@ -309,11 +313,13 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
     setDrawerOpen(false);
     const pos = positions[nodeId];
     if (!pos) return;
+    // キャンバスは transformOrigin 0,0 で scale 倍されるため、画面中央に合わせるには
+    // ノードのキャンバス座標に scale を掛けてからオフセットを算出する
     setCanvasOffset({
-      x: 140 - pos.x - NODE_W / 2,
-      y: 200 - pos.y - NODE_H / 2,
+      x: 140 - (pos.x + NODE_W / 2) * scale,
+      y: 200 - (pos.y + NODE_H / 2) * scale,
     });
-  }, [positions]);
+  }, [positions, scale]);
 
   // エッジ色→マーカーインデックスのマッピング
   const MARKER_COLORS = [

@@ -45,35 +45,45 @@ export async function getProfile(userId) {
 
 // ── Trees ─────────────────────────────────────────
 export async function fetchMyTrees(userId) {
-  return supabase
+  const result = await supabase
     .from("trees")
     .select("*, nodes(id, status, is_root)")
     .eq("user_id", userId)
     .order("created_at", { ascending: true });
+  if (result.error) console.error("fetchMyTrees error:", result.error);
+  return result;
 }
 
 export async function fetchPublicTrees() {
-  return supabase
+  const result = await supabase
     .from("trees")
     .select("*, profiles(username, display_name)")
     .eq("is_public", true)
     .order("liked_by", { ascending: false });
+  if (result.error) console.error("fetchPublicTrees error:", result.error);
+  return result;
 }
 
 export async function createTree({ userId, name, tags = [], active = true }) {
-  return supabase
+  const result = await supabase
     .from("trees")
     .insert({ user_id: userId, name, tags, active })
     .select()
     .single();
+  if (result.error) console.error("createTree error:", result.error);
+  return result;
 }
 
 export async function updateTree(treeId, patch) {
-  return supabase.from("trees").update(patch).eq("id", treeId).select().single();
+  const result = await supabase.from("trees").update(patch).eq("id", treeId).select().single();
+  if (result.error) console.error("updateTree error:", result.error);
+  return result;
 }
 
 export async function deleteTree(treeId) {
-  return supabase.from("trees").delete().eq("id", treeId);
+  const result = await supabase.from("trees").delete().eq("id", treeId);
+  if (result.error) console.error("deleteTree error:", result.error);
+  return result;
 }
 
 // 公開ツリーをサーバー側RPCで一括コピー（1トランザクション）
@@ -83,11 +93,13 @@ export async function copyTree(treeId, newName = null) {
 
 // ── Nodes ─────────────────────────────────────────
 export async function fetchNodes(treeId) {
-  return supabase
+  const result = await supabase
     .from("nodes")
     .select("*")
     .eq("tree_id", treeId)
     .order("sort_order", { ascending: true });
+  if (result.error) console.error("fetchNodes error:", result.error);
+  return result;
 }
 
 /** ユーザーの全ツリーから未完成（wip / todo）かつルートでないノードを取得 */
@@ -185,7 +197,9 @@ export async function updateNode(nodeId, patch) {
   for (const [k, v] of Object.entries(patch)) {
     if (map[k] !== undefined) dbPatch[map[k]] = v;
   }
-  return supabase.from("nodes").update(dbPatch).eq("id", nodeId).select().single();
+  const result = await supabase.from("nodes").update(dbPatch).eq("id", nodeId).select().single();
+  if (result.error) console.error("updateNode error:", result.error);
+  return result;
 }
 
 export async function deleteNode(nodeId) {
@@ -291,6 +305,13 @@ export async function likeTree(userId, treeId) {
 
 export async function unlikeTree(userId, treeId) {
   await supabase.from("likes").delete().eq("user_id", userId).eq("tree_id", treeId);
+}
+
+/** ユーザーが既にいいね済みのツリーID一覧を返す（みんなのツリーのいいね状態復元用） */
+export async function fetchMyLikedTreeIds(userId) {
+  const { data, error } = await supabase.from("likes").select("tree_id").eq("user_id", userId);
+  if (error) { console.error("fetchMyLikedTreeIds error:", error); return []; }
+  return (data || []).map((r) => r.tree_id);
 }
 /** ツリーを公開状態にする */
 export async function publishTree(treeId) {

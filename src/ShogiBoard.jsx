@@ -132,8 +132,7 @@ function HandPiece({ k, count, isSente, isSelected, onClick, readOnly }) {
     <canvas ref={ref} width={32} height={32} onClick={() => !readOnly && onClick()}
       style={{ cursor: readOnly ? 'default' : 'pointer', borderRadius: 4,
         border: isSelected ? '1.5px solid #a07840' : '1.5px solid transparent',
-        background: isSelected ? '#f0e8d4' : 'transparent',
-        transform: isSente ? 'none' : 'rotate(180deg)' }}
+        background: isSelected ? '#f0e8d4' : 'transparent' }}
     />
   );
 }
@@ -208,12 +207,16 @@ export default function ShogiBoard({
 
   // boardProp 変化時のみ内部 state 更新
   const boardPropStr = boardProp ? JSON.stringify(boardProp) : null;
+  // 現在の内部 board の文字列表現。自分の指し手で board prop が更新された直後は
+  // 内部 state と prop が一致する（自分の指し手は notify→onChange 経由で prop にも反映されるため）。
+  const internalBoardStr = board ? JSON.stringify(board) : null;
   useEffect(() => {
     if (boardProp) setBoard(JSON.parse(JSON.stringify(boardProp)));
-    // 記録中に盤面が外部（親コンポーネント）から書き換えられた場合、
-    // 記録済みスナップショットは古い盤面を基準にしているため整合性が取れなくなる。
-    // 中途半端な棋譜が保存されるのを防ぐため、記録を中断する。
-    if (recordingRef.current.active) {
+    // 記録中に盤面が「外部（親コンポーネント）から」書き換えられた場合のみ記録を中断する。
+    // 自分の指し手由来（内部 state と一致）の prop 変化では中断しない。
+    // ── これを区別しないと、記録中の1手ごとに onChange で board prop が変わり、
+    //    自分の指し手を外部変更と誤認して記録が即中断・破棄されてしまう。
+    if (recordingRef.current.active && boardPropStr !== internalBoardStr) {
       recordingRef.current = { active: false, snaps: [] };
       setIsRecording(false);
     }
@@ -221,6 +224,13 @@ export default function ShogiBoard({
 
   const stampsPropStr = JSON.stringify(stampsProp);
   useEffect(() => { setStamps(stampsProp); }, [stampsPropStr]); // eslint-disable-line
+
+  // 持ち駒も board / stamps と同様に、親から渡される prop の変化を内部 state へ反映する。
+  // （ノード切替・テンプレート読込・棋譜削除・盤面の元に戻す 等で駒台だけ古いまま残るのを防ぐ）
+  const handSentePropStr = JSON.stringify(hSenteProp);
+  useEffect(() => { setHandSente(hSenteProp); }, [handSentePropStr]); // eslint-disable-line
+  const handGotePropStr = JSON.stringify(hGoteProp);
+  useEffect(() => { setHandGote(hGoteProp); }, [handGotePropStr]); // eslint-disable-line
 
   // 再生中に表示する盤面・持ち駒（kifu スナップショットを参照）
   const playSnap    = playbackIdx !== null ? kifuProp[playbackIdx] : null;
@@ -327,7 +337,10 @@ export default function ShogiBoard({
   const stopRecording = useCallback(() => {
     recordingRef.current.active = false;
     setIsRecording(false);
-    onKifuChange?.(recordingRef.current.snaps);
+    // 初期局面1枚だけ（=1手も指していない）の場合は棋譜として保存しない。
+    // 空の記録でバッジ獲得や0手の棋譜ナビが生まれるのを防ぐ。
+    const snaps = recordingRef.current.snaps;
+    if (snaps.length > 1) onKifuChange?.(snaps);
   }, [onKifuChange]);
 
   // ── 成り確認モーダルを経て盤面確定 ──────────────
@@ -562,14 +575,15 @@ export default function ShogiBoard({
           <NavBtn icon="ti-player-skip-forward" disabled={playbackIdx === moveCount}
             onClick={() => setPlaybackIdx(moveCount)} />
 
-          {/* 再生中なら「編集に戻る」 */}
+          {/* 再生中は「編集にもどる」で再生モードを終了し、盤面編集に戻れる */}
           {playbackIdx !== null && (
             <button onClick={() => setPlaybackIdx(null)} style={{
-              padding:'3px 8px', borderRadius:6, border:'0.5px solid rgba(26,15,0,0.18)',
-              background:'transparent', cursor:'pointer', fontSize:"0.625rem", flexShrink:0, whiteSpace:'nowrap',
-              color:'rgba(26,15,0,0.5)', fontFamily:"'Noto Serif JP',serif",
+              display:'flex', alignItems:'center', gap:4,
+              padding:'5px 12px', borderRadius:8, border:'none',
+              background:'#a07840', cursor:'pointer', fontSize:"0.6875rem", flexShrink:0, whiteSpace:'nowrap',
+              color:'#fff', fontFamily:"'Noto Serif JP',serif", fontWeight:600,
             }}>
-              ✕ 閉じる
+              <i className="ti ti-pencil" style={{fontSize:"0.8125rem"}}/>編集にもどる
             </button>
           )}
         </div>
@@ -601,6 +615,13 @@ export default function ShogiBoard({
                   ? (arrowStart ? '矢印の終点のマスをタップ' : '矢印の始点のマスをタップ')
                   : 'スタンプを選んでマスをタップ')
             : 'スタンプが置かれたマスをタップして消す'}
+        </div>
+      )}
+
+      {/* 再生中のヒント（盤面編集が一時停止していることと復帰方法を明示） */}
+      {!readOnly && playbackIdx !== null && (
+        <div style={{fontSize:"0.625rem",color:'#a07840',marginTop:4,textAlign:'center'}}>
+          再生モード中は盤面を編集できません。「編集にもどる」で編集を再開できます
         </div>
       )}
 

@@ -2,7 +2,7 @@
 // screensPublic.jsx  ―  認証・公開ツリー画面
 //   AuthScreen / PublicTrees
 // ══════════════════════════════════════════════════
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { BackBtn } from "./components";
 import { signIn, signUp } from "./db";
 import { recordAction } from "./rewards";
@@ -274,12 +274,18 @@ function TagFilter({ trees, activeTag, onSelect }) {
 // ══════════════════════════════════════════════════
 // PublicTrees
 // ══════════════════════════════════════════════════
-export function PublicTrees({ trees, profile, onBack, onCopy, onLike, onRefresh }) {
+export function PublicTrees({ trees, profile, likedTreeIds, onBack, onCopy, onLike, onRefresh }) {
   const [query,     setQuery]     = useState("");
   const [activeTag, setActiveTag] = useState("すべて");
   const [copiedId,  setCopiedId]  = useState(null);
   const [copying,   setCopying]   = useState(null);
   const [likedIds,  setLikedIds]  = useState(new Set());
+
+  // サーバー上の既存いいねを反映（画面再訪時に「未いいね」へ戻る／重複いいねを防ぐ）
+  const likedTreeIdsStr = JSON.stringify(likedTreeIds || []);
+  useEffect(() => {
+    setLikedIds((prev) => new Set([...prev, ...(likedTreeIds || [])]));
+  }, [likedTreeIdsStr]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filtered = (trees || []).filter((t) => {
     const matchTag = activeTag === "すべて" || (t.tags || []).includes(activeTag);

@@ -43,12 +43,15 @@ function CreateTreeModal({ onClose, onCreate }) {
     setKifuSnapshots(null);
     try {
       const text = await readKifuFile(file);
-      const snaps = importKifuText(text);
-      if (!snaps) {
+      const result = importKifuText(text);
+      if (!result) {
         setKifuError("棋譜を読み取れませんでした（KIF/CSA形式のファイルを選んでください）");
         return;
       }
-      setKifuSnapshots(snaps);
+      if (result.skipped > 0) {
+        setKifuError(`一部の手（${result.skipped}手）を読み取れず、棋譜が途中までしか反映されていません`);
+      }
+      setKifuSnapshots(result.snapshots);
     } catch (err) {
       console.error("棋譜の読み込みに失敗しました", err);
       setKifuError("棋譜の読み込みに失敗しました");

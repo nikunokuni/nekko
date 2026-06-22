@@ -16,6 +16,7 @@ import {
   createTree, createNode, updateNode, updateTree, deleteTree, copyTree,
   buildTreeFromNodes, publishTree, deleteNodes, unpublishTree,
   countUserNodes, likeTree, collectTreeTags, fetchAllWipNodes,
+  fetchMyLikedTreeIds,
 } from "./db";
 import { recordLogin, getLoginStats, recordAction, getActions, shouldShowFridayToast, markFridayToastShown } from "./rewards";
 import { cloneBoard } from "./theme";
@@ -33,6 +34,7 @@ export default function App() {
   const [loginStats,       setLoginStats]       = useState({ totalDays: 0, streak: 0 });
   const [reparentStack,    setReparentStack]    = useState([]); // マインドマップの親付け替えUndo用（開いた時点からの履歴）
   const [fridayToast,      setFridayToast]      = useState("");
+  const [likedTreeIds,     setLikedTreeIds]     = useState([]); // ユーザーがいいね済みのツリーID
   const [fontScale,        setFontScale]        = useState(() => Number(localStorage.getItem("nekko_font_scale")) || 1);
 
   const handleFontScaleChange = (scale) => {
@@ -85,28 +87,40 @@ export default function App() {
   // ── ツリー一覧の取得 ─────────────────────────
   const loadMyTrees = useCallback(async () => {
     if (!session) return;
-    const { data } = await fetchMyTrees(session.user.id);
+    const { data, error } = await fetchMyTrees(session.user.id);
+    if (error) { alert("ツリー一覧の取得に失敗しました。通信環境を確認してください。"); return; }
     setMyTrees(data || []);
   }, [session]);
   const loadPublicTrees = useCallback(async () => {
-    const { data } = await fetchPublicTrees();
+    const { data, error } = await fetchPublicTrees();
+    if (error) { alert("公開ツリーの取得に失敗しました。通信環境を確認してください。"); return; }
     setPubTrees(data || []);
-  }, []);
+    if (session?.user?.id) {
+      setLikedTreeIds(await fetchMyLikedTreeIds(session.user.id));
+    }
+  }, [session]);
 
   // ── 個別ツリーの読み込み ─────────────────────
-  // ※ myTrees が空のタイミングで呼ばれても DB から直接フェッチして取得する
+  // ※ myTrees / pubTrees が空のタイミングで呼ばれても DB から直接フェッチして取得する
   const loadTree = useCallback(async (treeId) => {
     setLoading(true);
     setReparentStack([]);
     try {
       let treeRow = [...myTrees, ...pubTrees].find(t => t.id === treeId);
       if (!treeRow && session?.user?.id) {
-        const { data } = await fetchMyTrees(session.user.id);
+        const { data, error } = await fetchMyTrees(session.user.id);
+        if (error) { alert("ツリーの取得に失敗しました。通信環境を確認してください。"); return null; }
         treeRow = (data || []).find(t => t.id === treeId);
+      }
+      if (!treeRow) {
+        const { data: pubData, error: pubError } = await fetchPublicTrees();
+        if (pubError) { alert("ツリーの取得に失敗しました。通信環境を確認してください。"); return null; }
+        treeRow = (pubData || []).find(t => t.id === treeId);
       }
       if (!treeRow) return null;
 
-      const { data: nodes } = await fetchNodes(treeId);
+      const { data: nodes, error: nodesError } = await fetchNodes(treeId);
+      if (nodesError) { alert("ツリーの取得に失敗しました。通信環境を確認してください。"); return null; }
       const assembled = buildTreeFromNodes(treeRow, nodes || []);
       setActiveTree(assembled);
       return assembled;
@@ -191,17 +205,20 @@ export default function App() {
   };
 
   const handleDeleteTree = async (treeId) => {
-    await deleteTree(treeId);
+    const { error } = await deleteTree(treeId);
+    if (error) { alert("削除に失敗しました。もう一度お試しください。"); return; }
     await loadMyTrees();
   };
 
   const handleEditTree = async (treeId, patch) => {
-    await updateTree(treeId, patch);
+    const { error } = await updateTree(treeId, patch);
+    if (error) { alert("保存に失敗しました。もう一度お試しください。"); return; }
     await loadMyTrees();
   };
 
   const handleMemoSave = async (treeId, memo) => {
-    await updateTree(treeId, { quick_memo: memo });
+    const { error } = await updateTree(treeId, { quick_memo: memo });
+    if (error) { alert("メモの保存に失敗しました。もう一度お試しください。"); return; }
     setMyTrees((prev) => prev.map((t) => t.id === treeId ? { ...t, quick_memo: memo } : t));
     if (memo.trim()) recordAction("memo");
   };
@@ -243,7 +260,8 @@ export default function App() {
   };
 
   const handleNodeUpdate = async (nodeId, patch) => {
-    await updateNode(nodeId, patch);
+    const { error } = await updateNode(nodeId, patch);
+    if (error) { alert("保存に失敗しました。もう一度お試しください。"); return; }
     // ローカル state も即時反映
     setActiveTree(prev => {
       const nodes = { ...prev.nodes, [nodeId]: { ...prev.nodes[nodeId], ...patch } };
@@ -261,7 +279,8 @@ export default function App() {
 
   // ── ノードの親を付け替える（マインドマップのドラッグ操作） ──
   const reparentNode = useCallback(async (nodeId, newParentId) => {
-    await updateNode(nodeId, { parentId: newParentId });
+    const { error } = await updateNode(nodeId, { parentId: newParentId });
+    if (error) { alert("移動に失敗しました。もう一度お試しください。"); return; }
     setActiveTree((prev) => {
       const nodes = { ...prev.nodes };
       const node  = nodes[nodeId];
@@ -302,10 +321,11 @@ export default function App() {
 
   // ── 合流（複数の親→1つの子）の親リストを更新する ──
   const handleSetMergeParents = async (nodeId, mergeParentIds) => {
-    await updateNode(nodeId, {
+    const { error } = await updateNode(nodeId, {
       mergeParentIds,
       isMergeTarget: mergeParentIds.length > 0,
     });
+    if (error) { alert("保存に失敗しました。もう一度お試しください。"); return; }
     setActiveTree((prev) => ({
       ...prev,
       nodes: {
@@ -502,6 +522,7 @@ export default function App() {
         )}
         {screen==="public" && (
           <PublicTrees trees={pubTrees} profile={profile}
+            likedTreeIds={likedTreeIds}
             onBack={() => setScreen("list")}
             onCopy={handleCopyTree}
             onLike={(treeId) => session && likeTree(session.user.id, treeId)}

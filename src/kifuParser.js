@@ -200,6 +200,7 @@ function parseKIF(text) {
   const lines = text.split(/\r?\n/);
   const moves = [];
   let lastTo = null;
+  let skipped = 0;
 
   for (const raw of lines) {
     const line = raw.trim();
@@ -213,7 +214,7 @@ function parseKIF(text) {
     const moveNum = +m[1];
     const isSente = moveNum % 2 === 1;
     const parsed = parseKifMoveText(body, lastTo);
-    if (!parsed) continue;
+    if (!parsed) { skipped++; continue; }
 
     moves.push({ isSente, from: parsed.from, to: parsed.to, resultPiece: parsed.resultPiece });
     lastTo = parsed.to;
@@ -222,6 +223,7 @@ function parseKIF(text) {
   return {
     initialState: { board: INITIAL_BOARD.map(r => [...r]), handSente: emptyHand(), handGote: emptyHand() },
     moves,
+    skipped,
   };
 }
 
@@ -236,11 +238,11 @@ function detectFormat(text) {
 
 /**
  * 棋譜テキスト（KIF or CSA）を盤面スナップショット配列に変換する。
- * @returns {Array<{board, handSente, handGote}>} ShogiBoard の kifu 形式
+ * @returns {{snapshots: Array<{board, handSente, handGote}>, skipped: number} | null}
  */
 export function importKifuText(text) {
   const format = detectFormat(text);
-  const { initialState, moves } = format === 'csa' ? parseCSA(text) : parseKIF(text);
+  const { initialState, moves, skipped = 0 } = format === 'csa' ? parseCSA(text) : parseKIF(text);
   if (moves.length === 0) return null;
-  return buildKifuSnapshots(moves, initialState);
+  return { snapshots: buildKifuSnapshots(moves, initialState), skipped };
 }
