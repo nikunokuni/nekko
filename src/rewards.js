@@ -26,6 +26,36 @@ export function getActions() {
   } catch { return {}; }
 }
 
+// ── 初回オンボーディング（使い方トースト）─────────
+// 画面ごとに一度だけ使い方トーストを出すための既読管理（端末ローカル）
+const ONBOARD_KEY = "nekko_onboard_seen";
+
+/** その画面の使い方トーストをまだ表示していなければ true */
+export function shouldShowOnboard(key) {
+  try {
+    const raw  = localStorage.getItem(ONBOARD_KEY);
+    const seen = raw ? JSON.parse(raw) : {};
+    return !seen[key];
+  } catch { return false; }
+}
+
+/** その画面の使い方トーストを表示済みとして記録する */
+export function markOnboardSeen(key) {
+  try {
+    const raw  = localStorage.getItem(ONBOARD_KEY);
+    const seen = raw ? JSON.parse(raw) : {};
+    if (!seen[key]) {
+      seen[key] = true;
+      localStorage.setItem(ONBOARD_KEY, JSON.stringify(seen));
+    }
+  } catch {}
+}
+
+/** 使い方トーストの既読をすべてリセットする（もう一度見る） */
+export function resetOnboard() {
+  try { localStorage.removeItem(ONBOARD_KEY); } catch {}
+}
+
 // ── カスタム戦法タグ ─────────────────────────────
 const CUSTOM_TAGS_KEY = "nekko_custom_tags";
 

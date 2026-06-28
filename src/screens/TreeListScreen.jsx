@@ -542,16 +542,17 @@ export function TreeList({ trees, profile, onOpen, onPublic, onTrophy, onSetting
         </div>
 
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <button onClick={onPublic} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
+          <button data-onboard="public" onClick={onPublic} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
             <i className="ti ti-world" />
           </button>
-          <button onClick={onTrophy} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
+          <button data-onboard="trophy" onClick={onTrophy} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
             <i className="ti ti-trophy" />
           </button>
-          <button onClick={onSettings} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.125rem", padding: 2 }}>
+          <button data-onboard="settings" onClick={onSettings} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.125rem", padding: 2 }}>
             <i className="ti ti-settings" />
           </button>
           <button
+            data-onboard="new"
             onClick={() => setShowCreateModal(true)}
             style={{ background: T.gold, border: "none", cursor: "pointer", color: T.cream, fontSize: T.fontSize.lg, padding: "6px 14px", borderRadius: T.radius.md, fontFamily: T.fontSerif, display: "flex", alignItems: "center", gap: 4 }}
           >

@@ -14,9 +14,9 @@ import { T, INPUT_STYLE, cloneBoard } from "../theme";
 import { SectionLabel, BoardSection, MergeLinkList, LinkPicker, TagPickerField } from "../components/uiParts";
 
 // ── セクション見出し ──────────────────────────────
-function SectionHeader({ icon, children }) {
+function SectionHeader({ icon, children, dataOnboard }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "14px 16px 8px", fontSize: T.fontSize.base, fontWeight: 600, color: T.inkMid, letterSpacing: "0.04em", fontFamily: T.fontSerif }}>
+    <div data-onboard={dataOnboard} style={{ display: "flex", alignItems: "center", gap: 6, padding: "14px 16px 8px", fontSize: T.fontSize.base, fontWeight: 600, color: T.inkMid, letterSpacing: "0.04em", fontFamily: T.fontSerif }}>
       <i className={`ti ${icon}`} style={{ fontSize: "0.8125rem", color: T.gold }} />{children}
     </div>
   );
@@ -481,7 +481,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
         )}
 
         {/* ════════════════ きほん ════════════════ */}
-        <SectionHeader icon="ti-pencil">きほん</SectionHeader>
+        <SectionHeader icon="ti-pencil" dataOnboard="kihon">きほん</SectionHeader>
 
         {/* ノード名 + ステータス */}
         <div style={{ display: "flex", gap: 8, alignItems: "flex-end", padding: "0 16px 10px" }}>
@@ -601,7 +601,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
 
         {/* ════════════════ ついか ════════════════ */}
         <div onClick={() => setAddOpen((v) => !v)} style={{ cursor: "pointer" }}>
-          <SectionHeader icon="ti-adjustments">
+          <SectionHeader icon="ti-adjustments" dataOnboard="tsuika">
             {addIncomplete && <span style={{ color: T.gold, marginRight: 4 }}>・</span>}ついか
             <i className={`ti ti-chevron-${addOpen ? "up" : "down"}`} style={{ fontSize: "0.8125rem", color: T.inkMid, marginLeft: "auto" }} />
           </SectionHeader>
@@ -780,7 +780,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
         <SectionDivider />
 
         {/* ════════════════ 子ノード ════════════════ */}
-        <SectionHeader icon="ti-git-branch">子ノード</SectionHeader>
+        <SectionHeader icon="ti-git-branch" dataOnboard="children">子ノード</SectionHeader>
         <div style={{ padding: "0 16px 16px" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {children.map((child) => {

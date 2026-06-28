@@ -360,6 +360,7 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
         </div>
         {/* 目次ドロワーを開く3点ドット */}
         <div
+          data-onboard="map-menu"
           onClick={() => setDrawerOpen(true)}
           style={{ display: "flex", flexDirection: "column", gap: 3.5, cursor: "pointer", padding: "6px 4px" }}
         >

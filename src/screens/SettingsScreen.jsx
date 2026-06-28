@@ -10,7 +10,7 @@ const FONT_SCALE_OPTIONS = [
   { label: "特大", value: 1.3 },
 ];
 
-export function SettingsScreen({ onBack, fontScale, onFontScaleChange }) {
+export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOnboard }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: T.cream }}>
       {/* ヘッダー */}
@@ -77,6 +77,25 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange }) {
             <span style={{ flex: 1 }}>使い方</span>
             <i className="ti ti-external-link" style={{ fontSize: "0.875rem", color: T.inkFaint }} />
           </a>
+          <button
+            onClick={onResetOnboard}
+            style={{
+              display: "flex", alignItems: "center", gap: 10, width: "100%",
+              padding: "14px 16px",
+              fontSize: T.fontSize.lg,
+              color: T.ink,
+              fontFamily: T.fontSerif,
+              background: "none",
+              border: "none",
+              borderBottom: `0.5px solid ${T.inkLineFaint}`,
+              cursor: "pointer",
+              textAlign: "left",
+            }}
+          >
+            <i className="ti ti-bulb" style={{ fontSize: "1rem", color: T.gold }} />
+            <span style={{ flex: 1 }}>使い方のヒントをもう一度見る</span>
+            <i className="ti ti-refresh" style={{ fontSize: "0.875rem", color: T.inkFaint }} />
+          </button>
           <a
             href="https://x.com/nikunnokuni"
             target="_blank"

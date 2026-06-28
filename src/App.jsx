@@ -32,8 +32,36 @@ function addNodeToTree(prev, row) {
   }
   return { ...prev, nodes, rootId: prev.rootId ?? (node.isRoot ? node.id : null) };
 }
-import { recordLogin, getLoginStats, recordAction, getActions, shouldShowFridayToast, markFridayToastShown } from "./rewards";
+import { recordLogin, getLoginStats, recordAction, getActions, shouldShowFridayToast, markFridayToastShown, shouldShowOnboard, markOnboardSeen, resetOnboard } from "./rewards";
 import { cloneBoard } from "./theme";
+
+// 画面ごとの初回オンボーディング文面（その画面に初めて来たとき1度だけ表示する）
+// 各画面は配列で、複数枚を順番に（連続で）表示する
+const ONBOARD_MESSAGES = {
+  list: [
+    <span><i className="ti ti-world" />みんなのツリー　公開されているツリーを見れます</span>,
+    <span><i className="ti ti-trophy" />トロフィー　獲得したトロフィーを見れます</span>,
+    <span><i className="ti ti-settings" />設定　文字サイズ変更、使い方はこちら</span>,
+    <span>「<i className="ti ti-plus" />新規」から戦法づくりを始めましょう</span>,
+  ],
+  map: [
+    <span>ノードを<b>タップ</b>で編集</span>,
+    <span><b>ドラッグ</b>で枝のつなぎ替え</span>,
+    <span><b>・・・</b>　タップで目次を表示</span>,
+  ],
+  node: [
+    <span><b>きほん</b>　相手の戦法と自分の戦法を入力</span>,
+    <span><b>ついか</b>　さらに詳細を入力</span>,
+    <span><b>子ノード</b>　「ここから分岐を追加」で次の分岐を作成できます</span>,
+  ],
+};
+
+// 各トーストが指さす対象（data-onboard 属性値）。null は指さし対象なし（トーストのみ）
+const ONBOARD_TARGETS = {
+  list: ["public", "trophy", "settings", "new"],
+  map:  [null, null, "map-menu"],
+  node: ["kihon", "tsuika", "children"],
+};
 
 export default function App() {
   const [session,          setSession]          = useState(undefined); // undefined = 未確定
@@ -48,6 +76,7 @@ export default function App() {
   const [loginStats,       setLoginStats]       = useState({ totalDays: 0, streak: 0 });
   const [reparentStack,    setReparentStack]    = useState([]); // マインドマップの親付け替えUndo用（開いた時点からの履歴）
   const [fridayToast,      setFridayToast]      = useState("");
+  const [onboard,          setOnboard]          = useState(null); // 表示中の初回トースト { screen, index }（null=非表示）
   const [likedTreeIds,     setLikedTreeIds]     = useState([]); // ユーザーがいいね済みのツリーID
   const [fontScale,        setFontScale]        = useState(() => Number(localStorage.getItem("nekko_font_scale")) || 1);
 
@@ -102,6 +131,66 @@ export default function App() {
     return () => { if (fridayTimer.current) clearTimeout(fridayTimer.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
+
+  // ── 初回オンボーディング（画面ごとに一度だけ使い方トーストを表示）──
+  // 画面に初めて来たら最初の1枚を表示。複数枚ある画面は順番に切り替える。
+  const onboardTimer = useRef(null);
+  useEffect(() => {
+    if (!session) return;
+    // map / node はツリーを開いてから表示する
+    if ((screen === "map" || screen === "node") && !activeTree) return;
+    if (!ONBOARD_MESSAGES[screen]) return;
+    if (!shouldShowOnboard(screen)) return;
+
+    // 「表示済み」は全枚数を見終えた時点で記録する（途中で閉じても次回また出す）
+    setOnboard({ screen, index: 0 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, session, activeTree]);
+
+  // 現在のトーストを次の1枚へ。最後まで見たら「表示済み」にして閉じる。
+  const advanceOnboard = () => {
+    if (!onboard) return;
+    const msgs = ONBOARD_MESSAGES[onboard.screen] || [];
+    if (onboard.index + 1 < msgs.length) {
+      setOnboard({ ...onboard, index: onboard.index + 1 });
+    } else {
+      markOnboardSeen(onboard.screen);
+      setOnboard(null);
+    }
+  };
+
+  // 表示中のトーストを一定時間で自動的に次の1枚へ進める
+  useEffect(() => {
+    if (!onboard) return;
+    const list  = ONBOARD_MESSAGES[onboard.screen] || [];
+    const delay = list.length > 1 ? 4500 : 8000;
+    if (onboardTimer.current) clearTimeout(onboardTimer.current);
+    onboardTimer.current = setTimeout(advanceOnboard, delay);
+    return () => { if (onboardTimer.current) clearTimeout(onboardTimer.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onboard]);
+
+  // ── 指さし（👆）の位置を、対象要素の実際の位置から計算する ──
+  const [fingerPos, setFingerPos] = useState(null); // { x, y } 画面座標。null=非表示
+  useEffect(() => {
+    if (!onboard) { setFingerPos(null); return; }
+    const targetName = (ONBOARD_TARGETS[onboard.screen] || [])[onboard.index];
+    if (!targetName) { setFingerPos(null); return; }
+
+    const place = () => {
+      const el = document.querySelector(`[data-onboard="${targetName}"]`);
+      if (!el) { setFingerPos(null); return; }
+      const r = el.getBoundingClientRect();
+      // 画面外（スクロールで見えていない）なら指は出さない
+      if (r.bottom < 0 || r.top > window.innerHeight) { setFingerPos(null); return; }
+      // 対象の真下に、上向きの指を置く（指先が対象を指す）
+      setFingerPos({ x: r.left + r.width / 2, y: r.bottom + 2 });
+    };
+    // 対象がレンダリングされるのを待ってから計測する
+    const t = setTimeout(place, 60);
+    window.addEventListener("resize", place);
+    return () => { clearTimeout(t); window.removeEventListener("resize", place); };
+  }, [onboard]);
 
   // ── ツリー一覧の取得 ─────────────────────────
   const loadMyTrees = useCallback(async () => {
@@ -451,7 +540,11 @@ export default function App() {
     if (!pubTreeRow || !session) return;
 
     const { data: newTreeId, error } = await copyTree(pubTreeId, pubTreeRow.name + "（コピー）");
-    if (error || !newTreeId) { console.error("copyTree error:", error); return; }
+    if (error || !newTreeId) {
+      console.error("copyTree error:", error);
+      alert("コピーに失敗しました。もう一度お試しください。");
+      return;
+    }
 
     recordAction("copied");
     await loadMyTrees();
@@ -493,6 +586,72 @@ export default function App() {
         }}>
           <i className="ti ti-book" style={{ fontSize: "0.875rem" }} />
           {fridayToast}
+        </div>
+      )}
+
+      {/* 初回オンボーディング・トースト（画面ごとに一度だけ・タップで次へ／閉じる） */}
+      {onboard && (ONBOARD_MESSAGES[onboard.screen] || [])[onboard.index] && (() => {
+        const msgs  = ONBOARD_MESSAGES[onboard.screen];
+        const multi = msgs.length > 1;
+        return (
+          <div
+            onClick={advanceOnboard}
+            style={{
+              position:     "fixed",
+              bottom:       24,
+              left:         "50%",
+              transform:    "translateX(-50%)",
+              zIndex:       200,
+              width:        "calc(100% - 32px)",
+              maxWidth:     360,
+              background:   "rgba(26,15,0,0.9)",
+              color:        "#faf4e8",
+              fontSize:     "0.8125rem",
+              fontFamily:   "'Noto Serif JP', serif",
+              lineHeight:   1.7,
+              padding:      "12px 16px",
+              borderRadius: 16,
+              display:      "flex",
+              flexDirection: "column",
+              gap:          8,
+              cursor:       "pointer",
+              boxShadow:    "0 4px 20px rgba(26,15,0,0.3)",
+            }}
+          >
+            <div style={{ display: "flex", gap: 8 }}>
+              <i className="ti ti-bulb" style={{ fontSize: "0.9375rem", color: "#c8a96e", flexShrink: 0, marginTop: 2 }} />
+              <span style={{ flex: 1 }}>{msgs[onboard.index]}</span>
+            </div>
+            {multi && (
+              <div style={{ display: "flex", gap: 5, justifyContent: "center" }}>
+                {msgs.map((_, i) => (
+                  <span key={i} style={{
+                    width: 5, height: 5, borderRadius: "50%",
+                    background: i === onboard.index ? "#c8a96e" : "rgba(200,169,110,0.3)",
+                  }} />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* 指さし（👆）：対象の真下に表示し、上向きに対象を指す */}
+      {onboard && fingerPos && (
+        <div
+          style={{
+            position:      "fixed",
+            left:          fingerPos.x,
+            top:           fingerPos.y,
+            transform:     "translate(-50%, 0)",
+            zIndex:        201,
+            fontSize:      "1.75rem",
+            pointerEvents: "none",
+            filter:        "drop-shadow(0 2px 3px rgba(26,15,0,0.35))",
+            animation:     "nekko-finger-bounce 0.9s ease-in-out infinite",
+          }}
+        >
+          👆
         </div>
       )}
 
@@ -552,7 +711,8 @@ export default function App() {
         )}
         {screen==="settings" && (
           <SettingsScreen onBack={() => setScreen("list")}
-            fontScale={fontScale} onFontScaleChange={handleFontScaleChange}/>
+            fontScale={fontScale} onFontScaleChange={handleFontScaleChange}
+            onResetOnboard={() => { resetOnboard(); setScreen("list"); }}/>
         )}
         {screen==="public" && (
           <PublicTrees trees={pubTrees} profile={profile}
