@@ -42,11 +42,11 @@ const ONBOARD_MESSAGES = {
     <span><i className="ti ti-world" />みんなのツリー　公開されているツリーを見れます</span>,
     <span><i className="ti ti-trophy" />トロフィー　獲得したトロフィーを見れます</span>,
     <span><i className="ti ti-settings" />設定　文字サイズ変更、使い方はこちら</span>,
-    <span>「<i className="ti ti-plus" />新規」から戦法づくりを始めましょう</span>,
+    <span>「<i className="ti ti-plus" />新規」から自分のツリーを作っていきましょう</span>,
   ],
   map: [
     <span>ノードを<b>タップ</b>で編集</span>,
-    <span><b>ドラッグ</b>で枝のつなぎ替え</span>,
+    <span><b>ドラッグ</b>で分岐のつなぎ替え</span>,
     <span>
       <span style={{ display: "inline-flex", flexDirection: "column", gap: 2.5, verticalAlign: "middle", margin: "0 4px" }}>
         {[0, 1, 2].map((i) => (
@@ -198,7 +198,8 @@ export default function App() {
       if (!el) { setFingerPos(null); return; }
       const r = el.getBoundingClientRect();
       if (r.bottom < 0 || r.top > window.innerHeight) { setFingerPos(null); return; }
-      const x = r.left + r.width / 2;
+      // ノード詳細は見出し（きほん等）が左寄せなので、中央ではなく左の文字あたりを指す
+      const x = onboard.screen === "node" ? r.left + 40 : r.left + r.width / 2;
       const y = dir === "down" ? r.top - 2 : r.bottom + 2;
       setFingerPos({ x, y, dir });
     };
