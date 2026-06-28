@@ -47,7 +47,14 @@ const ONBOARD_MESSAGES = {
   map: [
     <span>ノードを<b>タップ</b>で編集</span>,
     <span><b>ドラッグ</b>で枝のつなぎ替え</span>,
-    <span><b>・・・</b>　タップで目次を表示</span>,
+    <span>
+      <span style={{ display: "inline-flex", flexDirection: "column", gap: 2.5, verticalAlign: "middle", margin: "0 4px" }}>
+        {[0, 1, 2].map((i) => (
+          <span key={i} style={{ display: "block", width: 3.5, height: 3.5, borderRadius: "50%", background: "#c8a96e" }} />
+        ))}
+      </span>
+      　タップで目次を表示
+    </span>,
   ],
   node: [
     <span><b>きほん</b>　相手の戦法と自分の戦法を入力</span>,
@@ -61,6 +68,12 @@ const ONBOARD_TARGETS = {
   list: ["public", "trophy", "settings", "new"],
   map:  [null, null, "map-menu"],
   node: ["kihon", "tsuika", "children"],
+};
+
+// 対象ごとの指さし設定。dir: 指の向き（up=下から上 / down=上から下）、block: スクロール位置
+const ONBOARD_TARGET_OPTS = {
+  tsuika:   { block: "start" },           // 「ついか」を画面上部に出す
+  children: { block: "center", dir: "down" }, // 「子ノード」は下にあるので下向きの指で指す
 };
 
 export default function App() {
@@ -176,20 +189,29 @@ export default function App() {
     if (!onboard) { setFingerPos(null); return; }
     const targetName = (ONBOARD_TARGETS[onboard.screen] || [])[onboard.index];
     if (!targetName) { setFingerPos(null); return; }
+    const opt = ONBOARD_TARGET_OPTS[targetName] || {};
+    const dir = opt.dir || "up";
 
-    const place = () => {
+    // 指を対象の上／下に置く（dir=up は真下から上向き、down は真上から下向き）。画面外なら出さない。
+    const measure = () => {
       const el = document.querySelector(`[data-onboard="${targetName}"]`);
       if (!el) { setFingerPos(null); return; }
       const r = el.getBoundingClientRect();
-      // 画面外（スクロールで見えていない）なら指は出さない
       if (r.bottom < 0 || r.top > window.innerHeight) { setFingerPos(null); return; }
-      // 対象の真下に、上向きの指を置く（指先が対象を指す）
-      setFingerPos({ x: r.left + r.width / 2, y: r.bottom + 2 });
+      const x = r.left + r.width / 2;
+      const y = dir === "down" ? r.top - 2 : r.bottom + 2;
+      setFingerPos({ x, y, dir });
     };
-    // 対象がレンダリングされるのを待ってから計測する
-    const t = setTimeout(place, 60);
-    window.addEventListener("resize", place);
-    return () => { clearTimeout(t); window.removeEventListener("resize", place); };
+
+    const el = document.querySelector(`[data-onboard="${targetName}"]`);
+    // ノード詳細では対象（ついか・子ノード）が画面に映るようスクロールしてから計測する
+    const isNode = onboard.screen === "node";
+    if (isNode && el) el.scrollIntoView({ block: opt.block || "center", behavior: "smooth" });
+
+    // 対象のレンダリング／スクロール完了を待ってから計測（スクロール時は長めに待つ）
+    const t = setTimeout(measure, isNode ? 420 : 60);
+    window.addEventListener("resize", measure);
+    return () => { clearTimeout(t); window.removeEventListener("resize", measure); };
   }, [onboard]);
 
   // ── ツリー一覧の取得 ─────────────────────────
@@ -598,9 +620,9 @@ export default function App() {
             onClick={advanceOnboard}
             style={{
               position:     "fixed",
-              bottom:       24,
+              top:          "50%",
               left:         "50%",
-              transform:    "translateX(-50%)",
+              transform:    "translate(-50%, -50%)",
               zIndex:       200,
               width:        "calc(100% - 32px)",
               maxWidth:     360,
@@ -636,22 +658,29 @@ export default function App() {
         );
       })()}
 
-      {/* 指さし（👆）：対象の真下に表示し、上向きに対象を指す */}
+      {/* 指さし：対象の上／下に表示し、対象を指す（dir=up は👆、down は👇）*/}
       {onboard && fingerPos && (
         <div
           style={{
             position:      "fixed",
             left:          fingerPos.x,
             top:           fingerPos.y,
-            transform:     "translate(-50%, 0)",
+            // up は指の上端を対象下端に、down は指の下端を対象上端に合わせる
+            transform:     fingerPos.dir === "down" ? "translate(-50%, -100%)" : "translateX(-50%)",
             zIndex:        201,
-            fontSize:      "1.75rem",
             pointerEvents: "none",
-            filter:        "drop-shadow(0 2px 3px rgba(26,15,0,0.35))",
-            animation:     "nekko-finger-bounce 0.9s ease-in-out infinite",
           }}
         >
-          👆
+          <span
+            style={{
+              display:   "block",
+              fontSize:  "1.75rem",
+              filter:    "drop-shadow(0 2px 3px rgba(26,15,0,0.35))",
+              animation: `${fingerPos.dir === "down" ? "nekko-finger-down" : "nekko-finger-up"} 0.9s ease-in-out infinite`,
+            }}
+          >
+            {fingerPos.dir === "down" ? "👇" : "👆"}
+          </span>
         </div>
       )}
 
