@@ -348,6 +348,9 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
 
   const rootNode = rootId ? nodes[rootId] : null;
 
+  // オンボーディングの指さし対象ノード（ルート直下の最初の子。なければルート）
+  const onboardNodeId = (rootNode?.childIds || []).find((cid) => nodes[cid]) ?? rootId;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: T.cream, position: "relative" }}>
       {/* ── トップバー ── */}
@@ -468,6 +471,7 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
                 <g
                   key={id}
                   className="node-g"
+                  data-onboard={id === onboardNodeId ? "map-node" : undefined}
                   onMouseDown={(e) => { e.stopPropagation(); startNodeDrag(id, e.clientX, e.clientY); }}
                   onTouchStart={(e) => { e.stopPropagation(); const t = e.touches[0]; startNodeDrag(id, t.clientX, t.clientY); }}
                   style={{ cursor: "pointer", opacity: isBeingDragged ? 0.5 : 1 }}

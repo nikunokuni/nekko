@@ -66,7 +66,7 @@ const ONBOARD_MESSAGES = {
 // 各トーストが指さす対象（data-onboard 属性値）。null は指さし対象なし（トーストのみ）
 const ONBOARD_TARGETS = {
   list: ["public", "trophy", "settings", "new"],
-  map:  [null, null, "map-menu"],
+  map:  ["map-node", "map-node", "map-menu"],
   node: ["kihon", "tsuika", "children"],
 };
 
