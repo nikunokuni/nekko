@@ -5,7 +5,7 @@
 import { useState, useEffect, useRef } from "react";
 import { BackBtn } from "./components";
 import { signIn, signUp } from "./db";
-import { recordAction } from "./rewards";
+import { recordAction, resetOnboard } from "./rewards";
 import { T } from "./theme";
 
 // ──────────────────────────────────────────────────
@@ -84,6 +84,9 @@ export function AuthScreen({ onAuth }) {
           displayName: displayName.trim() || username.trim(),
         });
         if (err) { setError(err.message); return; }
+
+        // 新規登録ユーザーには使い方トーストを最初から表示する（端末の既読履歴をリセット）
+        resetOnboard();
 
         const { data: loginData, error: loginErr } = await signIn({ email: username, password });
         if (loginErr) {
