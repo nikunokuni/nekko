@@ -482,7 +482,7 @@ export default function ShogiBoard({
       {!readOnly && playbackIdx === null && (
         <div style={{ display:'flex', gap:6, marginBottom:6, flexWrap:'wrap', alignItems:'center' }}>
           {[['move','動かす','ti-arrows-move'],['stamp','スタンプ','ti-stamp'],['erase','消す','ti-eraser']].map(([t,lbl,icon]) => (
-            <button key={t} onClick={() => { setTool(t); setSelected(null); setSelectedHand(null); setArrowStart(null); }} style={btnStyle(tool===t)}>
+            <button key={t} data-onboard={`board-${t}`} onClick={() => { setTool(t); setSelected(null); setSelectedHand(null); setArrowStart(null); }} style={btnStyle(tool===t)}>
               <i className={`ti ${icon}`} style={{fontSize:"0.8125rem"}}/>{lbl}
             </button>
           ))}
@@ -490,7 +490,7 @@ export default function ShogiBoard({
           {/* 棋譜記録ボタン */}
           <div style={{ marginLeft: 'auto' }}>
             {!isRecording ? (
-              <button onClick={startRecording} style={{
+              <button data-onboard="board-kifu" onClick={startRecording} style={{
                 ...btnStyle(false), borderColor:'#854F0B', color:'#854F0B', gap:5,
               }}>
                 <i className="ti ti-record-mail" style={{fontSize:"0.8125rem"}}/>棋譜を記録

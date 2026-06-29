@@ -61,6 +61,17 @@ const ONBOARD_MESSAGES = {
     <span><b>ついか</b>　さらに詳細を入力</span>,
     <span><b>子ノード</b>　「ここから分岐を追加」で次の分岐を作成できます</span>,
   ],
+  // 盤面を初めて追加したとき、各ボタンの使い方を1つずつ指さしで案内する
+  board: [
+    <span><b>テンプレート</b>　定番の盤面をワンタップで呼び出せます</span>,
+    <span><b>非表示</b>　盤面を非表示にできます（内容はそのまま残る）</span>,
+    <span><b>元に戻す</b>　この画面を開いたときの盤面に戻します</span>,
+    <span><b>盤面を削除</b>　盤面を消します（非表示と違い中身も消える）</span>,
+    <span><b>動かす</b>　駒をタップ → 移動先をタップで駒を動かせます</span>,
+    <span><b>スタンプ</b>　マスに目印をつけられます。矢印は始点 → 終点の順にタップ</span>,
+    <span><b>消す</b>　つけたスタンプを消せます</span>,
+    <span><b>棋譜を記録</b>　その間に動かした手順を記録し、あとで再生できます</span>,
+  ],
 };
 
 // 各トーストが指さす対象（data-onboard 属性値）。null は指さし対象なし（トーストのみ）
@@ -68,6 +79,7 @@ const ONBOARD_TARGETS = {
   list: ["public", "trophy", "settings", "new"],
   map:  ["map-node", "map-node", "map-menu"],
   node: ["kihon", "tsuika", "children"],
+  board: ["board-tmpl", "board-hide", "board-undo", "board-delete", "board-move", "board-stamp", "board-erase", "board-kifu"],
 };
 
 // 対象ごとの指さし設定。dir: 指の向き（up=下から上 / down=上から下）、block: スクロール位置
@@ -160,6 +172,12 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen, session, activeTree]);
 
+  // 盤面を初めて追加したときに、盤面ボタンの使い方トースト（8枚）を開始する
+  const startBoardOnboard = useCallback(() => {
+    if (!shouldShowOnboard("board")) return;
+    setOnboard({ screen: "board", index: 0 });
+  }, []);
+
   // 現在のトーストを次の1枚へ。最後まで見たら「表示済み」にして閉じる。
   const advanceOnboard = () => {
     if (!onboard) return;
@@ -204,13 +222,20 @@ export default function App() {
       setFingerPos({ x, y, dir });
     };
 
-    const el = document.querySelector(`[data-onboard="${targetName}"]`);
-    // ノード詳細では対象（ついか・子ノード）が画面に映るようスクロールしてから計測する
-    const isNode = onboard.screen === "node";
-    if (isNode && el) el.scrollIntoView({ block: opt.block || "center", behavior: "smooth" });
+    // トーストの文面が切り替わった瞬間に古い指を消す。これをしないと、新しい位置を
+    // 計測し終えるまでの間だけ指が前のボタンを指したままになり、文面と指がズレて見える。
+    setFingerPos(null);
 
-    // 対象のレンダリング／スクロール完了を待ってから計測（スクロール時は長めに待つ）
-    const t = setTimeout(measure, isNode ? 420 : 60);
+    const el = document.querySelector(`[data-onboard="${targetName}"]`);
+    // ノード詳細・盤面では対象（ついか／子ノードや各盤面ボタン）が画面に映るようスクロールしてから計測する
+    const needsScroll = onboard.screen === "node" || onboard.screen === "board";
+    if (needsScroll && el) el.scrollIntoView({ block: opt.block || "center", behavior: "smooth" });
+
+    // 対象のレンダリング／スクロール完了を待ってから計測する。
+    // 盤面は対象（ボタン群）が既に表示済みでスクロール量も小さいので短め、
+    // ノード詳細は離れた見出しまでスクロールするため長めに待つ。
+    const delay = onboard.screen === "node" ? 420 : needsScroll ? 180 : 60;
+    const t = setTimeout(measure, delay);
     window.addEventListener("resize", measure);
     return () => { clearTimeout(t); window.removeEventListener("resize", measure); };
   }, [onboard]);
@@ -616,14 +641,34 @@ export default function App() {
       {onboard && (ONBOARD_MESSAGES[onboard.screen] || [])[onboard.index] && (() => {
         const msgs  = ONBOARD_MESSAGES[onboard.screen];
         const multi = msgs.length > 1;
+        // 指さし対象があるカードは、指の位置が定まるまでトーストを出さない。
+        // （切り替え直後の一瞬だけ fingerPos が null になり、中央に表示されてから
+        //   指の位置へ移動する「ワープ」を防ぐ）
+        const targetName = (ONBOARD_TARGETS[onboard.screen] || [])[onboard.index];
+        if (targetName && !fingerPos) return null;
+        // 指さしの向きに合わせてトーストを置き、指・ボタンとの重なりを防ぐ。
+        //  ・指が上向き(👆 ＝指は対象の下)：トーストは指の下
+        //  ・指が下向き(👇 ＝指は対象の上)：トーストは指の上（下端を指の上端に合わせる）
+        //  ・指さしが無いトースト：従来どおり画面中央
+        let toastTop, toastTransform;
+        if (!fingerPos) {
+          toastTop = "50%";
+          toastTransform = "translate(-50%, -50%)";
+        } else if (fingerPos.dir === "down") {
+          toastTop = Math.max(fingerPos.y - 48, 150);
+          toastTransform = "translate(-50%, -100%)";
+        } else {
+          toastTop = Math.min(fingerPos.y + 48, window.innerHeight - 150);
+          toastTransform = "translateX(-50%)";
+        }
         return (
           <div
             onClick={advanceOnboard}
             style={{
               position:     "fixed",
-              top:          "50%",
+              top:          toastTop,
               left:         "50%",
-              transform:    "translate(-50%, -50%)",
+              transform:    toastTransform,
               zIndex:       200,
               width:        "calc(100% - 32px)",
               maxWidth:     360,
@@ -737,7 +782,8 @@ export default function App() {
             onNewNode={handleNewNode} onUpdate={handleNodeUpdate}
             onDeleteNode={handleDeleteNode} onSetMergeParents={handleSetMergeParents}
             onReparentNode={handleReparentNode}
-            onBranchFromKifu={handleBranchFromKifu}/>
+            onBranchFromKifu={handleBranchFromKifu}
+            onBoardFirstShown={startBoardOnboard}/>
         )}
         {screen==="settings" && (
           <SettingsScreen onBack={() => setScreen("list")}

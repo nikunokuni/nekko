@@ -127,6 +127,7 @@ export function BoardSection({ boardVisible, boardData, stamps, handSente, handG
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           {/* テンプレートボタン */}
           <button
+            data-onboard="board-tmpl"
             onClick={() => setTmplOpen((v) => !v)}
             title="テンプレートから呼び出す"
             style={{
@@ -138,19 +139,19 @@ export function BoardSection({ boardVisible, boardData, stamps, handSente, handG
           </button>
 
           {/* 非表示 */}
-          <button onClick={onToggle} style={toolbarBtnStyle(T.gold)}>
+          <button data-onboard="board-hide" onClick={onToggle} style={toolbarBtnStyle(T.gold)}>
             <i className="ti ti-minus" style={{ fontSize: "0.75rem" }} />非表示
           </button>
 
           {/* 元に戻す（編集開始時点の盤面に戻す） */}
           {canUndo && (
-            <button onClick={onUndo} title="この画面を開いたときの盤面に戻す" style={toolbarBtnStyle(T.blue)}>
+            <button data-onboard="board-undo" onClick={onUndo} title="この画面を開いたときの盤面に戻す" style={toolbarBtnStyle(T.blue)}>
               <i className="ti ti-history" style={{ fontSize: "0.75rem" }} />元に戻す
             </button>
           )}
 
           {/* 盤面を削除 */}
-          <button onClick={onDelete} style={toolbarBtnStyle(T.gray, T.inkLine)}>
+          <button data-onboard="board-delete" onClick={onDelete} style={toolbarBtnStyle(T.gray, T.inkLine)}>
             <i className="ti ti-trash" style={{ fontSize: "0.75rem" }} />盤面を削除
           </button>
 

@@ -30,7 +30,7 @@ function SectionDivider() {
 // ══════════════════════════════════════════════════════════════════
 // NodeDetail: ノード詳細編集画面
 // ══════════════════════════════════════════════════════════════════
-export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUpdate, onDeleteNode, onSetMergeParents, onReparentNode, onBranchFromKifu }) {
+export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUpdate, onDeleteNode, onSetMergeParents, onReparentNode, onBranchFromKifu, onBoardFirstShown }) {
   const node = tree.nodes[nodeId];
 
   const [label,        setLabel]        = useState("");
@@ -152,7 +152,9 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
     if (node) {
       setBoardSnapshot({
         boardVisible: !!node.board,
-        boardData:    cloneBoard(node.board || null),
+        // 盤面なしは null のまま保持する。cloneBoard(null) は初期配置を返すため、
+        // ここで cloneBoard を通すと「開いた時は盤面なし」が「初期配置」にすり替わってしまう。
+        boardData:    node.board ? cloneBoard(node.board) : null,
         stamps:       node.stamps || [],
         handSente:    node.handSente || {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
         handGote:     node.handGote  || {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
@@ -265,6 +267,8 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
     if (!boardVisible && !boardData) {
       setBoardData(cloneBoard(parent?.board ?? null));
     }
+    // 非表示 → 表示へ切り替わるとき（＝盤面を出したとき）に初回の使い方トーストを促す
+    if (!boardVisible) onBoardFirstShown?.();
     setBoardVisible((v) => !v);
   };
 
@@ -272,7 +276,8 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
   const handleUndoBoard = async () => {
     if (!boardSnapshot) return;
     setBoardVisible(boardSnapshot.boardVisible);
-    setBoardData(cloneBoard(boardSnapshot.boardData));
+    // 開いた時が盤面なし（null）なら、そのまま盤面なしへ戻す（初期配置に化けさせない）
+    setBoardData(boardSnapshot.boardData ? cloneBoard(boardSnapshot.boardData) : null);
     setStamps(boardSnapshot.stamps);
     setHandSente(boardSnapshot.handSente);
     setHandGote(boardSnapshot.handGote);
