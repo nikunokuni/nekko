@@ -202,15 +202,14 @@ export async function updateNode(nodeId, patch) {
   return result;
 }
 
-export async function deleteNode(nodeId) {
-  return supabase.from("nodes").delete().eq("id", nodeId);
-}
-
 export async function countUserNodes(userId) {
+  // ルート（おおもとの戦法）は自動作成のため数えない。
+  // 一覧カードの「🌱 個数」(is_root を除外) と集計基準を統一する。
   const { count } = await supabase
     .from("nodes")
     .select("id", { count: "exact", head: true })
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .eq("is_root", false);
   return count ?? 0;
 }
 
@@ -271,6 +270,7 @@ export function buildTreeFromNodes(treeRow, flatNodes) {
     public:  treeRow.is_public,
     tags:    treeRow.tags    || [],
     likedBy: treeRow.liked_by || 0,
+    quickMemo: treeRow.quick_memo || "",
     userId:  treeRow.user_id,
     nodes:   nodeMap,
     rootId:  rootNode?.id || null,

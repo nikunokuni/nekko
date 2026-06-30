@@ -2,7 +2,7 @@
 // TrophyScreen.jsx  ―  トロフィー（バッジ）画面
 // ══════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
-import { BADGE_DEFS, getSeenBadgeIds, markBadgesSeen } from "../rewards";
+import { BADGE_DEFS } from "../rewards";
 import { Confetti } from "../components";
 import { T } from "../theme";
 
@@ -15,18 +15,14 @@ export function TrophyScreen({ onBack, treeCount, nodeCount, loginStats, extraSt
   // ソート済みキーにして依存配列に渡す（Set はそのままだと参照が毎回変わり比較できないため）
   const earnedIdsKey = [...earnedIds].sort().join(",");
 
-  // ── 新規獲得バッジの紙吹雪演出 ────────────────────
+  // ── 紙吹雪演出（トロフィー画面を開くたび／開いたまま新規獲得したときに毎回出す）──
   const [showConfetti, setShowConfetti] = useState(false);
   useEffect(() => {
-    const seen = getSeenBadgeIds();
-    const newlyEarned = [...earnedIds].filter((id) => !seen.has(id));
-    if (newlyEarned.length > 0) {
-      setShowConfetti(true);
-      const timer = setTimeout(() => setShowConfetti(false), 2800);
-      markBadgesSeen([...earnedIds]);
-      return () => clearTimeout(timer);
-    }
-    // earnedIdsKey が変わった時（=画面を開いたまま新しいバッジを獲得した時）に再実行する
+    if (earnedCount === 0) return; // 1つも獲得していなければ出さない
+    setShowConfetti(true);
+    const timer = setTimeout(() => setShowConfetti(false), 2800);
+    return () => clearTimeout(timer);
+    // earnedIdsKey が変わった時（=画面を開いたまま新しいバッジを獲得した時）にも再実行する
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [earnedIdsKey]);
 
@@ -39,7 +35,8 @@ export function TrophyScreen({ onBack, treeCount, nodeCount, loginStats, extraSt
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: T.cream }}>
-      {showConfetti && <Confetti />}
+      {/* 紙吹雪の量は獲得トロフィー数に比例（1個でも寂しくないよう基本量を足す） */}
+      {showConfetti && <Confetti count={Math.round(20 + earnedCount * 15)} />}
       {/* ヘッダー */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "16px 18px 12px", borderBottom: `0.5px solid ${T.inkLine}` }}>
         <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.125rem", padding: 2, lineHeight: 1 }}>

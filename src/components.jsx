@@ -1,7 +1,7 @@
 // ══════════════════════════════════════════════════
 // components.jsx  ―  共通 UI パーツ
 //   StatusChip / MergeTag /
-//   Divider / BackBtn / DotMenu / Accordion
+//   Divider / BackBtn / Accordion
 // ══════════════════════════════════════════════════
 import { useState, useMemo } from "react";
 import { STATUS_META } from "./data";
@@ -61,20 +61,6 @@ export function BackBtn({ onClick }) {
     }}>
       <i className="ti ti-chevron-left"/>
     </button>
-  );
-}
-
-// ── DotMenu ───────────────────────────────────────
-export function DotMenu({ onClick }) {
-  return (
-    <div onClick={onClick} style={{
-      display:'flex', flexDirection:'column', gap:3.5,
-      cursor:'pointer', padding:'6px 4px',
-    }}>
-      {[0,1,2].map(i => (
-        <span key={i} style={{display:'block',width:3.5,height:3.5,borderRadius:'50%',background:T.gold}}/>
-      ))}
-    </div>
   );
 }
 

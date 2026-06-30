@@ -3,7 +3,7 @@
 //   InputField / SectionLabel / ModalActionButtons /
 //   BoardSection / MergeLinkList
 // ══════════════════════════════════════════════════════════════════
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import ShogiBoard from "../ShogiBoard";
 import { BOARD_TEMPLATES } from "../data";
 import { T, INPUT_STYLE, BTN_CANCEL_STYLE, parseTags } from "../theme";

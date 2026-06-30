@@ -256,7 +256,8 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
   const breadcrumb = (() => {
     const parts = [];
     let cur = node;
-    while (cur.parentId) {
+    // 親が欠けている（参照先が見つからない）場合に undefined.parentId で落ちないよう ?. で防御する
+    while (cur?.parentId) {
       cur = tree.nodes[cur.parentId];
       if (cur) parts.unshift(cur.label);
     }
@@ -570,7 +571,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
           handSente={handSente}
           handGote={handGote}
          onChange={(board, s, hs, hg) => { setBoardData(board); setStamps(s); onUpdate(nodeId, { board, stamps: s, handSente: hs, handGote: hg }); }}
-          onDelete={() => { setBoardData(null); setStamps([]); setBoardVisible(false); onUpdate(nodeId, { board: null, stamps: [] }); }}
+          onDelete={() => { setBoardData(null); setStamps([]); setBoardVisible(false); onUpdate(nodeId, { board: null, stamps: [], kifu: [] }); }}
           onLoadTemplate={(t) => {
             const b = t.board.map(r => [...r]);
             setBoardData(b);
@@ -628,7 +629,6 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
                     onClick={async () => {
                       setOrientation(o);
                       await onUpdate(nodeId, { orientation: o });
-                      recordAction("approach");
                     }}
                     style={{
                       flex:         1,

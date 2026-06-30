@@ -124,7 +124,7 @@ function roundedOrtho(points, r) {
 
 export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparent, onUndoReparent, onMemoSave }) {
   const [drawerOpen,   setDrawerOpen]   = useState(false);
-  const [memoValue,    setMemoValue]    = useState(tree?.quick_memo || "");
+  const [memoValue,    setMemoValue]    = useState(tree?.quickMemo || "");
   const [canvasOffset, setCanvasOffset] = useState({ x: 20, y: 20 });
   const [dragging,     setDragging]     = useState(false);
   const [scale,        setScale]        = useState(1);
@@ -636,7 +636,7 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
               onChange={(e) => setMemoValue(e.target.value)}
               onBlur={() => {
                 const trimmed = memoValue.trim();
-                if (trimmed !== (tree?.quick_memo || "").trim()) {
+                if (trimmed !== (tree?.quickMemo || "").trim()) {
                   onMemoSave?.(tree.id, trimmed);
                 }
               }}

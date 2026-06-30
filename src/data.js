@@ -26,10 +26,6 @@ export const INITIAL_BOARD = [
   ['l','n','s','g','k','g','s','n','l'],
 ];
 
-// ── ノードID採番（フロントのみ。DB保存時はUUIDが上書きされる）──
-let _id = 100;
-export const newId = () => String(++_id);
-
 // ── ステータス表示メタ ────────────────────────────
 export const STATUS_META = {
   done: { label:'完成',  bg:'#EAF3DE', color:'#3B6D11', dot:'#3B6D11' },

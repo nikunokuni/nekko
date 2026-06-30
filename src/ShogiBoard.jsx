@@ -134,7 +134,7 @@ function getHandPieceSprite(pieceKey, isSelected, count) {
   return off;
 }
 
-function HandPiece({ k, count, isSente, isSelected, onClick, readOnly }) {
+function HandPiece({ k, count, isSente, isSelected, onClick, readOnly, boardSelected }) {
   const ref = useRef(null);
   useEffect(() => {
     const canvas = ref.current; if (!canvas) return;
@@ -143,7 +143,8 @@ function HandPiece({ k, count, isSente, isSelected, onClick, readOnly }) {
     ctx.drawImage(getHandPieceSprite(isSente ? k : k.toUpperCase(), isSelected, count), 0, 0);
   }, [k, isSente, isSelected, count]);
   return (
-    <canvas ref={ref} width={32} height={32} onClick={() => !readOnly && onClick()}
+    // 盤上の駒を選択中は、ここをタップしても駒選択せずエリアのクリック（=持ち駒へ移動）に委ねる
+    <canvas ref={ref} width={32} height={32} onClick={() => { if (readOnly || boardSelected) return; onClick(); }}
       style={{ cursor: readOnly ? 'default' : 'pointer', borderRadius: 4,
         border: isSelected ? '1.5px solid #a07840' : '1.5px solid transparent',
         background: isSelected ? '#f0e8d4' : 'transparent' }}
@@ -169,19 +170,24 @@ function NavBtn({ onClick, disabled, icon }) {
   );
 }
 
-function HandArea({ hand, isSente, selectedHand, onSelectPiece, readOnly }) {
+function HandArea({ hand, isSente, selectedHand, onSelectPiece, readOnly, boardSelected, onDeposit }) {
   const label = isSente ? '自分の持ち駒' : '相手の持ち駒';
   const pieces = HAND_ORDER.filter(k => hand[k] > 0);
+  // 盤上の駒を選択中にこのエリアをタップしたら、その駒を持ち駒へ移す
+  const canDeposit = boardSelected && !readOnly;
   return (
-    <div style={{ minHeight:40, background:'#f0e6cc', borderRadius:6, padding:'4px 8px',
+    <div
+      onClick={canDeposit ? () => onDeposit(isSente) : undefined}
+      style={{ minHeight:40, background:'#f0e6cc', borderRadius:6, padding:'4px 8px',
       marginBottom:4, display:'flex', alignItems:'center', gap:4, flexWrap:'wrap',
-      border:'1px solid rgba(120,80,10,0.2)' }}>
+      border: canDeposit ? '1px dashed #a07840' : '1px solid rgba(120,80,10,0.2)',
+      cursor: canDeposit ? 'pointer' : 'default' }}>
       <span style={{ fontSize:"0.625rem", color:'rgba(26,15,0,0.45)', minWidth:60 }}>{label}</span>
       {pieces.length === 0 && <span style={{ fontSize:"0.6875rem", color:'rgba(26,15,0,0.3)' }}>なし</span>}
       {pieces.map(k => (
         <HandPiece key={k} k={k} count={hand[k]} isSente={isSente}
           isSelected={selectedHand?.piece === k && selectedHand?.isSente === isSente}
-          readOnly={readOnly} onClick={() => onSelectPiece(k, isSente)} />
+          readOnly={readOnly} boardSelected={boardSelected} onClick={() => onSelectPiece(k, isSente)} />
       ))}
     </div>
   );
@@ -453,6 +459,26 @@ export default function ShogiBoard({
     if (board[row]?.[col] && board[row][col] !== ' ') setSelected({ row, col });
   }, [board, stamps, selected, selectedHand, tool, currentStamp, arrowStart, readOnly, handSente, handGote, notify, playbackIdx]);
 
+  // ── 盤上の選択駒を持ち駒へ移す（駒タップ→持ち駒エリアタップ）──
+  const depositToHand = useCallback((toSente) => {
+    if (readOnly || !board || playbackIdx !== null) return;
+    if (!selected) return;
+    const piece = board[selected.row]?.[selected.col];
+    if (!piece || piece === ' ') { setSelected(null); return; }
+    const base = baseKey(piece);
+    if (base === 'k') { setSelected(null); return; } // 玉は持ち駒にできない
+    const nextBoard = board.map(r => [...r]);
+    nextBoard[selected.row][selected.col] = ' ';
+    const nextHS = toSente  ? { ...handSente, [base]: (handSente[base] ?? 0) + 1 } : { ...handSente };
+    const nextHG = !toSente ? { ...handGote,  [base]: (handGote[base]  ?? 0) + 1 } : { ...handGote };
+    if (recordingRef.current.active) {
+      recordingRef.current.snaps = [...recordingRef.current.snaps,
+        { board: nextBoard.map(r => [...r]), handSente: { ...nextHS }, handGote: { ...nextHG } }];
+    }
+    setBoard(nextBoard); setHandSente(nextHS); setHandGote(nextHG); setSelected(null);
+    notify(nextBoard, nextHS, nextHG, stamps);
+  }, [readOnly, board, playbackIdx, selected, handSente, handGote, notify, stamps]);
+
   const handleTouchEnd = useCallback((e) => {
     if (readOnly || !board) return;
     if (e.changedTouches.length !== 1) return;
@@ -465,6 +491,17 @@ export default function ShogiBoard({
   const W = COLS * CELL, H = ROWS * CELL;
   const kifuLen = kifuProp.length;  // 保存済みスナップショット数（0 = 棋譜なし）
   const moveCount = Math.max(0, kifuLen - 1); // 手数 = スナップ数 - 1（初期局面分を引く）
+  // 棋譜ナビ上の現在位置。通常表示(null)は最終手と同じ局面なので moveCount とみなす
+  const cur = playbackIdx === null ? moveCount : playbackIdx;
+
+  // 棋譜は「現在の盤面とは独立した再生用データ」。録画後に盤面だけを編集すると、
+  // 現在の盤面と棋譜の最終局面がズレる。そのズレを検知してユーザーに明示する。
+  const kifuLast = kifuLen > 0 ? kifuProp[kifuLen - 1] : null;
+  const kifuDiverged = !!kifuLast && (
+    JSON.stringify(board)     !== JSON.stringify(kifuLast.board)     ||
+    JSON.stringify(handSente) !== JSON.stringify(kifuLast.handSente) ||
+    JSON.stringify(handGote)  !== JSON.stringify(kifuLast.handGote)
+  );
 
   const btnStyle = (active) => ({
     display: 'flex', alignItems: 'center', gap: 4,
@@ -535,6 +572,8 @@ export default function ShogiBoard({
           setSelectedHand(prev => prev?.piece === piece && !prev?.isSente ? null : { piece, isSente: false });
         }}
         readOnly={readOnly || playbackIdx !== null}
+        boardSelected={!playSnap && tool === 'move' && !!selected}
+        onDeposit={depositToHand}
       />
 
       {/* 将棋盤 Canvas */}
@@ -552,6 +591,8 @@ export default function ShogiBoard({
           setSelectedHand(prev => prev?.piece === piece && prev?.isSente ? null : { piece, isSente: true });
         }}
         readOnly={readOnly || playbackIdx !== null}
+        boardSelected={!playSnap && tool === 'move' && !!selected}
+        onDeposit={depositToHand}
       />
 
       {/* ── 棋譜ナビ（保存済み棋譜がある場合） ── */}
@@ -563,30 +604,37 @@ export default function ShogiBoard({
           background: playbackIdx !== null ? '#f0e8d4' : '#faf4e8',
           border: `0.5px solid ${playbackIdx !== null ? '#a07840' : 'rgba(26,15,0,0.15)'}`,
         }}>
-          {/* |< 最初へ */}
-          <NavBtn icon="ti-player-skip-back" disabled={playbackIdx === 0}
+          {/* 棋譜は「現在の盤面」とは別に保存された再生専用データであることを明示する */}
+          <div style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'center', gap:4, fontSize:"0.625rem", color:'rgba(26,15,0,0.45)', fontFamily:"'Noto Serif JP',serif" }}>
+            <i className="ti ti-player-play" style={{fontSize:"0.6875rem"}}/>
+            保存した棋譜（現在の盤面とは別の記録）
+          </div>
+
+          {/* 通常表示(null)は「最終手の位置」とみなして前後移動を対称にする */}
+          {/* 最初に移動 |< */}
+          <NavBtn icon="ti-player-skip-back" disabled={cur === 0}
             onClick={() => setPlaybackIdx(0)} />
 
-          {/* < 前へ */}
-          <NavBtn icon="ti-chevron-left" disabled={playbackIdx === 0}
-            onClick={() => setPlaybackIdx(idx => idx === null ? moveCount : Math.max(0, idx - 1))} />
+          {/* 一手前に戻る < */}
+          <NavBtn icon="ti-chevron-left" disabled={cur === 0}
+            onClick={() => setPlaybackIdx(Math.max(0, cur - 1))} />
 
           {/* 手数表示 */}
           <div style={{ fontFamily:"'Noto Serif JP',serif", fontSize:"0.75rem", color:'#1a0f00', minWidth:80, flexShrink:0, whiteSpace:'nowrap', textAlign:'center' }}>
             {playbackIdx === null
-              ? <span style={{color:'rgba(26,15,0,0.4)'}}>棋譜 {moveCount}手</span>
+              ? <span style={{color:'rgba(26,15,0,0.4)'}}>全{moveCount}手（タップで再生）</span>
               : playbackIdx === 0
               ? '初期局面'
               : `第${playbackIdx}手 / ${moveCount}手`
             }
           </div>
 
-          {/* 次へ > */}
-          <NavBtn icon="ti-chevron-right" disabled={playbackIdx === moveCount}
-            onClick={() => setPlaybackIdx(idx => idx === null ? 1 : Math.min(moveCount, idx + 1))} />
+          {/* 一手進む > */}
+          <NavBtn icon="ti-chevron-right" disabled={cur === moveCount}
+            onClick={() => setPlaybackIdx(Math.min(moveCount, cur + 1))} />
 
-          {/* 最後へ >| */}
-          <NavBtn icon="ti-player-skip-forward" disabled={playbackIdx === moveCount}
+          {/* 最後に移動 >| */}
+          <NavBtn icon="ti-player-skip-forward" disabled={cur === moveCount}
             onClick={() => setPlaybackIdx(moveCount)} />
 
           {/* 再生中は「編集にもどる」で再生モードを終了し、盤面編集に戻れる */}
@@ -599,6 +647,14 @@ export default function ShogiBoard({
             }}>
               <i className="ti ti-pencil" style={{fontSize:"0.8125rem"}}/>編集にもどる
             </button>
+          )}
+
+          {/* 現在の盤面が棋譜の最終局面と食い違っているときだけ明示する（Cの割り切り：別データとして共存） */}
+          {kifuDiverged && playbackIdx === null && (
+            <div style={{ width:'100%', textAlign:'center', fontSize:"0.5625rem", color:'#854F0B', fontFamily:"'Noto Serif JP',serif", lineHeight:1.5 }}>
+              <i className="ti ti-info-circle" style={{fontSize:"0.625rem", marginRight:3}}/>
+              現在の盤面は棋譜の最終局面とは別に編集されています
+            </div>
           )}
         </div>
       )}
@@ -623,7 +679,7 @@ export default function ShogiBoard({
         <div style={{fontSize:"0.625rem",color:'#B4B2A9',marginTop:4,textAlign:'center'}}>
           {isRecording
             ? '駒を動かすと手順が記録されます'
-            : tool==='move' ? '駒をタップして選択 → 移動先をタップ'
+            : tool==='move' ? '駒をタップ → 移動先のマス、または持ち駒エリアをタップ'
             : tool==='stamp'
               ? (currentStamp === 'ya'
                   ? (arrowStart ? '矢印の終点のマスをタップ' : '矢印の始点のマスをタップ')

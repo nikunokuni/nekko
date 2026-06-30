@@ -15,7 +15,7 @@ import {
   fetchMyTrees, fetchPublicTrees, fetchNodes,
   createTree, createNode, updateNode, updateTree, deleteTree, copyTree,
   buildTreeFromNodes, nodeRowToNode, publishTree, deleteNodes, unpublishTree,
-  countUserNodes, likeTree, collectTreeTags, fetchAllWipNodes,
+  countUserNodes, likeTree, unlikeTree, collectTreeTags, fetchAllWipNodes,
   fetchMyLikedTreeIds,
 } from "./db";
 
@@ -378,6 +378,7 @@ export default function App() {
     const { error } = await updateTree(treeId, { quick_memo: memo });
     if (error) { alert("メモの保存に失敗しました。もう一度お試しください。"); return; }
     setMyTrees((prev) => prev.map((t) => t.id === treeId ? { ...t, quick_memo: memo } : t));
+    setActiveTree((prev) => prev && prev.id === treeId ? { ...prev, quickMemo: memo } : prev);
     if (memo.trim()) recordAction("memo");
   };
 
@@ -551,9 +552,33 @@ export default function App() {
   const handleDeleteNode = async (idsToDelete, parentId) => {
     try {
       await deleteNodes(idsToDelete);
+
+      // 削除されたノードを「合流親」に持つ残りノードから、その参照を取り除く
+      // （放置すると他ノードの merge_parent_ids に削除済みIDが残り続けるため）
+      const delSet = new Set(idsToDelete);
+      const affected = [];
+      for (const n of Object.values(activeTree?.nodes || {})) {
+        if (delSet.has(n.id)) continue;
+        const refs = n.mergeParentIds || [];
+        if (refs.some((id) => delSet.has(id))) {
+          affected.push({ id: n.id, cleaned: refs.filter((id) => !delSet.has(id)) });
+        }
+      }
+      await Promise.all(
+        affected.map((a) =>
+          updateNode(a.id, { mergeParentIds: a.cleaned, isMergeTarget: a.cleaned.length > 0 })
+        )
+      );
+
       setActiveTree((prev) => {
         const newNodes = { ...prev.nodes };
         idsToDelete.forEach((id) => delete newNodes[id]);
+        // 合流参照の掃除をローカルにも反映
+        affected.forEach((a) => {
+          if (newNodes[a.id]) {
+            newNodes[a.id] = { ...newNodes[a.id], mergeParentIds: a.cleaned, isMergeTarget: a.cleaned.length > 0 };
+          }
+        });
         if (parentId && newNodes[parentId]) {
           newNodes[parentId] = {
             ...newNodes[parentId],
@@ -756,7 +781,6 @@ export default function App() {
             hasTags:      myTrees.some(t => (t.tags || []).length > 0),
             hasCopied:    !!acts.copied,
             hasLiked:     !!acts.liked,
-            hasApproach:  !!acts.approach,
             hasKifu:      !!acts.kifu,
             hasTemplate:  !!acts.template,
             hasCustomTag: !!acts.customTag,
@@ -796,6 +820,7 @@ export default function App() {
             onBack={() => setScreen("list")}
             onCopy={handleCopyTree}
             onLike={(treeId) => session && likeTree(session.user.id, treeId)}
+            onUnlike={(treeId) => session && unlikeTree(session.user.id, treeId)}
             onRefresh={loadPublicTrees}/>
         )}
       </div>

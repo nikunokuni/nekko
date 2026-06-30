@@ -2,7 +2,7 @@
 // screensPublic.jsx  ―  認証・公開ツリー画面
 //   AuthScreen / PublicTrees
 // ══════════════════════════════════════════════════
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { BackBtn } from "./components";
 import { signIn, signUp } from "./db";
 import { recordAction, resetOnboard } from "./rewards";
@@ -196,7 +196,7 @@ export function AuthScreen({ onAuth }) {
 // ──────────────────────────────────────────────────
 // PublicTreeCard: 公開ツリー1件分のカード
 // ──────────────────────────────────────────────────
-function PublicTreeCard({ tree, isCopied, isCopying, isLiked, justLiked, onCopy, onLike }) {
+function PublicTreeCard({ tree, isCopied, isCopying, isLiked, likeCount, onCopy, onToggleLike }) {
   const author = tree.profiles?.display_name || tree.profiles?.username || "匿名";
 
   return (
@@ -207,18 +207,19 @@ function PublicTreeCard({ tree, isCopied, isCopying, isLiked, justLiked, onCopy,
           <div style={{ fontFamily: T.fontTitle, fontSize: T.fontSize.xxl, color: T.ink, marginBottom: 2 }}>{tree.name}</div>
           <div style={{ fontSize: T.fontSize.sm, color: "rgba(26,15,0,0.4)" }}>@{author}</div>
         </div>
-        {/* いいねボタン */}
+        {/* いいねボタン（タップでいいね↔解除をトグル） */}
         <button
-          onClick={() => !isLiked && onLike(tree.id)}
+          onClick={() => onToggleLike(tree.id)}
+          title={isLiked ? "いいねを取り消す" : "いいね"}
           style={{
             display: "flex", alignItems: "center", gap: 4,
-            background: "none", border: "none", cursor: isLiked ? "default" : "pointer",
+            background: "none", border: "none", cursor: "pointer",
             fontSize: T.fontSize.base, color: isLiked ? T.red : "rgba(26,15,0,0.35)",
             padding: "2px 4px", borderRadius: 6, transition: "color 0.15s",
           }}
         >
           <i className={`ti ti-heart${isLiked ? "-filled" : ""}`} style={{ fontSize: T.fontSize.xxl }} />
-          {(tree.liked_by || 0) + (justLiked ? 1 : 0)}
+          {likeCount}
         </button>
       </div>
 
@@ -277,19 +278,20 @@ function TagFilter({ trees, activeTag, onSelect }) {
 // ══════════════════════════════════════════════════
 // PublicTrees
 // ══════════════════════════════════════════════════
-export function PublicTrees({ trees, profile, likedTreeIds, onBack, onCopy, onLike, onRefresh }) {
+export function PublicTrees({ trees, profile, likedTreeIds, onBack, onCopy, onLike, onUnlike, onRefresh }) {
   const [query,     setQuery]     = useState("");
   const [activeTag, setActiveTag] = useState("すべて");
   const [copiedId,  setCopiedId]  = useState(null);
   const [copying,   setCopying]   = useState(null);
   const [likedIds,  setLikedIds]  = useState(new Set());
-  // この画面で新しく押したいいねだけを別管理する。
-  // サーバの liked_by には既存（復元）のいいねが既に含まれるため、表示の +1 補正は
-  // 「今セッションで押した分」だけに限定しないと、再訪時に常に1多く表示されてしまう。
-  const [justLikedIds, setJustLikedIds] = useState(new Set());
 
-  // サーバー上の既存いいねを反映（画面再訪時に「未いいね」へ戻る／重複いいねを防ぐ）
+  // サーバー上の既存いいね（初期状態）。表示カウントの補正は「初期状態との差分」で行う。
+  // 例: 初期いいね済みのツリーを解除したら -1、未いいねを押したら +1、元に戻せば ±0。
+  // （tree.liked_by には既存のいいねが既に含まれるため、初期状態を基準にしないと再訪時にズレる）
   const likedTreeIdsStr = JSON.stringify(likedTreeIds || []);
+  const initialLikedIds = useMemo(() => new Set(likedTreeIds || []), [likedTreeIdsStr]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 初期いいね状態を現在のいいね状態へ反映（画面再訪時の復元／重複いいね防止）
   useEffect(() => {
     setLikedIds((prev) => new Set([...prev, ...(likedTreeIds || [])]));
   }, [likedTreeIdsStr]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -317,12 +319,19 @@ export function PublicTrees({ trees, profile, likedTreeIds, onBack, onCopy, onLi
     }
   };
 
-  const handleLike = async (id) => {
-    if (likedIds.has(id)) return;
-    setLikedIds((prev) => new Set([...prev, id]));
-    setJustLikedIds((prev) => new Set([...prev, id]));
-    recordAction("liked");
-    try { await onLike?.(id); } catch {}
+  const handleToggleLike = async (id) => {
+    const willLike = !likedIds.has(id);
+    setLikedIds((prev) => {
+      const next = new Set(prev);
+      if (willLike) next.add(id); else next.delete(id);
+      return next;
+    });
+    if (willLike) {
+      recordAction("liked");
+      try { await onLike?.(id); } catch {}
+    } else {
+      try { await onUnlike?.(id); } catch {}
+    }
   };
 
   return (
@@ -363,18 +372,23 @@ export function PublicTrees({ trees, profile, likedTreeIds, onBack, onCopy, onLi
             見つかりませんでした
           </div>
         ) : (
-          filtered.map((t) => (
-            <PublicTreeCard
-              key={t.id}
-              tree={t}
-              isCopied={copiedId === t.id}
-              isCopying={copying === t.id}
-              isLiked={likedIds.has(t.id)}
-              justLiked={justLikedIds.has(t.id)}
-              onCopy={handleCopy}
-              onLike={handleLike}
-            />
-          ))
+          filtered.map((t) => {
+            const liked = likedIds.has(t.id);
+            // 初期状態との差分でカウントを補正（解除=-1 / 新規=+1 / 元に戻す=±0）
+            const delta = (liked ? 1 : 0) - (initialLikedIds.has(t.id) ? 1 : 0);
+            return (
+              <PublicTreeCard
+                key={t.id}
+                tree={t}
+                isCopied={copiedId === t.id}
+                isCopying={copying === t.id}
+                isLiked={liked}
+                likeCount={Math.max(0, (t.liked_by || 0) + delta)}
+                onCopy={handleCopy}
+                onToggleLike={handleToggleLike}
+              />
+            );
+          })
         )}
       </div>
     </div>
