@@ -15,7 +15,7 @@ import {
   fetchMyTrees, fetchPublicTrees, fetchNodes,
   createTree, createNode, updateNode, updateTree, deleteTree, copyTree,
   buildTreeFromNodes, nodeRowToNode, publishTree, deleteNodes, unpublishTree,
-  countUserNodes, countAccounts, countAllTrees, countAllNodes, likeTree, unlikeTree, collectTreeTags, fetchAllWipNodes,
+  countUserNodes, getAppStats, likeTree, unlikeTree, collectTreeTags, fetchAllWipNodes,
   fetchMyLikedTreeIds,
 } from "./db";
 
@@ -158,11 +158,11 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
-  // 開発者（niku）のときだけ、アプリ全体の統計（アカウント/ツリー/ノード数）を取得
+  // 開発者（niku）のときだけ、アプリ全体の統計（全ユーザーのアカウント/ツリー/ノード数）を取得
   useEffect(() => {
     if (profile?.username !== "niku") { setDevStats(null); return; }
-    Promise.all([countAccounts(), countAllTrees(), countAllNodes()])
-      .then(([accounts, trees, nodes]) => setDevStats({ accounts, trees, nodes }))
+    getAppStats()
+      .then(setDevStats)
       .catch((e) => console.error("devStats error:", e));
   }, [profile]);
 

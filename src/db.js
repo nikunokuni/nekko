@@ -202,30 +202,20 @@ export async function updateNode(nodeId, patch) {
   return result;
 }
 
-// アプリ全体のアカウント数（profiles テーブルの行数）を数える
-export async function countAccounts() {
-  const { count } = await supabase
-    .from("profiles")
-    .select("id", { count: "exact", head: true });
-  return count ?? 0;
-}
-
-// アプリ全体のツリー総数を数える
-export async function countAllTrees() {
-  const { count } = await supabase
-    .from("trees")
-    .select("id", { count: "exact", head: true });
-  return count ?? 0;
-}
-
-// アプリ全体のノード総数を数える（ルートは自動作成のため除外し、
-// 一覧カードの「🌱 個数」や countUserNodes と集計基準を統一する）
-export async function countAllNodes() {
-  const { count } = await supabase
-    .from("nodes")
-    .select("id", { count: "exact", head: true })
-    .eq("is_root", false);
-  return count ?? 0;
+// アプリ全体の統計（全ユーザーのアカウント数・ツリー総数・ノード総数）を取得する。
+// RLS を回避して全行を数えるため、DB 側の SECURITY DEFINER 関数 get_app_stats を呼ぶ。
+// この関数は呼び出し元が開発者(niku)本人のときだけ結果を返す。
+// 戻り値: { accounts, trees, nodes } / 権限が無い等で失敗した場合は null。
+export async function getAppStats() {
+  const { data, error } = await supabase.rpc("get_app_stats");
+  if (error) { console.error("get_app_stats error:", error); return null; }
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) return null;
+  return {
+    accounts: Number(row.accounts) || 0,
+    trees:    Number(row.trees)    || 0,
+    nodes:    Number(row.nodes)    || 0,
+  };
 }
 
 export async function countUserNodes(userId) {
