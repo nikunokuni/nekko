@@ -15,7 +15,7 @@ import {
   fetchMyTrees, fetchPublicTrees, fetchNodes,
   createTree, createNode, updateNode, updateTree, deleteTree, copyTree,
   buildTreeFromNodes, nodeRowToNode, publishTree, deleteNodes, unpublishTree,
-  countUserNodes, likeTree, unlikeTree, collectTreeTags, fetchAllWipNodes,
+  countUserNodes, countAccounts, likeTree, unlikeTree, collectTreeTags, fetchAllWipNodes,
   fetchMyLikedTreeIds,
 } from "./db";
 
@@ -98,6 +98,7 @@ export default function App() {
   const [activeNodeId,     setActiveNodeId]     = useState(null);
   const [loading,          setLoading]          = useState(false);
   const [nodeCount,        setNodeCount]        = useState(0);
+  const [accountCount,     setAccountCount]     = useState(null);
   const [loginStats,       setLoginStats]       = useState({ totalDays: 0, streak: 0 });
   const [reparentStack,    setReparentStack]    = useState([]); // マインドマップの親付け替えUndo用（開いた時点からの履歴）
   const [fridayToast,      setFridayToast]      = useState("");
@@ -156,6 +157,14 @@ export default function App() {
     return () => { if (fridayTimer.current) clearTimeout(fridayTimer.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
+
+  // 開発者（niku）のときだけ、アプリ全体のアカウント数を取得
+  useEffect(() => {
+    if (profile?.username !== "niku") { setAccountCount(null); return; }
+    countAccounts()
+      .then(setAccountCount)
+      .catch((e) => console.error("countAccounts error:", e));
+  }, [profile]);
 
   // ── 初回オンボーディング（画面ごとに一度だけ使い方トーストを表示）──
   // 画面に初めて来たら最初の1枚を表示。複数枚ある画面は順番に切り替える。
@@ -812,7 +821,8 @@ export default function App() {
         {screen==="settings" && (
           <SettingsScreen onBack={() => setScreen("list")}
             fontScale={fontScale} onFontScaleChange={handleFontScaleChange}
-            onResetOnboard={() => { resetOnboard(); setScreen("list"); }}/>
+            onResetOnboard={() => { resetOnboard(); setScreen("list"); }}
+            accountCount={accountCount}/>
         )}
         {screen==="public" && (
           <PublicTrees trees={pubTrees} profile={profile}

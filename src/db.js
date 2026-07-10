@@ -202,6 +202,14 @@ export async function updateNode(nodeId, patch) {
   return result;
 }
 
+// アプリ全体のアカウント数（profiles テーブルの行数）を数える
+export async function countAccounts() {
+  const { count } = await supabase
+    .from("profiles")
+    .select("id", { count: "exact", head: true });
+  return count ?? 0;
+}
+
 export async function countUserNodes(userId) {
   // ルート（おおもとの戦法）は自動作成のため数えない。
   // 一覧カードの「🌱 個数」(is_root を除外) と集計基準を統一する。
