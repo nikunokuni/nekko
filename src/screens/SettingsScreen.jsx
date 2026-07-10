@@ -10,7 +10,7 @@ const FONT_SCALE_OPTIONS = [
   { label: "特大", value: 1.3 },
 ];
 
-export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOnboard, accountCount }) {
+export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOnboard, devStats }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: T.cream }}>
       {/* ヘッダー */}
@@ -55,24 +55,34 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOn
         </div>
 
         {/* 開発者向け（niku のときだけ表示）*/}
-        {accountCount != null && (
+        {devStats && (
           <div style={{ marginBottom: 28 }}>
             <div style={{ fontSize: T.fontSize.md, color: T.inkMid, marginBottom: 10, letterSpacing: "0.08em" }}>
               開発者向け
             </div>
-            <div style={{
-              display: "flex", alignItems: "center", gap: 10,
-              padding: "14px 16px",
-              borderRadius: T.radius.md,
-              border: `0.5px solid ${T.inkLine}`,
-            }}>
-              <i className="ti ti-users" style={{ fontSize: "1rem", color: T.gold }} />
-              <span style={{ flex: 1, fontSize: T.fontSize.lg, color: T.ink, fontFamily: T.fontSerif }}>
-                アカウント数
-              </span>
-              <span style={{ fontSize: T.fontSize.lg, color: T.ink, fontFamily: T.fontSerif, fontWeight: 700 }}>
-                {accountCount}
-              </span>
+            <div style={{ borderRadius: T.radius.md, border: `0.5px solid ${T.inkLine}`, overflow: "hidden" }}>
+              {[
+                { icon: "ti-users",        label: "アカウント数", value: Math.max(0, devStats.accounts - 1) },
+                { icon: "ti-binary-tree",  label: "ツリー総数",   value: devStats.trees },
+                { icon: "ti-point-filled", label: "ノード総数",   value: devStats.nodes },
+              ].map((row, i, arr) => (
+                <div
+                  key={row.label}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 10,
+                    padding: "14px 16px",
+                    borderBottom: i < arr.length - 1 ? `0.5px solid ${T.inkLineFaint}` : "none",
+                  }}
+                >
+                  <i className={`ti ${row.icon}`} style={{ fontSize: "1rem", color: T.gold }} />
+                  <span style={{ flex: 1, fontSize: T.fontSize.lg, color: T.ink, fontFamily: T.fontSerif }}>
+                    {row.label}
+                  </span>
+                  <span style={{ fontSize: T.fontSize.lg, color: T.ink, fontFamily: T.fontSerif, fontWeight: 700 }}>
+                    {row.value}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         )}

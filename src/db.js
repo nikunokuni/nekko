@@ -210,6 +210,24 @@ export async function countAccounts() {
   return count ?? 0;
 }
 
+// アプリ全体のツリー総数を数える
+export async function countAllTrees() {
+  const { count } = await supabase
+    .from("trees")
+    .select("id", { count: "exact", head: true });
+  return count ?? 0;
+}
+
+// アプリ全体のノード総数を数える（ルートは自動作成のため除外し、
+// 一覧カードの「🌱 個数」や countUserNodes と集計基準を統一する）
+export async function countAllNodes() {
+  const { count } = await supabase
+    .from("nodes")
+    .select("id", { count: "exact", head: true })
+    .eq("is_root", false);
+  return count ?? 0;
+}
+
 export async function countUserNodes(userId) {
   // ルート（おおもとの戦法）は自動作成のため数えない。
   // 一覧カードの「🌱 個数」(is_root を除外) と集計基準を統一する。
