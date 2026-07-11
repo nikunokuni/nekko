@@ -277,11 +277,6 @@ export default function ShogiBoard({
     for (let i = 0; i <= COLS; i++) { ctx.beginPath(); ctx.moveTo(i*CELL,0); ctx.lineTo(i*CELL,H); ctx.stroke(); }
     for (let j = 0; j <= ROWS; j++) { ctx.beginPath(); ctx.moveTo(0,j*CELL); ctx.lineTo(W,j*CELL); ctx.stroke(); }
 
-    ctx.fillStyle = 'rgba(60,35,5,0.6)';
-    for (const [r,c] of [[2,2],[2,6],[6,2],[6,6]]) {
-      ctx.beginPath(); ctx.arc(c*CELL, r*CELL, 2.5, 0, Math.PI*2); ctx.fill();
-    }
-
     if (selected && !playSnap) {
       ctx.fillStyle = 'rgba(255,230,60,0.5)';
       ctx.fillRect(selected.col*CELL + 1, selected.row*CELL + 1, CELL - 2, CELL - 2);
