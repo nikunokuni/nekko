@@ -267,6 +267,13 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
   const handleToggleBoard = () => {
     if (!boardVisible && !boardData) {
       setBoardData(cloneBoard(parent?.board ?? null));
+      // 前回（親ノード）の盤面を引き継ぐときは、持ち駒も併せて引き継ぐ。
+      // 親に盤面があるときだけ引き継ぎ、盤面なし（＝初期配置に化ける）ときは
+      // 持ち駒も初期状態のままにする。
+      if (parent?.board) {
+        setHandSente({ ...(parent.handSente || {p:0,l:0,n:0,s:0,g:0,b:0,r:0}) });
+        setHandGote({  ...(parent.handGote  || {p:0,l:0,n:0,s:0,g:0,b:0,r:0}) });
+      }
     }
     // 非表示 → 表示へ切り替わるとき（＝盤面を出したとき）に初回の使い方トーストを促す
     if (!boardVisible) onBoardFirstShown?.();
