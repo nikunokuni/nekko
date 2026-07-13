@@ -2,7 +2,7 @@
 // MindMapScreen.jsx  ―  SVGマインドマップ
 //   （ドラッグ操作・目次ドロワー付き）
 // ══════════════════════════════════════════════════════════════════
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { Accordion } from "../components";
 import { STATUS_META, USAGE_META, ORIENTATION_META } from "../data";
 import { T } from "../theme";
@@ -98,30 +98,6 @@ function layoutTree(nodes, rootId) {
   return { positions, edges };
 }
 
-/**
- * 直交（カクカク）パスを角丸にしてSVGパス文字列を返す
- * @param {{x:number,y:number}[]} points 経由点
- * @param {number} r 角丸半径
- */
-function roundedOrtho(points, r) {
-  if (!points || points.length < 2) return "";
-  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) || 1;
-  let d = `M ${points[0].x} ${points[0].y}`;
-  for (let i = 1; i < points.length - 1; i++) {
-    const p0 = points[i - 1], p1 = points[i], p2 = points[i + 1];
-    const d1 = Math.min(r, dist(p0, p1) / 2);
-    const d2 = Math.min(r, dist(p1, p2) / 2);
-    const v1 = { x: (p1.x - p0.x) / dist(p0, p1), y: (p1.y - p0.y) / dist(p0, p1) };
-    const v2 = { x: (p2.x - p1.x) / dist(p1, p2), y: (p2.y - p1.y) / dist(p1, p2) };
-    const a = { x: p1.x - v1.x * d1, y: p1.y - v1.y * d1 };
-    const b = { x: p1.x + v2.x * d2, y: p1.y + v2.y * d2 };
-    d += ` L ${a.x} ${a.y} Q ${p1.x} ${p1.y} ${b.x} ${b.y}`;
-  }
-  const last = points[points.length - 1];
-  d += ` L ${last.x} ${last.y}`;
-  return d;
-}
-
 export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparent, onUndoReparent, onMemoSave }) {
   const [drawerOpen,   setDrawerOpen]   = useState(false);
   const [memoValue,    setMemoValue]    = useState(tree?.quickMemo || "");
@@ -153,7 +129,8 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
     totalNodeCount <= 10 ? "🌱" :
     totalNodeCount <= 20 ? "🌼" :
     "🌳";
-  const growthIconSize = Math.min(300, totalNodeCount * 3);
+  // 大きくなりすぎるとルート周辺を覆ってしまうため上限を設ける
+  const growthIconSize = Math.min(90, totalNodeCount * 3);
 
   const { positions, edges } = useMemo(
     () => rootId ? layoutTree(nodes, rootId) : { positions: {}, edges: [] },
@@ -247,22 +224,38 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
   };
 
   // キャンバスサイズ = 全ノード座標の最大値 + 余白（パン/ズームのたびに再計算しないようメモ化）
-  const { channelBaseX, totalW, totalH } = useMemo(() => {
+  const { totalW, totalH } = useMemo(() => {
     const posValues = Object.values(positions);
     if (!posValues.length) {
-      return { channelBaseX: NODE_W + 24, totalW: NODE_W + 60, totalH: NODE_H + 80 };
+      return { totalW: NODE_W + 60, totalH: NODE_H + 80 };
     }
     let maxX = -Infinity, maxY = -Infinity;
     for (const p of posValues) { if (p.x > maxX) maxX = p.x; if (p.y > maxY) maxY = p.y; }
-    // 合流線を通す右側チャンネル（全ノードより右）。線ごとに少しずらす
-    const channelBaseX = maxX + NODE_W + 24;
-    const baseTotalW   = maxX + NODE_W + 60;
     return {
-      channelBaseX,
-      totalW: Math.max(baseTotalW, channelBaseX + mergeEdges.length * 8 + 24),
+      totalW: maxX + NODE_W + 60,
       totalH: maxY + NODE_H + 80,
     };
-  }, [positions, mergeEdges]);
+  }, [positions]);
+
+  // ── ルートノードを画面内（上部中央）に表示する ──
+  // 大きいツリーではキャンバス左上（＝最深部の葉）だけが見えてしまうため、
+  // 初期表示と「表示リセット」はルートを基準にする。
+  const centerOnRoot = useCallback((s = 1) => {
+    const pos = rootId ? positions[rootId] : null;
+    if (!pos) { setCanvasOffset({ x: 20, y: 20 }); return; }
+    setCanvasOffset({
+      x: 140 - (pos.x + NODE_W / 2) * s,
+      y: 70 - pos.y * s,
+    });
+  }, [positions, rootId]);
+
+  // 初回マウント時にルートを表示する
+  const didInitViewRef = useRef(false);
+  useEffect(() => {
+    if (didInitViewRef.current) return;
+    didInitViewRef.current = true;
+    centerOnRoot(1);
+  }, [centerOnRoot]);
 
   // ── ドラッグ操作（マウス） ──────────────────────
   const onMouseDown = useCallback((e) => {
@@ -314,10 +307,18 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
   }, []);
 
   // ── ホイールズーム（デスクトップ） ─────────────
-  const onWheel = useCallback((e) => {
-    if (!e.ctrlKey && !e.metaKey && Math.abs(e.deltaY) < 1) return;
-    e.preventDefault();
-    setScale((s) => clampScale(s - e.deltaY * 0.0015));
+  // React の onWheel は passive リスナーになり preventDefault が効かず
+  // コンソールエラーが出るため、非 passive のネイティブリスナーで登録する
+  useEffect(() => {
+    const el = mapRef.current;
+    if (!el) return;
+    const onWheelNative = (e) => {
+      e.preventDefault();
+      setScale((s) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, s - e.deltaY * 0.0015)));
+    };
+    el.addEventListener("wheel", onWheelNative, { passive: false });
+    return () => el.removeEventListener("wheel", onWheelNative);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /** 目次からノードを選んだとき、そのノードが画面中央に来るようにオフセットを調整する */
@@ -376,11 +377,10 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
       {/* ── マップエリア ── */}
       <div
         ref={mapRef}
-        style={{ flex: 1, overflow: "hidden", position: "relative", cursor: nodeDrag ? "grabbing" : dragging ? "grabbing" : "grab", background: T.cream, touchAction: "none", overscrollBehavior: "contain" }}
+        style={{ flex: 1, overflow: "hidden", position: "relative", cursor: nodeDrag ? "grabbing" : dragging ? "grabbing" : "grab", background: T.cream, touchAction: "none", overscrollBehavior: "contain", userSelect: "none", WebkitUserSelect: "none" }}
         onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}
         onTouchStart={onTouchStart} onTouchMove={onTouchMove}
         onTouchEnd={() => { dragStart.current = null; pinchStart.current = null; setDragging(false); }}
-        onWheel={onWheel}
       >
         {/* パンするキャンバス */}
         <div style={{
@@ -416,24 +416,20 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
               );
             })}
 
-            {/* 合流エッジ（追加の親 → 子）。右側チャンネルとすき間を通りノードを避ける */}
+            {/* 合流エッジ（追加の親 → 子）。通常エッジと同じくベジェで最短距離を結ぶ。
+                始点・終点をノード中央から左右にずらして、実親からの線と重ならず
+                「別系統の線」であることが分かるようにする */}
             {mergeEdges.map((edge, i) => {
-              const sx = edge.from.x + NODE_W / 2, sy = edge.from.y + NODE_H; // 親の下辺中央
-              const ex = edge.to.x   + NODE_W / 2, ey = edge.to.y;           // 子の上辺中央
-              const ch       = channelBaseX + i * 8;        // 縦に通すチャンネルx（線ごとにずらす）
-              const yGapDown = edge.from.y + NODE_H + 20;   // 親の下のすき間（横移動用）
-              const yGapUp   = edge.to.y - 20;              // 子の上のすき間（横移動用）
-              const pts = [
-                { x: sx, y: sy },
-                { x: sx, y: yGapDown },
-                { x: ch, y: yGapDown },
-                { x: ch, y: yGapUp },
-                { x: ex, y: yGapUp },
-                { x: ex, y: ey },
-              ];
+              const shift = 18 + (i % 3) * 6; // 複数の合流線が重ならないよう少しずつずらす
+              const sx = edge.from.x + NODE_W / 2 + shift; // 親の下辺・中央より右
+              const sy = edge.from.y + NODE_H;
+              const ex = edge.to.x   + NODE_W / 2 - shift; // 子の上辺・中央より左
+              const ey = edge.to.y;
+              const midY = (sy + ey) / 2;
+              const d = `M${sx},${sy} C${sx},${midY} ${ex},${midY} ${ex},${ey}`;
               return (
                 <path
-                  key={`m${i}`} d={roundedOrtho(pts, 6)} fill="none"
+                  key={`m${i}`} d={d} fill="none"
                   stroke={T.purple} strokeWidth={1.2}
                   strokeDasharray="2 3"
                   markerEnd={`url(#arr${MARKER_COLORS.length - 1})`}
@@ -549,7 +545,7 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
           {[
             { icon: "ti-plus",  onClick: () => setScale((s) => clampScale(s + 0.2)) },
             { icon: "ti-minus", onClick: () => setScale((s) => clampScale(s - 0.2)) },
-            { icon: "ti-focus-2", onClick: () => { setScale(1); setCanvasOffset({ x: 20, y: 20 }); } },
+            { icon: "ti-focus-2", onClick: () => { setScale(1); centerOnRoot(1); } },
           ].map((b, i) => (
             <button
               key={b.icon}
@@ -623,7 +619,7 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
             </button>
           </div>
           <div style={{ flex: 1, overflowY: "auto" }}>
-            <Accordion nodes={nodes} rootChildIds={rootNode?.childIds || []} onSelect={jumpToNode} />
+            <Accordion nodes={nodes} rootId={rootId} rootChildIds={rootNode?.childIds || []} onSelect={jumpToNode} />
           </div>
 
           {/* 一言メモ */}

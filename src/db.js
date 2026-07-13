@@ -93,11 +93,13 @@ export async function copyTree(treeId, newName = null) {
 
 // ── Nodes ─────────────────────────────────────────
 export async function fetchNodes(treeId) {
+  // sort_order 同値のときの並びを安定させるため created_at を第2キーにする
   const result = await supabase
     .from("nodes")
     .select("*")
     .eq("tree_id", treeId)
-    .order("sort_order", { ascending: true });
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
   if (result.error) console.error("fetchNodes error:", result.error);
   return result;
 }
@@ -139,6 +141,7 @@ export async function createNode({
       tree_id: treeId, user_id: userId, parent_id: parentId ?? null,
       label, status, approach_type: approachType,
       board, stamps, memo, is_root: isRoot, sort_order: sortOrder,
+      board_hidden: false,
       hand_sente: handSente ?? {"p":0,"l":0,"n":0,"s":0,"g":0,"b":0,"r":0},
       hand_gote:  handGote  ?? {"p":0,"l":0,"n":0,"s":0,"g":0,"b":0,"r":0},
       tags: tags ?? [],
@@ -172,6 +175,8 @@ export async function updateNode(nodeId, patch) {
     status:         "status",
     approachType:   "approach_type",
     board:          "board",
+    boardHidden:    "board_hidden",
+    sortOrder:      "sort_order",
     stamps:         "stamps",
     memo:           "memo",
     isMergeTarget:  "is_merge_target",
@@ -239,6 +244,8 @@ export function nodeRowToNode(n) {
     approachType:  n.approach_type,
     parentId:      n.parent_id,
     board:         n.board,
+    boardHidden:   !!n.board_hidden,
+    sortOrder:     n.sort_order ?? 0,
     stamps:        n.stamps  || [],
     memo:          n.memo    || "",
     isRoot:        n.is_root,

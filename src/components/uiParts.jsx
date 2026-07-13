@@ -319,18 +319,30 @@ export function TagPickerField({
                     setActiveGroup(open2 ? null : g.label);
                   }}
                   style={{
-                    padding: "7px 16px", borderRadius: T.radius.md, cursor: "pointer",
+                    padding: "5px 8px 5px 16px", borderRadius: T.radius.md, cursor: "pointer",
                     fontSize: T.fontSize.base, fontFamily: T.fontSerif, transition: "all 0.12s",
                     border: (open2 || tagged) ? `1.5px solid ${T.gold}` : `0.5px solid ${T.inkLine}`,
                     background: (open2 || tagged) ? T.goldLight : T.cream,
                     color: (open2 || tagged) ? T.gold : T.inkMid,
                     fontWeight: (open2 || tagged) ? 600 : 400,
-                    display: "flex", alignItems: "center", gap: 5,
+                    display: "flex", alignItems: "center", gap: 7,
                   }}
                 >
                   {tagged && <i className="ti ti-check" style={{ fontSize: "0.6875rem" }} />}
                   {g.label}
-                  <i className={`ti ti-chevron-${open2 ? "up" : "down"}`} style={{ fontSize: "0.6875rem", opacity: 0.6 }} />
+                  {/* 開閉専用の丸ボタン。タグ選択（チップ本体タップ）とは独立して開閉だけ行う */}
+                  <span
+                    onClick={(e) => { e.stopPropagation(); setActiveGroup(open2 ? null : g.label); }}
+                    title={open2 ? "閉じる" : `${g.label}の一覧を開く`}
+                    style={{
+                      width: 24, height: 24, borderRadius: "50%", flexShrink: 0,
+                      display: "inline-flex", alignItems: "center", justifyContent: "center",
+                      border: `0.5px solid ${open2 ? T.gold : "rgba(26,15,0,0.28)"}`,
+                      background: open2 ? "#e7d9b8" : "#ece3cd",
+                    }}
+                  >
+                    <i className={`ti ti-chevron-${open2 ? "up" : "down"}`} style={{ fontSize: "0.8125rem", color: open2 ? T.gold : T.inkMid }} />
+                  </span>
                 </div>
               );
             })}

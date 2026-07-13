@@ -518,6 +518,15 @@ export default function App() {
     }));
   };
 
+  // 兄弟ノードの sort_order の最大値+1 を返す（新規ノードを常に末尾に並べるため。
+  // 全ノード 0 のままだと、リロード時に sort_order:1 を持つ自動生成の「振り飛車」より
+  // 前へ割り込んでしまう）
+  const nextSortOrder = (parentId) => {
+    const sibs = (activeTree?.nodes?.[parentId]?.childIds || [])
+      .map((id) => activeTree.nodes[id]?.sortOrder ?? 0);
+    return sibs.length ? Math.max(...sibs) + 1 : 0;
+  };
+
   const handleNewNode = async (parentId) => {
     if (!activeTree || !session) return;
     const { data: newNode } = await createNode({
@@ -526,6 +535,7 @@ export default function App() {
       parentId: parentId,
       label:    "新しいノード",
       status:   "wip",
+      sortOrder: nextSortOrder(parentId),
     });
     if (!newNode) return;
     // 全件再フェッチせず、作成ノードをローカルツリーへマージ（ネットワーク往復を削減）
@@ -549,6 +559,7 @@ export default function App() {
       handSente: snapshot.handSente,
       handGote:  snapshot.handGote,
       branchFromMoveIndex: moveIndex ?? null,
+      sortOrder: nextSortOrder(parentNodeId),
     });
     if (!newNode) return;
     // 全件再フェッチせず、作成ノードをローカルツリーへマージ（ネットワーク往復を削減）

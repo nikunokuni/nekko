@@ -128,7 +128,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
       setAim(node.aim || "");
       setCaution(node.caution || "");
       setNextStudy(node.nextStudy || "");
-      setBoardVisible(!!node.board);
+      setBoardVisible(!!node.board && !node.boardHidden);
       setBoardData(node.board || null);
       setStamps(node.stamps || []);
       setHandSente(node.handSente || {p:0,l:0,n:0,s:0,g:0,b:0,r:0});
@@ -151,7 +151,8 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
   useEffect(() => {
     if (node) {
       setBoardSnapshot({
-        boardVisible: !!node.board,
+        boardVisible: !!node.board && !node.boardHidden,
+        boardHidden:  !!node.boardHidden,
         // 盤面なしは null のまま保持する。cloneBoard(null) は初期配置を返すため、
         // ここで cloneBoard を通すと「開いた時は盤面なし」が「初期配置」にすり替わってしまう。
         boardData:    node.board ? cloneBoard(node.board) : null,
@@ -264,16 +265,36 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
     return parts.join(" › ");
   })();
 
+  // 保留中のデバウンス保存から盤面系のキーを取り除く。
+  // 盤面の削除・テンプレート読込・元に戻す等の即時保存の直後に、
+  // 古い盤面を含む保留パッチが flush されて上書きし返すのを防ぐ。
+  const dropPendingBoardKeys = () => {
+    const p = pendingPatch.current;
+    delete p.board; delete p.stamps; delete p.handSente; delete p.handGote;
+  };
+
   const handleToggleBoard = () => {
     if (!boardVisible && !boardData) {
-      setBoardData(cloneBoard(parent?.board ?? null));
+      const newBoard = cloneBoard(parent?.board ?? null);
+      let hs = handSente, hg = handGote;
       // 前回（親ノード）の盤面を引き継ぐときは、持ち駒も併せて引き継ぐ。
       // 親に盤面があるときだけ引き継ぎ、盤面なし（＝初期配置に化ける）ときは
       // 持ち駒も初期状態のままにする。
       if (parent?.board) {
-        setHandSente({ ...(parent.handSente || {p:0,l:0,n:0,s:0,g:0,b:0,r:0}) });
-        setHandGote({  ...(parent.handGote  || {p:0,l:0,n:0,s:0,g:0,b:0,r:0}) });
+        hs = { ...(parent.handSente || {p:0,l:0,n:0,s:0,g:0,b:0,r:0}) };
+        hg = { ...(parent.handGote  || {p:0,l:0,n:0,s:0,g:0,b:0,r:0}) };
+        setHandSente(hs);
+        setHandGote(hg);
       }
+      setBoardData(newBoard);
+      // 追加した盤面はその場で保存する（駒を動かさずに離れても消えないように）
+      onUpdate(nodeId, { board: newBoard, handSente: hs, handGote: hg, boardHidden: false });
+    } else if (!boardVisible) {
+      // 非表示だった盤面を再表示（表示状態も保存する）
+      onUpdate(nodeId, { boardHidden: false });
+    } else {
+      // 非表示にする（開き直しても非表示が保たれるよう保存する）
+      onUpdate(nodeId, { boardHidden: true });
     }
     // 非表示 → 表示へ切り替わるとき（＝盤面を出したとき）に初回の使い方トーストを促す
     if (!boardVisible) onBoardFirstShown?.();
@@ -283,6 +304,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
   /** 盤面まわり（盤面・コマ台・棋譜）を編集開始時点に戻す */
   const handleUndoBoard = async () => {
     if (!boardSnapshot) return;
+    dropPendingBoardKeys();
     setBoardVisible(boardSnapshot.boardVisible);
     // 開いた時が盤面なし（null）なら、そのまま盤面なしへ戻す（初期配置に化けさせない）
     setBoardData(boardSnapshot.boardData ? cloneBoard(boardSnapshot.boardData) : null);
@@ -290,11 +312,13 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
     setHandSente(boardSnapshot.handSente);
     setHandGote(boardSnapshot.handGote);
     await onUpdate(nodeId, {
-      board:     boardSnapshot.boardVisible ? boardSnapshot.boardData : null,
-      stamps:    boardSnapshot.boardVisible ? boardSnapshot.stamps    : [],
-      handSente: boardSnapshot.handSente,
-      handGote:  boardSnapshot.handGote,
-      kifu:      boardSnapshot.kifu,
+      // 「開いた時に非表示の盤面があった」状態も含めてそのまま戻す
+      board:       boardSnapshot.boardData,
+      boardHidden: boardSnapshot.boardHidden,
+      stamps:      boardSnapshot.boardData ? boardSnapshot.stamps : [],
+      handSente:   boardSnapshot.handSente,
+      handGote:    boardSnapshot.handGote,
+      kifu:        boardSnapshot.kifu,
     });
     showToast("盤面をもとに戻しました");
   };
@@ -577,29 +601,37 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
           onToggle={handleToggleBoard}
           handSente={handSente}
           handGote={handGote}
-         onChange={(board, s, hs, hg) => { setBoardData(board); setStamps(s); onUpdate(nodeId, { board, stamps: s, handSente: hs, handGote: hg }); }}
+          // 駒を動かすたびに即DBへ書くと編集中の書き込みが連発するため、
+          // ローカル反映のみ即時にしてデバウンス保存（画面遷移・タブ非表示時はflush）
+          onChange={(board, s, hs, hg) => {
+            setBoardData(board); setStamps(s); setHandSente(hs); setHandGote(hg);
+            scheduleSave({ board, stamps: s, handSente: hs, handGote: hg });
+          }}
           onDelete={() => {
             // 盤面を削除するときは局面ごと消えるので、持ち駒も併せてクリアする。
             // （残すと、盤面なしの親から初期配置を引き継いだ際に古い持ち駒が残ってしまう）
+            dropPendingBoardKeys();
             const emptyHand = {p:0,l:0,n:0,s:0,g:0,b:0,r:0};
             setBoardData(null); setStamps([]); setBoardVisible(false);
             setHandSente({ ...emptyHand }); setHandGote({ ...emptyHand });
-            onUpdate(nodeId, { board: null, stamps: [], kifu: [], handSente: emptyHand, handGote: emptyHand });
+            onUpdate(nodeId, { board: null, boardHidden: false, stamps: [], kifu: [], handSente: emptyHand, handGote: emptyHand });
           }}
           onLoadTemplate={(t) => {
+            dropPendingBoardKeys();
             const b = t.board.map(r => [...r]);
             setBoardData(b);
             setHandSente({ ...t.handSente });
             setHandGote({ ...t.handGote });
             setStamps([]);
             setBoardVisible(true);
-            onUpdate(nodeId, { board: b, stamps: [], handSente: t.handSente, handGote: t.handGote });
+            onUpdate(nodeId, { board: b, stamps: [], handSente: t.handSente, handGote: t.handGote, boardHidden: false });
             recordAction("template");
             showToast("テンプレートを読み込みました");
           }}
           kifu={node.kifu || []}
           onKifuChange={async (newKifu) => { await onUpdate(nodeId, { kifu: newKifu }); if (newKifu.length > 0) recordAction("kifu"); showToast("棋譜を保存しました"); }}
           onKifuDelete={async () => {
+            dropPendingBoardKeys();
             const initial = (node.kifu || [])[0];
             const board = initial ? cloneBoard(initial.board) : boardData;
             const hs = initial ? { ...initial.handSente } : handSente;

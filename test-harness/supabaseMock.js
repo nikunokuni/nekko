@@ -164,7 +164,7 @@ class Query {
 
 function defaultsFor(table) {
   if (table === "trees") return { tags: [], active: true, is_public: false, liked_by: 0, quick_memo: "" };
-  if (table === "nodes") return {};
+  if (table === "nodes") return { board_hidden: false };
   return {};
 }
 

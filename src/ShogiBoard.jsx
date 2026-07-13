@@ -349,6 +349,20 @@ export default function ShogiBoard({
     setPlaybackIdx(null);
   }, [board, handSente, handGote]);
 
+  // 記録中の最後の1手を取り消し、直前のスナップショットの局面へ戻す
+  const undoRecordedMove = useCallback(() => {
+    const rec = recordingRef.current;
+    if (!rec.active || rec.snaps.length < 2) return;
+    rec.snaps = rec.snaps.slice(0, -1);
+    const last = rec.snaps[rec.snaps.length - 1];
+    const b  = last.board.map((r) => [...r]);
+    const hs = { ...last.handSente };
+    const hg = { ...last.handGote };
+    setBoard(b); setHandSente(hs); setHandGote(hg);
+    setSelected(null); setSelectedHand(null);
+    notify(b, hs, hg, stamps);
+  }, [notify, stamps]);
+
   const stopRecording = useCallback(() => {
     recordingRef.current.active = false;
     setIsRecording(false);
@@ -533,6 +547,16 @@ export default function ShogiBoard({
                   <span style={{ width:7, height:7, borderRadius:'50%', background:'#A93226', display:'inline-block' }}/>
                   {recordingRef.current.snaps.length - 1}手
                 </span>
+                {/* 記録中の直前の1手だけ取り消す */}
+                <button
+                  onClick={undoRecordedMove}
+                  disabled={recordingRef.current.snaps.length < 2}
+                  style={recordingRef.current.snaps.length < 2
+                    ? { ...btnStyle(false), color:'#ccc', cursor:'default' }
+                    : { ...btnStyle(false), borderColor:'#854F0B', color:'#854F0B' }}
+                >
+                  <i className="ti ti-arrow-back-up" style={{fontSize:"0.8125rem"}}/>一手戻す
+                </button>
                 <button onClick={stopRecording} style={{
                   ...btnStyle(true), borderColor:'#A93226', background:'#A93226', color:'#fff',
                 }}>

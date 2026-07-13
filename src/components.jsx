@@ -133,10 +133,30 @@ function AccordionItem({ node, nodes, depth, onSelect }) {
   );
 }
 
-export function Accordion({ nodes, rootChildIds, onSelect }) {
+export function Accordion({ nodes, rootId, rootChildIds, onSelect }) {
   const safeIds = rootChildIds || [];
+  const root = rootId ? nodes[rootId] : null;
   return (
     <div>
+      {/* ルートノード（おおもとの戦法）。マップ上でルートを見失っても目次から戻れるようにする */}
+      {root && (
+        <div
+          onClick={() => onSelect?.(root.id)}
+          style={{
+            display:'flex', alignItems:'center', gap:7,
+            padding:'10px 12px', minHeight:36, cursor:'pointer',
+            borderBottom:'0.5px solid rgba(26,15,0,0.06)',
+            background:'rgba(160,120,64,0.06)',
+            transition:'background 0.1s',
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = 'rgba(160,120,64,0.12)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'rgba(160,120,64,0.06)'}
+        >
+          <div style={{ width:2, minHeight:14, borderRadius:1, flexShrink:0, alignSelf:'stretch', background:T.gold }}/>
+          <span style={{fontSize:T.fontSize.base, color:T.ink, fontWeight:600, flex:1, lineHeight:1.35}}>{root.label}</span>
+          <span style={{fontSize:T.fontSize.xs, color:T.gold, fontFamily:T.fontSerif, flexShrink:0}}>おおもとの戦法</span>
+        </div>
+      )}
       {safeIds.map((id, i) => {
         const node = nodes[id];
         if (!node) return null;
