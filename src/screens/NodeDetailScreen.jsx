@@ -578,7 +578,14 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
           handSente={handSente}
           handGote={handGote}
          onChange={(board, s, hs, hg) => { setBoardData(board); setStamps(s); onUpdate(nodeId, { board, stamps: s, handSente: hs, handGote: hg }); }}
-          onDelete={() => { setBoardData(null); setStamps([]); setBoardVisible(false); onUpdate(nodeId, { board: null, stamps: [], kifu: [] }); }}
+          onDelete={() => {
+            // 盤面を削除するときは局面ごと消えるので、持ち駒も併せてクリアする。
+            // （残すと、盤面なしの親から初期配置を引き継いだ際に古い持ち駒が残ってしまう）
+            const emptyHand = {p:0,l:0,n:0,s:0,g:0,b:0,r:0};
+            setBoardData(null); setStamps([]); setBoardVisible(false);
+            setHandSente({ ...emptyHand }); setHandGote({ ...emptyHand });
+            onUpdate(nodeId, { board: null, stamps: [], kifu: [], handSente: emptyHand, handGote: emptyHand });
+          }}
           onLoadTemplate={(t) => {
             const b = t.board.map(r => [...r]);
             setBoardData(b);
