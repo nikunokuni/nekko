@@ -1,6 +1,7 @@
 // ══════════════════════════════════════════════════════════════════
 // SettingsScreen.jsx  ―  設定画面
 // ══════════════════════════════════════════════════════════════════
+import { useState } from "react";
 import { T } from "../theme";
 
 const FONT_SCALE_OPTIONS = [
@@ -11,6 +12,8 @@ const FONT_SCALE_OPTIONS = [
 ];
 
 export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOnboard, devStats }) {
+  // 開発者向けの3項目はアコーディオンで隠す（デフォルトは閉じた状態）
+  const [devOpen, setDevOpen] = useState(false);
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: T.cream }}>
       {/* ヘッダー */}
@@ -54,12 +57,24 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOn
           })}
         </div>
 
-        {/* 開発者向け（niku のときだけ表示）*/}
+        {/* 開発者向け（niku のときだけ表示）。3項目はアコーディオンで隠す */}
         {devStats && (
           <div style={{ marginBottom: 28 }}>
-            <div style={{ fontSize: T.fontSize.md, color: T.inkMid, marginBottom: 10, letterSpacing: "0.08em" }}>
-              開発者向け
-            </div>
+            <button
+              onClick={() => setDevOpen((v) => !v)}
+              style={{
+                display: "flex", alignItems: "center", gap: 6, width: "100%",
+                marginBottom: devOpen ? 10 : 0,
+                padding: 0,
+                background: "none", border: "none", cursor: "pointer",
+                fontSize: T.fontSize.md, color: T.inkMid, letterSpacing: "0.08em",
+                fontFamily: T.fontSerif, textAlign: "left",
+              }}
+            >
+              <span style={{ flex: 1 }}>開発者向け</span>
+              <i className={`ti ti-chevron-${devOpen ? "up" : "down"}`} style={{ fontSize: "0.8125rem", color: T.inkMid }} />
+            </button>
+            {devOpen && (
             <div style={{ borderRadius: T.radius.md, border: `0.5px solid ${T.inkLine}`, overflow: "hidden" }}>
               {[
                 { icon: "ti-users",        label: "アカウント数", value: Math.max(0, devStats.accounts - 1) },
@@ -84,6 +99,7 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOn
                 </div>
               ))}
             </div>
+            )}
           </div>
         )}
 
