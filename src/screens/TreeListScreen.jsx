@@ -415,6 +415,15 @@ function TreeCard({ tree, onOpen, onEdit, onDelete, onMemoSave }) {
             </span>
           )}
 
+          {/* みんなのツリーからコピーしたツリーの目印。
+              青は「使用中」、緑は「公開中」と被るため紫系にする */}
+          {tree.copied_from && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: T.fontSize.sm, padding: "3px 8px", borderRadius: T.radius.md, background: "#ede0f8", color: T.purple, border: "0.5px solid rgba(107,63,160,0.3)", fontFamily: T.fontSerif }}>
+              <i className="ti ti-copy" style={{ fontSize: "0.625rem" }} />
+              コピー
+            </span>
+          )}
+
           <button
             onClick={handleMenuToggle}
             style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: "1rem", padding: "2px 4px", borderRadius: 6, lineHeight: 1 }}

@@ -245,6 +245,7 @@ async function rpc(fn, args = {}) {
       ...src, id: uuid(), user_id: session.user.id,
       name: args.p_new_name || src.name + "（コピー）",
       is_public: false, liked_by: 0, active: true,
+      copied_from: src.id, // コピー元のツリーID（一覧カードの「コピー」バッジ用）
       created_at: nowIso(), updated_at: nowIso(),
     };
     db.trees.push(newTree);
