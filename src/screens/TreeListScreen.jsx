@@ -341,7 +341,7 @@ function DeleteTreeModal({ tree, onClose, onConfirm }) {
 // ══════════════════════════════════════════════════════════════════
 // TreeCard: ツリー一覧の1行カード
 // ══════════════════════════════════════════════════════════════════
-export function TreeCard({ tree, onOpen, onEdit, onDelete, onMemoSave }) {
+function TreeCard({ tree, onOpen, onEdit, onDelete, onMemoSave }) {
   const [menuOpen,  setMenuOpen]  = useState(false);
   const [memoOpen,  setMemoOpen]  = useState(false);
   const [memoValue, setMemoValue] = useState(tree.quick_memo || "");
