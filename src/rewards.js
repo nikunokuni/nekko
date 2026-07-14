@@ -26,6 +26,27 @@ export function getActions() {
   } catch { return {}; }
 }
 
+// ── 獲得済みバッジ ────────────────────────────────
+// 一度獲得したバッジは、その後に条件を満たさなくなっても（公開を取り消す・
+// ツリーを削除する等）獲得済みのまま表示し続けるための記録（端末ローカル）
+const EARNED_BADGES_KEY = "nekko_earned_badges";
+
+/** 獲得済みとして記録されているバッジIDの配列を返す */
+export function getEarnedBadges() {
+  try {
+    const raw = localStorage.getItem(EARNED_BADGES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+/** バッジIDの配列を獲得済みに追加する（既存分とマージして保存） */
+export function recordEarnedBadges(ids) {
+  try {
+    const merged = [...new Set([...getEarnedBadges(), ...ids])];
+    localStorage.setItem(EARNED_BADGES_KEY, JSON.stringify(merged));
+  } catch {}
+}
+
 // ── 初回オンボーディング（使い方トースト）─────────
 // 画面ごとに一度だけ使い方トーストを出すための既読管理（端末ローカル）
 const ONBOARD_KEY = "nekko_onboard_seen";

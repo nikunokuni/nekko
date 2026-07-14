@@ -2,7 +2,7 @@
 // TrophyScreen.jsx  ―  トロフィー（バッジ）画面
 // ══════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
-import { BADGE_DEFS } from "../rewards";
+import { BADGE_DEFS, getEarnedBadges, recordEarnedBadges } from "../rewards";
 import { Confetti } from "../components";
 import { T } from "../theme";
 
@@ -10,10 +10,21 @@ export function TrophyScreen({ onBack, treeCount, nodeCount, loginStats, extraSt
   const { totalDays = 0, streak = 0 } = loginStats || {};
   const stats = { treeCount, nodeCount, totalDays, streak, ...extraStats };
 
-  const earnedIds  = new Set(BADGE_DEFS.filter((b) => b.check(stats)).map((b) => b.id));
+  // 一度獲得したバッジは（後で条件を満たさなくなっても）獲得済みのまま：
+  // 現在の達成状況と過去の獲得記録の和集合を「獲得済み」とする
+  const earnedIds  = new Set([
+    ...getEarnedBadges(),
+    ...BADGE_DEFS.filter((b) => b.check(stats)).map((b) => b.id),
+  ]);
   const earnedCount = earnedIds.size;
   // ソート済みキーにして依存配列に渡す（Set はそのままだと参照が毎回変わり比較できないため）
   const earnedIdsKey = [...earnedIds].sort().join(",");
+
+  // 新規獲得分を記録に残す
+  useEffect(() => {
+    recordEarnedBadges([...earnedIds]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [earnedIdsKey]);
 
   // ── 紙吹雪演出（トロフィー画面を開くたび／開いたまま新規獲得したときに毎回出す）──
   const [showConfetti, setShowConfetti] = useState(false);

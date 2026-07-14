@@ -443,6 +443,12 @@ export default function ShogiBoard({
       const movingPiece = board[from.row][from.col];
       const isSente = isSentePiece(movingPiece);
       const target  = board[row]?.[col];
+      // 玉は取れない（持ち駒に置けず消滅してしまうため）。玉のマスをタップした場合は
+      // 取りではなく選択の切り替えとして扱う
+      if (target && target !== ' ' && baseKey(target) === 'k') {
+        setSelected({ row, col });
+        return;
+      }
       let nextHS = { ...handSente }, nextHG = { ...handGote };
       if (target && target !== ' ') {
         const capturedBase = baseKey(target);
@@ -488,11 +494,27 @@ export default function ShogiBoard({
     notify(nextBoard, nextHS, nextHG, stamps);
   }, [readOnly, board, playbackIdx, selected, handSente, handGote, notify, stamps]);
 
+  // タップとスクロールを区別するため、タッチ開始位置を記録する
+  const touchStartRef = useRef(null);
+  const handleTouchStart = useCallback((e) => {
+    if (e.touches.length === 1) {
+      const t = e.touches[0];
+      touchStartRef.current = { x: t.clientX, y: t.clientY };
+    } else {
+      touchStartRef.current = null;
+    }
+  }, []);
+
   const handleTouchEnd = useCallback((e) => {
     if (readOnly || !board) return;
     if (e.changedTouches.length !== 1) return;
-    e.preventDefault();
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
     const t = e.changedTouches[0];
+    // 指が動いていたら（＝ページのスクロール）タップ扱いにしない。
+    // これがないと、盤の上を通るスクロールで指を離した位置の駒が選択・移動されてしまう
+    if (!start || Math.hypot(t.clientX - start.x, t.clientY - start.y) > 10) return;
+    e.preventDefault();
     handleClick({ clientX: t.clientX, clientY: t.clientY });
   }, [handleClick, readOnly, board]);
 
@@ -600,7 +622,7 @@ export default function ShogiBoard({
 
       {/* 将棋盤 Canvas */}
       <canvas ref={canvasRef} width={W} height={H}
-        onClick={handleClick} onTouchEnd={handleTouchEnd}
+        onClick={handleClick} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}
         style={{ display:'block', borderRadius:4, cursor: (readOnly || playbackIdx !== null) ? 'default' : 'pointer',
           width:'100%', maxWidth:W, boxShadow:'0 3px 14px rgba(0,0,0,0.35)' }}
       />

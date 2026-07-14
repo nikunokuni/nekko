@@ -26,7 +26,7 @@ const AUTH_INPUT_STYLE = {
 // ──────────────────────────────────────────────────
 // AuthInputField: ラベル付き入力フィールド（Auth専用）
 // ──────────────────────────────────────────────────
-function AuthInputField({ label, value, setter, type = "text", placeholder = "", nameAttr = "" }) {
+function AuthInputField({ label, value, setter, type = "text", placeholder = "", nameAttr = "", required = true }) {
   return (
     <div style={{ marginBottom: 14 }}>
       <div style={{ fontSize: T.fontSize.md, color: T.inkMid, marginBottom: 5, fontFamily: T.fontSerif }}>
@@ -38,7 +38,7 @@ function AuthInputField({ label, value, setter, type = "text", placeholder = "",
         name={nameAttr}
         onChange={(e) => setter(e.target.value)}
         placeholder={placeholder}
-        required
+        required={required}
         autoComplete={type === "password" ? "current-password" : "username"}
         style={AUTH_INPUT_STYLE}
         onFocus={(e) => (e.target.style.borderColor = T.gold)}
@@ -169,7 +169,9 @@ export function AuthScreen({ onAuth }) {
           setter={(v) => setUsername(mode === "signup" ? v.replace(/[^a-zA-Z0-9_.-]/g, "") : v)}
           type="text" placeholder="例: tsuruga_7dan" nameAttr="username" />
         {mode === "signup" && (
-          <AuthInputField label="表示名"                   value={displayName} setter={setDisplayName} type="text"     placeholder="例: 鶴賀 七段"    nameAttr="nickname" />
+          // 表示名は任意（未入力ならIDを表示名として使う）。required にすると
+          // 空のままではフォームが無言で送信ブロックされ、登録できなくなる
+          <AuthInputField label="表示名（任意）"           value={displayName} setter={setDisplayName} type="text"     placeholder="例: 鶴賀 七段"    nameAttr="nickname" required={false} />
         )}
         <AuthInputField   label="パスワード"               value={password}    setter={setPassword}    type="password" placeholder="8文字以上"         nameAttr="password" />
 

@@ -37,6 +37,8 @@ function CreateTreeModal({ onClose, onCreate }) {
 
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
+    // 同じファイルをもう一度選んでも change が発火するよう value をリセットする
+    e.target.value = "";
     if (!file) return;
     setKifuFileName(file.name);
     setKifuError("");

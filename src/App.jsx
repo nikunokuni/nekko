@@ -331,7 +331,11 @@ export default function App() {
 
   const handleNewTree = async (name, tags = [], kifuSnapshots = null) => {
     const { data, error } = await createTree({ userId: session.user.id, name, tags });
-    if (error || !data) { console.error("createTree error:", error); return; }
+    if (error || !data) {
+      console.error("createTree error:", error);
+      alert("ツリーの作成に失敗しました。もう一度お試しください。");
+      return;
+    }
 
     const hasKifu = kifuSnapshots && kifuSnapshots.length > 0;
     const last = hasKifu ? kifuSnapshots[kifuSnapshots.length - 1] : null;
@@ -346,7 +350,10 @@ export default function App() {
       kifu:         hasKifu ? kifuSnapshots  : [],
       kifuImported: hasKifu,
     });
-    if (nodeError) console.error("createNode error:", nodeError);
+    if (nodeError) {
+      console.error("createNode error:", nodeError);
+      alert("ツリーの作成に失敗しました。もう一度お試しください。");
+    }
 
     // 相手の戦法（居飛車 / 振り飛車）の子ノードを2つ自動作成する（並行実行で往復を短縮）
     if (rootNode) {
@@ -408,27 +415,20 @@ export default function App() {
     if (memo.trim()) recordAction("memo");
   };
 
+  // 失敗時は例外をそのまま投げ、呼び出し元（EditTreeModal）がエラーメッセージを表示する
   const handlePublishTree = async (treeId) => {
-    try {
-      await publishTree(treeId);
-      setMyTrees((prev) =>
-        prev.map((t) => (t.id === treeId ? { ...t, is_public: true } : t))
-      );
-      recordAction("published");
-    } catch (e) {
-      console.error("公開失敗", e);
-    }
+    await publishTree(treeId);
+    setMyTrees((prev) =>
+      prev.map((t) => (t.id === treeId ? { ...t, is_public: true } : t))
+    );
+    recordAction("published");
   };
 
   const handleUnpublishTree = async (treeId) => {
-    try {
-      await unpublishTree(treeId);
-      setMyTrees((prev) =>
-        prev.map((t) => (t.id === treeId ? { ...t, is_public: false } : t))
-      );
-    } catch (e) {
-      console.error("公開取り消し失敗", e);
-    }
+    await unpublishTree(treeId);
+    setMyTrees((prev) =>
+      prev.map((t) => (t.id === treeId ? { ...t, is_public: false } : t))
+    );
   };
 
   // ── ノード操作 ───────────────────────────────
@@ -559,7 +559,7 @@ export default function App() {
       status:   "wip",
       sortOrder: nextSortOrder(parentId),
     });
-    if (!newNode) return;
+    if (!newNode) { alert("ノードの追加に失敗しました。もう一度お試しください。"); return; }
     // 全件再フェッチせず、作成ノードをローカルツリーへマージ（ネットワーク往復を削減）
     setActiveTree(prev => addNodeToTree(prev, newNode));
     setNodeCount(c => c + 1);
@@ -583,7 +583,7 @@ export default function App() {
       branchFromMoveIndex: moveIndex ?? null,
       sortOrder: nextSortOrder(parentNodeId),
     });
-    if (!newNode) return;
+    if (!newNode) { alert("分岐ノードの追加に失敗しました。もう一度お試しください。"); return; }
     // 全件再フェッチせず、作成ノードをローカルツリーへマージ（ネットワーク往復を削減）
     setActiveTree(prev => addNodeToTree(prev, newNode));
     setNodeCount(c => c + 1);
@@ -654,6 +654,7 @@ export default function App() {
       refreshNodeCount();
     } catch (e) {
       console.error("ノード削除失敗", e);
+      alert("ノードの削除に失敗しました。もう一度お試しください。");
     }
   };
   const refreshNodeCount = useCallback(async () => {

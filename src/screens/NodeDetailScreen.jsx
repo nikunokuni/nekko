@@ -253,6 +253,14 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
   const parent   = node.parentId ? tree.nodes[node.parentId] : null;
   const children = (node.childIds || []).map((id) => tree.nodes[id]).filter(Boolean);
 
+  // 「親ノードの盤面を引き継いでいます」バナーは、実際に親と同一局面（＝引き継いだまま
+  // 編集していない）ときだけ表示する。テンプレート読込や編集で局面が変わったら消す。
+  const EMPTY_HAND = { p:0, l:0, n:0, s:0, g:0, b:0, r:0 };
+  const boardInherited = !!(parent?.board && boardData) &&
+    JSON.stringify(boardData)  === JSON.stringify(parent.board) &&
+    JSON.stringify(handSente)  === JSON.stringify(parent.handSente || EMPTY_HAND) &&
+    JSON.stringify(handGote)   === JSON.stringify(parent.handGote  || EMPTY_HAND);
+
   /** ルートまでのパスを「 › 」区切りで構築する */
   const breadcrumb = (() => {
     const parts = [];
@@ -616,7 +624,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
           boardVisible={boardVisible}
           boardData={boardData}
           stamps={stamps}
-          parentBoard={parent?.board}
+          parentBoard={boardInherited ? parent?.board : null}
           parentLabel={parent?.label}
           onToggle={handleToggleBoard}
           handSente={handSente}

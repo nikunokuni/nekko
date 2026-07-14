@@ -196,11 +196,20 @@ function parseKifMoveText(text, lastTo) {
     rest = rest.slice(0, -1);
   }
 
-  rest = rest.trim();
+  // 相対位置・動作の修飾（右/左/直/上/引/寄/行）は移動元座標から特定できる
+  // 冗長情報なので取り除く（「５八金右(49)」等を読めるようにする）
+  rest = rest.replace(/[右左直上引寄行]/g, "").trim();
+
   let resultPiece;
+  let noPromote = false;
+  if (rest.endsWith("不成")) {
+    // 「銀不成」等：成らずにそのまま動く
+    rest = rest.slice(0, -2);
+    noPromote = true;
+  }
   if (KIF_PIECE[rest]) {
     resultPiece = KIF_PIECE[rest];
-  } else if (rest.endsWith("成") && KIF_PIECE[rest.slice(0, -1)]) {
+  } else if (!noPromote && rest.endsWith("成") && KIF_PIECE[rest.slice(0, -1)]) {
     const base = KIF_PIECE[rest.slice(0, -1)];
     resultPiece = PROMOTE_MAP[base] || base;
   } else {
@@ -222,6 +231,9 @@ function parseKIF(text) {
   for (const raw of lines) {
     const line = raw.trim();
     if (!line) continue;
+    // 「変化：n手」以降は分岐（別ライン）の手なので読み込まない。
+    // 本譜に連結すると盤面が壊れるため、本譜のみで打ち切る。
+    if (/^変化/.test(line)) break;
     const m = line.match(/^(\d+)\s+(.+)$/);
     if (!m) continue;
 

@@ -318,8 +318,10 @@ export function TagPickerField({
                 <div
                   key={g.label}
                   onClick={() => {
+                    // チップ本体のタップは「タグの付け外し」のみ。一覧の開閉は右の丸ボタンで行う。
+                    // タグを持たないグループ（囲い等）は選択するものがないため開閉として扱う
                     if (!g.noGroupTag) toggleTag(g.label);
-                    setActiveGroup(open2 ? null : g.label);
+                    else setActiveGroup(open2 ? null : g.label);
                   }}
                   style={{
                     padding: "5px 8px 5px 16px", borderRadius: T.radius.md, cursor: "pointer",
