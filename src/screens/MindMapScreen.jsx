@@ -678,9 +678,13 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
             <div style={{ width: 18, height: 2, borderRadius: 1, background: ORIENTATION_META[o].color }} />{o}
           </div>
         ))}
+        {/* 合流エッジ（紫の点線）の凡例 */}
+        <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: T.fontSize.sm, color: T.inkMid }}>
+          <div style={{ width: 18, height: 0, borderTop: `2px dashed ${T.purple}` }} />合流
+        </div>
         {[
           { color: T.green,   label: "完成" },
-          { color: T.brown,   label: "研究中" },
+          { color: T.redDark, label: "研究中" }, // ノード枠・ステータスドットと同じ色に統一
           { color: T.gray,    label: "未定", dashed: true },
         ].map((s) => (
           <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: T.fontSize.sm, color: T.inkMid }}>

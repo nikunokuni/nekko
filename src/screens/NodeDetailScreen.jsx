@@ -437,9 +437,10 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
           <div style={{ fontSize: T.fontSize.xl, fontWeight: 600, color: T.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {node.label}
           </div>
+          {/* パスの先頭はルートノード名（＝ツリー名と同一）なので、ツリー名は重ねて表示しない */}
           {breadcrumb && (
             <div style={{ fontSize: T.fontSize.sm, color: T.inkMid, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {tree.name} › {breadcrumb}
+              {breadcrumb}
             </div>
           )}
         </div>
@@ -532,9 +533,11 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
         <div style={{ display: "flex", gap: 8, alignItems: "flex-end", padding: "0 16px 10px" }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <SectionLabel style={{ marginBottom: 5 }}>ノード名</SectionLabel>
+            {/* ルートノード名はツリー名と連動しているため、ここでは編集できない */}
             <input
               ref={labelInputRef}
               value={label}
+              disabled={node.isRoot}
               onChange={(e) => { setLabel(e.target.value); scheduleSave({ label: e.target.value }); }}
               onBlur={(e) => {
                 e.target.style.borderColor = T.inkLine;
@@ -544,9 +547,14 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
                 flushSave();
               }}
               placeholder="例：▲４六銀型"
-              style={INPUT_STYLE}
+              style={node.isRoot ? { ...INPUT_STYLE, color: T.inkMid, background: T.goldLight } : INPUT_STYLE}
               onFocus={(e) => (e.target.style.borderColor = T.gold)}
             />
+            {node.isRoot && (
+              <div style={{ fontSize: T.fontSize.sm, color: T.inkFaint, marginTop: 4, fontFamily: T.fontSerif }}>
+                ツリー名と連動しています（ツリー一覧の「編集」から変更できます）
+              </div>
+            )}
           </div>
           <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
             {["done", "wip"].map((s) => (

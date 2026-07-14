@@ -382,6 +382,21 @@ export default function App() {
   const handleEditTree = async (treeId, patch) => {
     const { error } = await updateTree(treeId, patch);
     if (error) { alert("保存に失敗しました。もう一度お試しください。"); return; }
+
+    // ルートノード名はツリー名と常に同一に保つ（ルート名はツリー名からのみ変更できる仕様）。
+    // ツリー名が変わったときだけ、ルートノードのラベルも追従させる。
+    const treeRow = myTrees.find((t) => t.id === treeId);
+    if (patch.name && treeRow && patch.name !== treeRow.name) {
+      const rootRow = (treeRow.nodes || []).find((n) => n.is_root);
+      if (rootRow) {
+        await updateNode(rootRow.id, { label: patch.name });
+        setActiveTree((prev) =>
+          prev && prev.id === treeId && prev.nodes[rootRow.id]
+            ? { ...prev, name: patch.name, nodes: { ...prev.nodes, [rootRow.id]: { ...prev.nodes[rootRow.id], label: patch.name } } }
+            : prev
+        );
+      }
+    }
     await loadMyTrees();
   };
 

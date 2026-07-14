@@ -29,7 +29,7 @@ export const INITIAL_BOARD = [
 // ── ステータス表示メタ ────────────────────────────
 export const STATUS_META = {
   done: { label:'完成',  bg:'#EAF3DE', color:'#3B6D11', dot:'#3B6D11' },
-  wip:  { label:'研究中', bg:'#FAEEDA', color:'#854F0B', dot:'#854F0B' },
+  wip:  { label:'研究中', bg:'#FAEEDA', color:'#7B3010', dot:'#7B3010' }, // マップのノード枠色(T.redDark)と統一
   todo: { label:'未定',  bg:'transparent', color:'#5F5E5A', dot:'#B4B2A9', dashed:true },
 };
 

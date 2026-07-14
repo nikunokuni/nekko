@@ -221,7 +221,7 @@ export const BADGE_DEFS = [
   // ── アクション系バッジ（進捗なし）──
   { id: "published", icon: "ti-world",        color: "#1a5276", label: "公開の勇気",       desc: "ツリーを公開する",             check: (s) => !!s.hasPublished },
   { id: "memo",      icon: "ti-notes",        color: "#854F0B", label: "メモの達人",       desc: "一言メモを記入する",           check: (s) => !!s.hasMemo      },
-  { id: "approach",  icon: "ti-tag",          color: "#854F0B", label: "分析家",           desc: "ツリーにタグをつける",         check: (s) => !!s.hasTags      },
+  { id: "approach",  icon: "ti-tag",          color: "#854F0B", label: "分析家",           desc: "ツリーにタグをつける（頻度4以上のノードの戦法のみ集計）", check: (s) => !!s.hasTags },
   { id: "copied",    icon: "ti-copy",         color: "#1a5276", label: "コレクター",       desc: "みんなのツリーをコピーする",   check: (s) => !!s.hasCopied    },
   { id: "liked",     icon: "ti-heart",        color: "#A93226", label: "応援団",           desc: "みんなのツリーにいいねする",   check: (s) => !!s.hasLiked     },
   { id: "tags",      icon: "ti-tags",         color: "#3B6D11", label: "タグ整理師",       desc: "新しい戦法タグを追加する",     check: (s) => !!s.hasCustomTag },

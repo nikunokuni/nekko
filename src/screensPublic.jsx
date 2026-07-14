@@ -237,6 +237,17 @@ function PublicTreeCard({ tree, isCopied, isCopying, isLiked, likeCount, onCopy,
         </button>
       </div>
 
+      {/* タグ（タグフィルター・検索が何にマッチしたか分かるように表示する） */}
+      {(tree.tags || []).length > 0 && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+          {(tree.tags || []).map((tag) => (
+            <span key={tag} style={{ fontSize: T.fontSize.sm, padding: "2px 7px", borderRadius: T.radius.sm, background: "rgba(26,15,0,0.06)", color: T.inkMid, fontFamily: T.fontSerif }}>
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* コピーボタン行 */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap", gap: 8 }}>
         <button

@@ -92,7 +92,8 @@ export function BoardSection({ boardVisible, boardData, stamps, handSente, handG
     gap:          4,
   });
 
-  // 盤面がまだ追加されていない場合: プレースホルダーのみ表示する
+  // 盤面が非表示の場合: プレースホルダーのみ表示する
+  // （非表示中の盤面データがあるときは「追加」ではなく「再表示」であることを明示する）
   if (!boardVisible) {
     return (
       <div style={{ padding: "8px 16px 0" }}>
@@ -113,7 +114,9 @@ export function BoardSection({ boardVisible, boardData, stamps, handSente, handG
           }}
         >
           <i className="ti ti-chess" style={{ fontSize: "1.5rem", color: T.gold }} />
-          <span style={{ fontSize: T.fontSize.base, color: T.inkMid }}>タップして盤面を追加</span>
+          <span style={{ fontSize: T.fontSize.base, color: T.inkMid }}>
+            {boardData ? "タップして盤面を再表示" : "タップして盤面を追加"}
+          </span>
         </div>
       </div>
     );
