@@ -95,11 +95,6 @@ function loadRawCustomTags() {
   } catch { return []; }
 }
 
-/** ユーザーが追加したカスタム戦法タグ名一覧を返す（後方互換：文字列配列） */
-export function getCustomTags() {
-  return loadRawCustomTags().map((t) => t.name);
-}
-
 /** ユーザーが追加したカスタム戦法タグを { name, group }[] 形式で返す */
 export function getCustomTagsByGroup() {
   return loadRawCustomTags();

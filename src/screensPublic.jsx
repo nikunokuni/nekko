@@ -3,7 +3,10 @@
 //   AuthScreen / PublicTrees
 // ══════════════════════════════════════════════════
 import { useState, useEffect, useRef, useMemo } from "react";
-import { BackBtn } from "./components";
+import { BackBtn, StatusChip } from "./components";
+import { MindMap } from "./screens/MindMapScreen";
+import ShogiBoard from "./ShogiBoard";
+import { ORIENTATION_META, USAGE_META } from "./data";
 import { signIn, signUp } from "./db";
 import { recordAction, resetOnboard } from "./rewards";
 import { T } from "./theme";
@@ -210,22 +213,147 @@ export function AuthScreen({ onAuth }) {
 }
 
 // ──────────────────────────────────────────────────
+// NodeViewSheet: プレビュー中のノード内容を閲覧するボトムシート
+// ──────────────────────────────────────────────────
+function NodeViewSheet({ node, onClose }) {
+  const row = (label, content) => content ? (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: T.fontSize.sm, color: T.inkFaint, fontFamily: T.fontSerif, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: T.fontSize.base, color: T.ink, fontFamily: T.fontSerif, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{content}</div>
+    </div>
+  ) : null;
+
+  const chips = (label, tags) => (tags || []).length > 0 ? (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: T.fontSize.sm, color: T.inkFaint, fontFamily: T.fontSerif, marginBottom: 4 }}>{label}</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {tags.map((t) => (
+          <span key={t} style={{ fontSize: T.fontSize.sm, padding: "3px 9px", borderRadius: T.radius.sm, background: T.goldLight, color: T.gold, fontFamily: T.fontSerif }}>{t}</span>
+        ))}
+      </div>
+    </div>
+  ) : null;
+
+  const orientMeta = node.orientation ? ORIENTATION_META[node.orientation] : null;
+  const showBoard  = !!node.board && !node.boardHidden;
+
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: "absolute", inset: 0, background: "rgba(26,15,0,0.45)", zIndex: 40, display: "flex", alignItems: "flex-end" }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: "100%", maxHeight: "80%", overflowY: "auto", background: T.cream, borderRadius: "20px 20px 0 0", padding: "18px 18px 28px" }}
+      >
+        {/* ヘッダー: ノード名 + ステータス + 閉じる */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+          <span style={{ fontFamily: T.fontTitle, fontSize: T.fontSize.h, color: T.ink, flex: 1, minWidth: 0 }}>{node.label}</span>
+          {!node.isRoot && <StatusChip status={node.status} />}
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: T.gray, fontSize: "1.125rem", padding: 4 }}>
+            <i className="ti ti-x" />
+          </button>
+        </div>
+
+        {chips("相手の戦法", node.situation)}
+        {chips("自分の戦法", node.myApproach)}
+        {orientMeta && row("志向", <span style={{ color: orientMeta.color }}>{node.orientation}</span>)}
+        {node.usageLevel != null && USAGE_META[node.usageLevel] && row("頻度", USAGE_META[node.usageLevel].label)}
+        {node.winRate != null && row("勝率", `${node.winRate}割くらい勝てる`)}
+        {row("メモ", (node.memo || "").trim())}
+        {row("ここでの狙い", (node.aim || "").trim())}
+        {row("気を付けること", (node.caution || "").trim())}
+        {row("次に調べること", (node.nextStudy || "").trim())}
+        {chips("一言コメント", node.commentTags)}
+
+        {/* 盤面（閲覧専用。棋譜があれば再生もできる） */}
+        {showBoard && (
+          <div style={{ marginTop: 4 }}>
+            <div style={{ fontSize: T.fontSize.sm, color: T.inkFaint, fontFamily: T.fontSerif, marginBottom: 6 }}>盤面</div>
+            <ShogiBoard
+              board={node.board}
+              stamps={node.stamps || []}
+              handSente={node.handSente}
+              handGote={node.handGote}
+              kifu={node.kifu || []}
+              readOnly
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────
+// PublicTreePreview: 公開ツリーの中身（マップ＋ノード）を閲覧する画面
+//   編集操作は一切できない。気に入ったらそのままコピーできる
+// ──────────────────────────────────────────────────
+export function PublicTreePreview({ tree, onBack, onCopy }) {
+  const [viewNodeId, setViewNodeId] = useState(null);
+  const [copying,    setCopying]    = useState(false);
+  const [copied,     setCopied]     = useState(false);
+  const node = viewNodeId ? tree.nodes[viewNodeId] : null;
+
+  const handleCopy = async () => {
+    if (copying || copied) return;
+    setCopying(true);
+    try {
+      await onCopy();
+      setCopied(true);
+    } finally {
+      setCopying(false);
+    }
+  };
+
+  return (
+    <div style={{ height: "100%", position: "relative" }}>
+      <MindMap tree={tree} readOnly onNodeSelect={setViewNodeId} onBack={onBack} />
+
+      {/* コピー（右下フローティング）。凡例バーと重ならない位置に置く */}
+      <button
+        onClick={handleCopy}
+        disabled={copying}
+        style={{
+          position: "absolute", right: 16, bottom: 52, zIndex: 30,
+          display: "flex", alignItems: "center", gap: 6,
+          padding: "10px 16px", borderRadius: T.radius.xl, border: "none",
+          background: copied ? T.green : T.gold, color: T.cream,
+          fontSize: T.fontSize.lg, fontFamily: T.fontSerif, fontWeight: 600,
+          cursor: copying || copied ? "default" : "pointer",
+          boxShadow: "0 4px 16px rgba(26,15,0,0.25)",
+        }}
+      >
+        <i className={`ti ti-${copied ? "check" : "copy"}`} style={{ fontSize: "0.875rem" }} />
+        {copied ? "コピーしました" : copying ? "コピー中..." : "このツリーをコピー"}
+      </button>
+
+      {/* ノード閲覧シート */}
+      {node && <NodeViewSheet node={node} onClose={() => setViewNodeId(null)} />}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────
 // PublicTreeCard: 公開ツリー1件分のカード
 // ──────────────────────────────────────────────────
-function PublicTreeCard({ tree, isCopied, isCopying, isLiked, likeCount, onCopy, onToggleLike }) {
+function PublicTreeCard({ tree, isCopied, isCopying, isLiked, likeCount, onCopy, onToggleLike, onOpen }) {
   const author = tree.profiles?.display_name || tree.profiles?.username || "匿名";
 
   return (
-    <div style={{ padding: "14px", borderRadius: T.radius.lg, border: "0.5px solid rgba(200,169,110,0.3)", background: T.goldBg, marginBottom: 10 }}>
+    <div
+      onClick={() => onOpen?.(tree.id)}
+      style={{ padding: "14px", borderRadius: T.radius.lg, border: "0.5px solid rgba(200,169,110,0.3)", background: T.goldBg, marginBottom: 10, cursor: "pointer" }}
+    >
       {/* ヘッダー行 */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8 }}>
         <div>
           <div style={{ fontFamily: T.fontTitle, fontSize: T.fontSize.xxl, color: T.ink, marginBottom: 2 }}>{tree.name}</div>
           <div style={{ fontSize: T.fontSize.sm, color: "rgba(26,15,0,0.4)" }}>@{author}</div>
         </div>
-        {/* いいねボタン（タップでいいね↔解除をトグル） */}
+        {/* いいねボタン（タップでいいね↔解除をトグル）。カードのタップ（プレビュー）とは独立 */}
         <button
-          onClick={() => onToggleLike(tree.id)}
+          onClick={(e) => { e.stopPropagation(); onToggleLike(tree.id); }}
           title={isLiked ? "いいねを取り消す" : "いいね"}
           style={{
             display: "flex", alignItems: "center", gap: 4,
@@ -250,10 +378,13 @@ function PublicTreeCard({ tree, isCopied, isCopying, isLiked, likeCount, onCopy,
         </div>
       )}
 
-      {/* コピーボタン行 */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap", gap: 8 }}>
+      {/* コピーボタン行（左側はプレビューできることのヒント） */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+        <span style={{ fontSize: T.fontSize.sm, color: T.inkFaint, fontFamily: T.fontSerif }}>
+          タップで中身を見る ›
+        </span>
         <button
-          onClick={() => onCopy(tree.id)}
+          onClick={(e) => { e.stopPropagation(); onCopy(tree.id); }}
           disabled={isCopying}
           style={{
             fontSize: T.fontSize.md, padding: "5px 12px", borderRadius: T.radius.sm,
@@ -305,7 +436,7 @@ function TagFilter({ trees, activeTag, onSelect }) {
 // ══════════════════════════════════════════════════
 // PublicTrees
 // ══════════════════════════════════════════════════
-export function PublicTrees({ trees, profile, likedTreeIds, onBack, onCopy, onLike, onUnlike, onRefresh }) {
+export function PublicTrees({ trees, likedTreeIds, onBack, onCopy, onLike, onUnlike, onRefresh, onOpenTree }) {
   const [query,     setQuery]     = useState("");
   const [activeTag, setActiveTag] = useState("すべて");
   const [copiedId,  setCopiedId]  = useState(null);
@@ -419,6 +550,7 @@ export function PublicTrees({ trees, profile, likedTreeIds, onBack, onCopy, onLi
                 likeCount={Math.max(0, (t.liked_by || 0) + delta)}
                 onCopy={handleCopy}
                 onToggleLike={handleToggleLike}
+                onOpen={onOpenTree}
               />
             );
           })

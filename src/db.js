@@ -116,11 +116,10 @@ export async function fetchAllWipNodes(userId) {
 
 export async function createNode({
   treeId, userId, parentId, label,
-  status = "todo", approachType, board = null,
+  status = "todo", board = null,
   stamps = [], memo = "", isRoot = false, sortOrder = 0,
   handSente = {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
   handGote  = {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
-  tags = [],
   kifu = [],
   kifuImported = false,
   branchFromMoveIndex = null,
@@ -139,12 +138,11 @@ export async function createNode({
     .from("nodes")
     .insert({
       tree_id: treeId, user_id: userId, parent_id: parentId ?? null,
-      label, status, approach_type: approachType,
+      label, status,
       board, stamps, memo, is_root: isRoot, sort_order: sortOrder,
       board_hidden: false,
       hand_sente: handSente ?? {"p":0,"l":0,"n":0,"s":0,"g":0,"b":0,"r":0},
       hand_gote:  handGote  ?? {"p":0,"l":0,"n":0,"s":0,"g":0,"b":0,"r":0},
-      tags: tags ?? [],
       kifu: kifu ?? [],
       kifu_imported: kifuImported ?? false,
       branch_from_move_index: branchFromMoveIndex,
@@ -173,7 +171,6 @@ export async function updateNode(nodeId, patch) {
   const map = {
     label:          "label",
     status:         "status",
-    approachType:   "approach_type",
     board:          "board",
     boardHidden:    "board_hidden",
     sortOrder:      "sort_order",
@@ -185,7 +182,6 @@ export async function updateNode(nodeId, patch) {
     handSente:      "hand_sente",
     handGote:       "hand_gote",
     kifu:           "kifu",
-    tags:           "tags",
     kifuImported:   "kifu_imported",
     usageLevel:     "usage_level",
     winRate:        "win_rate",
@@ -241,7 +237,6 @@ export function nodeRowToNode(n) {
     id:            n.id,
     label:         n.label,
     status:        n.status,
-    approachType:  n.approach_type,
     parentId:      n.parent_id,
     board:         n.board,
     boardHidden:   !!n.board_hidden,
@@ -254,7 +249,6 @@ export function nodeRowToNode(n) {
     handSente:      n.hand_sente || {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
     handGote:       n.hand_gote  || {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
     kifu:           n.kifu || [],
-    tags:           n.tags || [],
     kifuImported:   n.kifu_imported || false,
     branchFromMoveIndex: n.branch_from_move_index ?? null,
     usageLevel:     n.usage_level ?? 2,
@@ -289,12 +283,8 @@ export function buildTreeFromNodes(treeRow, flatNodes) {
   return {
     id:      treeRow.id,
     name:    treeRow.name,
-    active:  treeRow.active,
-    public:  treeRow.is_public,
     tags:    treeRow.tags    || [],
-    likedBy: treeRow.liked_by || 0,
     quickMemo: treeRow.quick_memo || "",
-    userId:  treeRow.user_id,
     nodes:   nodeMap,
     rootId:  rootNode?.id || null,
   };

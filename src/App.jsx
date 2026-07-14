@@ -3,7 +3,7 @@
 //   セッション管理 / 画面遷移 / DB 操作の統括
 // ══════════════════════════════════════════════════
 import { useState, useEffect, useCallback, useRef } from "react";
-import { AuthScreen, PublicTrees } from "./screensPublic";
+import { AuthScreen, PublicTrees, PublicTreePreview } from "./screensPublic";
 import { TreeList } from "./screens/TreeListScreen";
 import { MindMap } from "./screens/MindMapScreen";
 import { NodeDetail } from "./screens/NodeDetailScreen";
@@ -412,7 +412,6 @@ export default function App() {
     if (error) { alert("メモの保存に失敗しました。もう一度お試しください。"); return; }
     setMyTrees((prev) => prev.map((t) => t.id === treeId ? { ...t, quick_memo: memo } : t));
     setActiveTree((prev) => prev && prev.id === treeId ? { ...prev, quickMemo: memo } : prev);
-    if (memo.trim()) recordAction("memo");
   };
 
   // 失敗時は例外をそのまま投げ、呼び出し元（EditTreeModal）がエラーメッセージを表示する
@@ -421,7 +420,6 @@ export default function App() {
     setMyTrees((prev) =>
       prev.map((t) => (t.id === treeId ? { ...t, is_public: true } : t))
     );
-    recordAction("published");
   };
 
   const handleUnpublishTree = async (treeId) => {
@@ -433,13 +431,6 @@ export default function App() {
 
   // ── ノード操作 ───────────────────────────────
   const handleNodeSelect = (nodeId) => {
-    if (nodeId === "new") {
-      const rootId = activeTree?.rootId
-        ?? Object.values(activeTree?.nodes || {}).find(n => n.isRoot)?.id
-        ?? null;
-      handleNewNode(rootId);
-      return;
-    }
     setActiveNodeId(nodeId);
     setScreen("node");
   };
@@ -663,6 +654,13 @@ export default function App() {
     setNodeCount(cnt);
   }, [session]);
 
+  // ── 公開ツリーのプレビュー（閲覧専用でマップ・ノードの中身を見る）──
+  const handleOpenPublicTree = async (treeId) => {
+    const tree = await loadTree(treeId);
+    if (!tree) { alert("ツリーの読み込みに失敗しました。もう一度お試しください。"); return; }
+    setScreen("publicPreview");
+  };
+
   // ── 公開ツリーのコピー（サーバー側RPCで1トランザクション一括コピー）──
   const handleCopyTree = async (pubTreeId) => {
     const pubTreeRow = pubTrees.find(t => t.id === pubTreeId);
@@ -873,13 +871,19 @@ export default function App() {
             devStats={devStats}/>
         )}
         {screen==="public" && (
-          <PublicTrees trees={pubTrees} profile={profile}
+          <PublicTrees trees={pubTrees}
             likedTreeIds={likedTreeIds}
             onBack={() => setScreen("list")}
             onCopy={handleCopyTree}
             onLike={(treeId) => session && likeTree(session.user.id, treeId)}
             onUnlike={(treeId) => session && unlikeTree(session.user.id, treeId)}
-            onRefresh={loadPublicTrees}/>
+            onRefresh={loadPublicTrees}
+            onOpenTree={handleOpenPublicTree}/>
+        )}
+        {screen==="publicPreview" && activeTree && (
+          <PublicTreePreview tree={activeTree}
+            onBack={() => setScreen("public")}
+            onCopy={() => handleCopyTree(activeTree.id)}/>
         )}
       </div>
     </div>

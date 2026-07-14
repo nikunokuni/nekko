@@ -112,7 +112,6 @@ function drawPiece(ctx, cx, cy, cellSize, pieceKey, highlighted) {
 
 // ── 持ち駒UIパーツ ────────────────────────────────
 const HAND_ORDER = ['r','b','g','s','n','l','p'];
-const HAND_LABEL = { r:'飛',b:'角',g:'金',s:'銀',n:'桂',l:'香',p:'歩' };
 
 // 持ち駒スプライトのキャッシュ。駒種・先後・選択・枚数が同じなら描画結果（オフスクリーンcanvas）を再利用する。
 // グラデーション・五角形パス・影の描画はコストが高いため、組み合わせごとに一度だけ描いて使い回す。
@@ -639,8 +638,9 @@ export default function ShogiBoard({
         onDeposit={depositToHand}
       />
 
-      {/* ── 棋譜ナビ（保存済み棋譜がある場合） ── */}
-      {!readOnly && kifuLen > 0 && !isRecording && (
+      {/* ── 棋譜ナビ（保存済み棋譜がある場合）──
+          再生は盤面を書き換えない閲覧操作なので、readOnly（公開ツリーのプレビュー等）でも使える */}
+      {kifuLen > 0 && !isRecording && (
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, rowGap: 6,
           flexWrap: 'wrap',
@@ -681,7 +681,8 @@ export default function ShogiBoard({
           <NavBtn icon="ti-player-skip-forward" disabled={cur === moveCount}
             onClick={() => setPlaybackIdx(moveCount)} />
 
-          {/* 再生中は「編集にもどる」で再生モードを終了し、盤面編集に戻れる */}
+          {/* 再生中は「編集にもどる」で再生モードを終了し、盤面編集に戻れる。
+              閲覧専用（readOnly）では編集はできないため「再生を終了」と表記する */}
           {playbackIdx !== null && (
             <button onClick={() => setPlaybackIdx(null)} style={{
               display:'flex', alignItems:'center', gap:4,
@@ -689,7 +690,8 @@ export default function ShogiBoard({
               background:'#a07840', cursor:'pointer', fontSize:"0.6875rem", flexShrink:0, whiteSpace:'nowrap',
               color:'#fff', fontFamily:"'Noto Serif JP',serif", fontWeight:600,
             }}>
-              <i className="ti ti-pencil" style={{fontSize:"0.8125rem"}}/>編集にもどる
+              <i className={`ti ${readOnly ? "ti-x" : "ti-pencil"}`} style={{fontSize:"0.8125rem"}}/>
+              {readOnly ? "再生を終了" : "編集にもどる"}
             </button>
           )}
 

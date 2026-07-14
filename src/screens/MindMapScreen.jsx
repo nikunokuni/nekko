@@ -114,7 +114,8 @@ function layoutTree(nodes, rootId) {
   return { positions, edges };
 }
 
-export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparent, onUndoReparent, onMemoSave }) {
+// readOnly: 公開ツリーのプレビュー用。ドラッグでの親付け替えを無効にし、一言メモを閲覧のみにする
+export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparent, onUndoReparent, onMemoSave, readOnly = false }) {
   const [drawerOpen,   setDrawerOpen]   = useState(false);
   const [memoValue,    setMemoValue]    = useState(tree?.quickMemo || "");
   const [canvasOffset, setCanvasOffset] = useState({ x: 20, y: 20 });
@@ -237,7 +238,7 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
   };
 
   const startNodeDrag = (id, clientX, clientY) => {
-    const noMove = id === rootId; // ルートは付け替え不可（クリック選択のみ）
+    const noMove = readOnly || id === rootId; // 閲覧専用とルートは付け替え不可（クリック選択のみ）
     const dd = { id, exclude: noMove ? new Set() : descendantsOf(id), startX: clientX, startY: clientY, moved: false, noMove };
     nodeDragRef.current = dd;
     setNodeDrag(id);
@@ -697,7 +698,19 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
             <Accordion nodes={nodes} rootId={rootId} rootChildIds={rootNode?.childIds || []} onSelect={jumpToNode} />
           </div>
 
-          {/* 一言メモ */}
+          {/* 一言メモ（閲覧専用時はテキスト表示のみ） */}
+          {readOnly ? (
+            (tree?.quickMemo || "").trim() && (
+              <div style={{ borderTop: `0.5px solid ${T.inkLine}`, padding: "12px 14px", flexShrink: 0 }}>
+                <div style={{ fontSize: T.fontSize.sm, color: T.inkFaint, fontFamily: T.fontSerif, marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
+                  <i className="ti ti-notes" style={{ fontSize: "0.75rem" }} />一言メモ
+                </div>
+                <div style={{ fontSize: T.fontSize.base, color: T.ink, fontFamily: T.fontSerif, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+                  {tree.quickMemo}
+                </div>
+              </div>
+            )
+          ) : (
           <div style={{ borderTop: `0.5px solid ${T.inkLine}`, padding: "12px 14px", flexShrink: 0 }}>
             <div style={{ fontSize: T.fontSize.sm, color: T.inkFaint, fontFamily: T.fontSerif, marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
               <i className="ti ti-notes" style={{ fontSize: "0.75rem" }} />一言メモ
@@ -729,6 +742,7 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
               onFocus={(e) => (e.target.style.borderColor = T.gold)}
             />
           </div>
+          )}
         </div>
       </div>
 

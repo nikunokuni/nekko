@@ -19,7 +19,6 @@ export const T = {
   gold:       "#a07840",          // アクセント（金）
   goldLight:  "#f0e8d4",          // アクセント背景
   goldBg:     "#f5edd8",          // カードアクティブ背景
-  goldBgSub:  "#fde8cc",          // カードサブ背景
   cream:      "#faf4e8",          // 画面ベース背景
 
   blue:       "#1a5276",          // 自分の手・使用中

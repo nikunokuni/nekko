@@ -565,7 +565,8 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
             )}
           </div>
           <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-            {["done", "wip"].map((s) => (
+            {/* 未定（todo）にも戻せるよう3ステータスすべてを選択肢にする */}
+            {["done", "wip", "todo"].map((s) => (
               <StatusChip
                 key={s}
                 status={s}
