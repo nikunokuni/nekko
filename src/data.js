@@ -34,12 +34,14 @@ export const STATUS_META = {
 };
 
 // ── 「よく使う」表示メタ（1: めったに 〜 5: いつも）──
+// scale はマップ上のノードの拡大率。最大でもノード間隔（NODE_W + 16）に収まるよう
+// 全体を小さめにしてあり、拡大ノード同士が重ならない（110 × 1.1 = 121 < 126）
 export const USAGE_META = {
-  1: { label: 'めったに',   scale: 0.75 },
-  2: { label: 'たまに',     scale: 0.88 },
-  3: { label: 'ふつう',     scale: 1.0  },
-  4: { label: 'よく',       scale: 1.12 },
-  5: { label: 'いつも',     scale: 1.22 },
+  1: { label: 'めったに',   scale: 0.7 },
+  2: { label: 'たまに',     scale: 0.8 },
+  3: { label: 'ふつう',     scale: 0.9 },
+  4: { label: 'よく',       scale: 1.0 },
+  5: { label: 'いつも',     scale: 1.1 },
 };
 export const USAGE_LEVELS = [1, 2, 3, 4, 5];
 

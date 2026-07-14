@@ -18,6 +18,22 @@ const STATUS_NODE = {
   todo: { stroke: T.gray,   text: T.grayText, dashed: true },
 };
 
+/** ラベルを枠内に収まる分だけに切り詰める（収まらない場合は末尾を「…」にする）。
+    SVG の text は自動で折り返し・省略されないため、文字幅の概算で切る
+    （全角 ≒ fontSize、半角 ≒ fontSize × 0.55） */
+function truncateLabel(label, maxWidth, fontSize) {
+  const charW = (ch) => (ch.charCodeAt(0) > 0xff ? fontSize : fontSize * 0.55);
+  let w = 0;
+  for (let i = 0; i < label.length; i++) {
+    w += charW(label[i]);
+    if (w > maxWidth) {
+      // 「…」の分の幅も確保するため1文字余分に削る
+      return label.slice(0, Math.max(0, i - 1)) + "…";
+    }
+  }
+  return label;
+}
+
 /** 志向ごとのエッジ色（攻め=赤 / 受け=青 / バランス=緑 / 不明=グレー） */
 const ORIENTATION_LINE_COLOR = {
   "攻め":     ORIENTATION_META["攻め"].color,
@@ -104,6 +120,7 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
   const [canvasOffset, setCanvasOffset] = useState({ x: 20, y: 20 });
   const [dragging,     setDragging]     = useState(false);
   const [scale,        setScale]        = useState(1);
+  const [animate,      setAnimate]      = useState(true); // 目次ジャンプ等のときだけ移動をアニメーションする
   const [nodeDrag,     setNodeDrag]     = useState(null); // 親付け替え中のノードID
   const [dropTarget,   setDropTarget]   = useState(null); // ドロップ先候補ノードID
   const dragStart    = useRef(null);
@@ -115,6 +132,29 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
   const MIN_SCALE = 0.4;
   const MAX_SCALE = 2.5;
   const clampScale = (s) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, s));
+
+  // ズームのアンカー計算用に最新の scale / offset を ref でも保持する
+  // （一度だけ登録するネイティブ wheel リスナーやピンチ処理から最新値を読むため）
+  const scaleRef  = useRef(scale);
+  const offsetRef = useRef(canvasOffset);
+  useEffect(() => { scaleRef.current  = scale;        }, [scale]);
+  useEffect(() => { offsetRef.current = canvasOffset; }, [canvasOffset]);
+
+  /** マップ領域内の点 (px, py) が動かないように拡大率を変更する
+      （カーソル位置・ピンチ中心・画面中央を基準にしたズーム） */
+  const zoomAt = useCallback((targetScale, px, py) => {
+    const s0 = scaleRef.current;
+    const s1 = clampScale(targetScale);
+    if (s1 === s0) return;
+    const off = offsetRef.current;
+    // 画面座標 p = offset + キャンバス座標 c × scale が不変になるよう offset を補正する
+    setCanvasOffset({
+      x: px - ((px - off.x) / s0) * s1,
+      y: py - ((py - off.y) / s0) * s1,
+    });
+    setScale(s1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /** 2点間の距離を返す（ピンチ判定用） */
   const touchDist = (t1, t2) => Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
@@ -275,6 +315,7 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
   const onMouseDown = useCallback((e) => {
     if (e.target.closest(".node-g")) return;
     setDragging(true);
+    setAnimate(false);
     dragStart.current = { mx: e.clientX, my: e.clientY, ox: canvasOffset.x, oy: canvasOffset.y };
   }, [canvasOffset]);
 
@@ -294,21 +335,26 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
       // ピンチ開始：2点間距離と現在スケールを記録
       pinchStart.current = { dist: touchDist(e.touches[0], e.touches[1]), scale };
       dragStart.current  = null;
+      setAnimate(false);
       return;
     }
     if (e.target.closest(".node-g")) return;
     const t = e.touches[0];
     dragStart.current = { mx: t.clientX, my: t.clientY, ox: canvasOffset.x, oy: canvasOffset.y };
     setDragging(true);
+    setAnimate(false);
   }, [canvasOffset, scale]);
 
   const onTouchMove = useCallback((e) => {
-    // ピンチズーム
+    // ピンチズーム（2本指の中点を基準に拡大縮小する）
     if (e.touches.length === 2 && pinchStart.current) {
       e.preventDefault();
-      const dist = touchDist(e.touches[0], e.touches[1]);
+      const dist  = touchDist(e.touches[0], e.touches[1]);
       const ratio = dist / pinchStart.current.dist;
-      setScale(clampScale(pinchStart.current.scale * ratio));
+      const rect  = mapRef.current?.getBoundingClientRect();
+      const midX  = (e.touches[0].clientX + e.touches[1].clientX) / 2 - (rect?.left ?? 0);
+      const midY  = (e.touches[0].clientY + e.touches[1].clientY) / 2 - (rect?.top  ?? 0);
+      zoomAt(pinchStart.current.scale * ratio, midX, midY);
       return;
     }
     if (!dragStart.current) return;
@@ -318,9 +364,9 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
       x: dragStart.current.ox + t.clientX - dragStart.current.mx,
       y: dragStart.current.oy + t.clientY - dragStart.current.my,
     });
-  }, []);
+  }, [zoomAt]);
 
-  // ── ホイールズーム（デスクトップ） ─────────────
+  // ── ホイールズーム（デスクトップ・カーソル位置基準） ─────────────
   // React の onWheel は passive リスナーになり preventDefault が効かず
   // コンソールエラーが出るため、非 passive のネイティブリスナーで登録する
   useEffect(() => {
@@ -328,7 +374,9 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
     if (!el) return;
     const onWheelNative = (e) => {
       e.preventDefault();
-      setScale((s) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, s - e.deltaY * 0.0015)));
+      const rect = el.getBoundingClientRect();
+      setAnimate(false);
+      zoomAt(scaleRef.current - e.deltaY * 0.0015, e.clientX - rect.left, e.clientY - rect.top);
     };
     el.addEventListener("wheel", onWheelNative, { passive: false });
     return () => el.removeEventListener("wheel", onWheelNative);
@@ -340,6 +388,7 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
     setDrawerOpen(false);
     const pos = positions[nodeId];
     if (!pos) return;
+    setAnimate(true);
     // キャンバスは transformOrigin 0,0 で scale 倍されるため、画面中央に合わせるには
     // ノードのキャンバス座標に scale を掛けてからオフセットを算出する
     setCanvasOffset({
@@ -403,7 +452,9 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
           top:             canvasOffset.y,
           transform:       `scale(${scale})`,
           transformOrigin: "0 0",
-          transition:      dragging ? "none" : "left 0.35s, top 0.35s, transform 0.15s",
+          // ドラッグ・ホイール・ピンチ中は即時追従、目次ジャンプやボタン操作のときだけ滑らかに動かす。
+          // アンカー固定ズームでは offset と scale を同時に動かすため、durationを揃えてズレを防ぐ
+          transition:      animate && !dragging ? "left 0.35s, top 0.35s, transform 0.35s" : "none",
         }}>
           <svg width={totalW} height={totalH} style={{ overflow: "visible" }}>
 
@@ -510,7 +561,8 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
                     fill={isRoot ? "#3d2000" : s.text}
                     fontFamily={T.fontSerif}
                   >
-                    {node.label}
+                    {/* 枠に入る分だけ表示（はみ出す分は「…」に置き換え） */}
+                    {truncateLabel(node.label, w - 10, isRoot ? 14 : 11 * usageScale)}
                   </text>
 
                   {/* ルートノードのサブラベル */}
@@ -557,9 +609,18 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
           boxShadow:    "0 2px 10px rgba(26,15,0,0.12)",
         }}>
           {[
-            { icon: "ti-plus",  onClick: () => setScale((s) => clampScale(s + 0.2)) },
-            { icon: "ti-minus", onClick: () => setScale((s) => clampScale(s - 0.2)) },
-            { icon: "ti-focus-2", onClick: () => { setScale(1); centerOnRoot(1); } },
+            // ＋/− は画面中央を基準にズームする（見ている場所が流れないように）
+            { icon: "ti-plus",  onClick: () => {
+              const r = mapRef.current?.getBoundingClientRect();
+              setAnimate(true);
+              zoomAt(scaleRef.current + 0.2, (r?.width ?? 0) / 2, (r?.height ?? 0) / 2);
+            } },
+            { icon: "ti-minus", onClick: () => {
+              const r = mapRef.current?.getBoundingClientRect();
+              setAnimate(true);
+              zoomAt(scaleRef.current - 0.2, (r?.width ?? 0) / 2, (r?.height ?? 0) / 2);
+            } },
+            { icon: "ti-focus-2", onClick: () => { setAnimate(true); setScale(1); centerOnRoot(1); } },
           ].map((b, i) => (
             <button
               key={b.icon}

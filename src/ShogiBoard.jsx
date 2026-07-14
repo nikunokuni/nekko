@@ -533,7 +533,9 @@ export default function ShogiBoard({
             </button>
           ))}
 
-          {/* 棋譜記録ボタン */}
+          {/* 棋譜記録ボタン。既存の棋譜がある間は表示しない（上書き防止）。
+              記録し直すには先に「棋譜を削除」してもらう */}
+          {kifuLen === 0 && (
           <div style={{ marginLeft: 'auto' }}>
             {!isRecording ? (
               <button data-onboard="board-kifu" onClick={startRecording} style={{
@@ -565,6 +567,7 @@ export default function ShogiBoard({
               </div>
             )}
           </div>
+          )}
         </div>
       )}
 

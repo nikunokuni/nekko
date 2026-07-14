@@ -522,6 +522,7 @@ export function TreeList({ trees, profile, onOpen, onPublic, onTrophy, onSetting
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editTarget,      setEditTarget]      = useState(null);
   const [deleteTarget,    setDeleteTarget]    = useState(null);
+  const [signOutConfirm,  setSignOutConfirm]  = useState(false); // 誤タップでの即ログアウトを防ぐ確認
 
   const activeTrees   = trees.filter((t) =>  t.active);
   const inactiveTrees = trees.filter((t) => !t.active);
@@ -558,7 +559,7 @@ export function TreeList({ trees, profile, onOpen, onPublic, onTrophy, onSetting
           >
             <i className="ti ti-plus" style={{ fontSize: "0.8125rem" }} /> 新規
           </button>
-          <button onClick={onSignOut} style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: "1.125rem", padding: 2 }}>
+          <button onClick={() => setSignOutConfirm(true)} style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: "1.125rem", padding: 2 }}>
             <i className="ti ti-logout" />
           </button>
         </div>
@@ -616,6 +617,32 @@ export function TreeList({ trees, profile, onOpen, onPublic, onTrophy, onSetting
           onClose={() => setDeleteTarget(null)}
           onConfirm={onDeleteTree}
         />
+      )}
+
+      {/* サインアウト確認 */}
+      {signOutConfirm && (
+        <div
+          style={{
+            position: "absolute", inset: 0, background: "rgba(26,15,0,0.5)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            zIndex: 50, padding: 20,
+          }}
+          onClick={() => setSignOutConfirm(false)}
+        >
+          <div
+            style={{ width: "100%", maxWidth: 320, background: T.cream, borderRadius: T.radius.xl, padding: "26px 22px" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontFamily: T.fontTitle, fontSize: T.fontSize.xxl, color: T.ink, textAlign: "center", marginBottom: 18 }}>
+              ログアウトしますか？
+            </div>
+            <ModalActionButtons
+              onCancel={() => setSignOutConfirm(false)}
+              onConfirm={() => { setSignOutConfirm(false); onSignOut(); }}
+              confirmLabel="ログアウト"
+            />
+          </div>
+        </div>
       )}
     </div>
   );

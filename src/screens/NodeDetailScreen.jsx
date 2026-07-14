@@ -378,12 +378,12 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
     showToast("親ノードを変更しました");
   };
 
-  // ── 子ノードの変更（既存ノードをこのノードの子にする）──────
+  // ── 子ノードの移動（既存ノードをこのノードの子として移動する）──────
   const handleChangeChild = async (childId) => {
     setChildChangePickerOpen(false);
     if (typeof onReparentNode !== "function") return;
     await onReparentNode(childId, nodeId);
-    showToast("子ノードを変更しました");
+    showToast("子ノードに移動しました");
   };
 
   // 「ついか」内の未入力項目が残っているか（志向・勝率）
@@ -888,7 +888,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
                 style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 4px", marginTop: 2, cursor: "pointer", color: T.inkFaint, fontSize: T.fontSize.sm, fontFamily: T.fontSerif }}
               >
                 <i className="ti ti-chevron-right" style={{ fontSize: "0.6875rem", transition: "transform 0.15s", transform: childDetailsOpen ? "rotate(90deg)" : "none" }} />
-                その他の操作（合流・子の変更）
+                その他の操作（合流・子の移動）
               </div>
             )}
 
@@ -915,7 +915,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
                       pickerOpen={childChangePickerOpen}
                       setPickerOpen={setChildChangePickerOpen}
                       onPick={handleChangeChild}
-                      label="子ノードを変更"
+                      label="既存ノードを子に移動"
                       pickLabel="子にするノードを選択"
                       icon="ti-arrows-exchange"
                       color={T.blue}
