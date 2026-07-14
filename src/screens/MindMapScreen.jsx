@@ -151,11 +151,25 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
   }, [nodes, positions]);
 
   // ── ノードドラッグで親付け替え ─────────────────
-  /** あるノードの子孫ID集合（循環防止） */
+  /** あるノードの子孫ID集合（循環防止）。
+      実子（childIds）に加えて合流子（mergeParentIds の逆引き）も辿る。
+      合流リンク経由の循環も防ぐため、ノード詳細画面の付け替え候補と同じルールにする */
   const descendantsOf = (id) => {
+    const mergeChildrenMap = new Map();
+    Object.values(nodes).forEach((n) => {
+      (n.mergeParentIds || []).forEach((pid) => {
+        const arr = mergeChildrenMap.get(pid);
+        if (arr) arr.push(n.id); else mergeChildrenMap.set(pid, [n.id]);
+      });
+    });
     const out = new Set();
-    const walk = (i) => (nodes[i]?.childIds || []).forEach((c) => { out.add(c); walk(c); });
-    walk(id);
+    const stack = [id];
+    while (stack.length) {
+      const cur = stack.pop();
+      for (const c of [...(nodes[cur]?.childIds || []), ...(mergeChildrenMap.get(cur) || [])]) {
+        if (!out.has(c)) { out.add(c); stack.push(c); }
+      }
+    }
     return out;
   };
 

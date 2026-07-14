@@ -59,11 +59,20 @@ export function AuthScreen({ onAuth }) {
   const [loading,     setLoading]     = useState(false);
   const [error,       setError]       = useState("");
 
+  // ID に使える文字（半角英数字と _ . -）。
+  // これ以外は idToFakeEmail で除去され、不正なメールアドレスになって登録に失敗するため、
+  // 入力の時点で弾いて分かりやすいエラーを出す。
+  const USERNAME_RE = /^[a-zA-Z0-9_.-]+$/;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     if (!username.trim() || !password) {
       setError("IDとパスワードを入力してください");
+      return;
+    }
+    if (mode === "signup" && !USERNAME_RE.test(username.trim())) {
+      setError("IDは半角英数字（と _ . - ）で入力してください");
       return;
     }
     setLoading(true);
@@ -153,7 +162,12 @@ export function AuthScreen({ onAuth }) {
           ))}
         </div>
 
-        <AuthInputField label="ID（ログイン用ユーザー名）" value={username}    setter={setUsername}    type="text"     placeholder="例: tsuruga_7dan" nameAttr="username" />
+        <AuthInputField
+          label={mode === "signup" ? "ID（ログイン用・半角英数字）" : "ID（ログイン用ユーザー名）"}
+          value={username}
+          // 新規登録では使えない文字をその場で取り除く（既存ユーザーのログイン入力には触れない）
+          setter={(v) => setUsername(mode === "signup" ? v.replace(/[^a-zA-Z0-9_.-]/g, "") : v)}
+          type="text" placeholder="例: tsuruga_7dan" nameAttr="username" />
         {mode === "signup" && (
           <AuthInputField label="表示名"                   value={displayName} setter={setDisplayName} type="text"     placeholder="例: 鶴賀 七段"    nameAttr="nickname" />
         )}
@@ -321,16 +335,22 @@ export function PublicTrees({ trees, profile, likedTreeIds, onBack, onCopy, onLi
 
   const handleToggleLike = async (id) => {
     const willLike = !likedIds.has(id);
-    setLikedIds((prev) => {
+    const setLiked = (like) => setLikedIds((prev) => {
       const next = new Set(prev);
-      if (willLike) next.add(id); else next.delete(id);
+      if (like) next.add(id); else next.delete(id);
       return next;
     });
-    if (willLike) {
-      recordAction("liked");
-      try { await onLike?.(id); } catch {}
-    } else {
-      try { await onUnlike?.(id); } catch {}
+    setLiked(willLike);
+    try {
+      if (willLike) {
+        await onLike?.(id);
+        recordAction("liked");
+      } else {
+        await onUnlike?.(id);
+      }
+    } catch {
+      // 保存に失敗したらハート表示を元に戻す（表示とDBのズレを防ぐ）
+      setLiked(!willLike);
     }
   };
 

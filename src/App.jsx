@@ -367,6 +367,7 @@ export default function App() {
     }
 
     await loadMyTrees();
+    refreshNodeCount(); // 自動生成した子ノード分をトロフィーの数値に反映する
     // 作成したツリーをそのまま開く（手動で探してタップする手間を省く）
     await handleOpenTree(data.id);
   };
@@ -375,6 +376,7 @@ export default function App() {
     const { error } = await deleteTree(treeId);
     if (error) { alert("削除に失敗しました。もう一度お試しください。"); return; }
     await loadMyTrees();
+    refreshNodeCount(); // ツリーと一緒に消えたノード分をトロフィーの数値に反映する
   };
 
   const handleEditTree = async (treeId, patch) => {
@@ -427,9 +429,10 @@ export default function App() {
     setScreen("node");
   };
 
+  // 保存の成否を返す（呼び出し側が失敗時に表示を元に戻せるように）
   const handleNodeUpdate = async (nodeId, patch) => {
     const { error } = await updateNode(nodeId, patch);
-    if (error) { alert("保存に失敗しました。もう一度お試しください。"); return; }
+    if (error) { alert("保存に失敗しました。もう一度お試しください。"); return false; }
 
     // 戦法タグが変わった場合のみ、ツリー全体のタグ（全ノードのタグの集合）を再計算する。
     // 集約値は updater の外（closureのactiveTree）で1回だけ計算し、副作用（DB保存・別state更新）も
@@ -454,11 +457,15 @@ export default function App() {
       updateTree(treeId, { tags: aggregated });
       setMyTrees(mt => mt.map(t => t.id === treeId ? { ...t, tags: aggregated } : t));
     }
+    return true;
   };
 
   // ── ノードの親を付け替える（マインドマップのドラッグ操作） ──
-  const reparentNode = useCallback(async (nodeId, newParentId) => {
-    const { error } = await updateNode(nodeId, { parentId: newParentId });
+  const reparentNode = async (nodeId, newParentId) => {
+    // 並び順も新親の末尾に更新する。ローカルでは childIds の末尾に追加されるため、
+    // sort_order が旧親時代のままだとリロード時に並び順が変わって位置が跳ねてしまう。
+    const sortOrder = nextSortOrder(newParentId);
+    const { error } = await updateNode(nodeId, { parentId: newParentId, sortOrder });
     if (error) { alert("移動に失敗しました。もう一度お試しください。"); return; }
     setActiveTree((prev) => {
       const nodes = { ...prev.nodes };
@@ -479,10 +486,10 @@ export default function App() {
           childIds: [...(nodes[newParentId].childIds || []), nodeId],
         };
       }
-      nodes[nodeId] = { ...node, parentId: newParentId };
+      nodes[nodeId] = { ...node, parentId: newParentId, sortOrder };
       return { ...prev, nodes };
     });
-  }, []);
+  };
 
   const handleReparentNode = async (nodeId, newParentId) => {
     const oldParentId = activeTree?.nodes?.[nodeId]?.parentId ?? null;
@@ -590,6 +597,19 @@ export default function App() {
         )
       );
 
+      // ツリーのタグ（頻度の高いノードの「自分の戦法」の集約）を残ったノードで再計算する。
+      // 削除したノード由来のタグが一覧カードや公開フィルタに残り続けるのを防ぐ。
+      const remaining = { ...(activeTree?.nodes || {}) };
+      idsToDelete.forEach((id) => delete remaining[id]);
+      const aggregated = collectTreeTags(remaining);
+      const tagsChanged = activeTree &&
+        JSON.stringify(aggregated) !== JSON.stringify(activeTree.tags || []);
+      if (tagsChanged) {
+        const treeId = activeTree.id;
+        updateTree(treeId, { tags: aggregated });
+        setMyTrees((mt) => mt.map((t) => t.id === treeId ? { ...t, tags: aggregated } : t));
+      }
+
       setActiveTree((prev) => {
         const newNodes = { ...prev.nodes };
         idsToDelete.forEach((id) => delete newNodes[id]);
@@ -607,7 +627,7 @@ export default function App() {
             ),
           };
         }
-        return { ...prev, nodes: newNodes };
+        return tagsChanged ? { ...prev, nodes: newNodes, tags: aggregated } : { ...prev, nodes: newNodes };
       });
       // 削除後、親ノードか（なければ）マップに戻る
       if (parentId) {
@@ -641,6 +661,7 @@ export default function App() {
 
     recordAction("copied");
     await loadMyTrees();
+    refreshNodeCount(); // コピーで増えたノード分をトロフィーの数値に反映する
   };
 
   // ── ローディング中 / 未ログイン ──────────────

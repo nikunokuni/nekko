@@ -87,8 +87,18 @@ function parseCSA(text) {
   let handSente = emptyHand();
   let handGote  = emptyHand();
   const moves = [];
+  // 読み取れない指し手が出た時点で以降の手を捨てる。
+  // 1手でも欠けるとそれ以降の局面がすべて崩れるため、途中までで打ち切る。
+  let stopped = false;
+  let skipped = 0;
+  // 指し手らしき行か（"+"/"-" 単独行は手番指定なので除く）
+  const looksLikeMove = (l) => l.length > 1 && /^[+-]/.test(l) && !/^P[+-]/.test(l);
 
   for (const line of lines) {
+    if (stopped) {
+      if (looksLikeMove(line)) skipped++;
+      continue;
+    }
     if (line.startsWith("PI")) {
       // 平手初期配置から、指定マスの駒を取り除く（駒落ち）
       board = INITIAL_BOARD.map(r => [...r]);
@@ -136,19 +146,23 @@ function parseCSA(text) {
       }
     } else {
       const m = line.match(/^([+-])(\d)(\d)(\d)(\d)([A-Z]{2})/);
-      if (!m) continue;
+      if (!m) {
+        // 指し手のはずの行が解析できなければ、そこで打ち切る
+        if (looksLikeMove(line)) { skipped++; stopped = true; }
+        continue;
+      }
       const isSente = m[1] === '+';
       const fromFile = +m[2], fromRank = +m[3];
       const toFile   = +m[4], toRank   = +m[5];
       const resultPiece = CSA_PIECE[m[6]];
-      if (!resultPiece) continue;
+      if (!resultPiece) { skipped++; stopped = true; continue; }
       const to = { row: toRank - 1, col: 9 - toFile };
       const from = (fromFile === 0 && fromRank === 0) ? null : { row: fromRank - 1, col: 9 - fromFile };
       moves.push({ isSente, from, to, resultPiece });
     }
   }
 
-  return { initialState: { board, handSente, handGote }, moves };
+  return { initialState: { board, handSente, handGote }, moves, skipped };
 }
 
 // ══════════════════════════════════════════════════
@@ -201,6 +215,9 @@ function parseKIF(text) {
   const moves = [];
   let lastTo = null;
   let skipped = 0;
+  // 読み取れない手が出たら、それ以降の手はすべて捨てる（skipped に数えるだけ）。
+  // 1手でも欠けるとそれ以降の局面がすべて崩れるため、途中までで打ち切る。
+  let stopped = false;
 
   for (const raw of lines) {
     const line = raw.trim();
@@ -211,10 +228,12 @@ function parseKIF(text) {
     let body = m[2].replace(/\(\s*\d+:\d+(?:\/[\d:]+)?\s*\)\s*$/, '').trim();
     if (KIF_END_WORDS.test(body)) continue;
 
+    if (stopped) { skipped++; continue; }
+
     const moveNum = +m[1];
     const isSente = moveNum % 2 === 1;
     const parsed = parseKifMoveText(body, lastTo);
-    if (!parsed) { skipped++; continue; }
+    if (!parsed) { skipped++; stopped = true; continue; }
 
     moves.push({ isSente, from: parsed.from, to: parsed.to, resultPiece: parsed.resultPiece });
     lastTo = parsed.to;

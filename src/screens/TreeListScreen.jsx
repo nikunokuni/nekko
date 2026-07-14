@@ -49,7 +49,7 @@ function CreateTreeModal({ onClose, onCreate }) {
         return;
       }
       if (result.skipped > 0) {
-        setKifuError(`一部の手（${result.skipped}手）を読み取れず、棋譜が途中までしか反映されていません`);
+        setKifuError(`途中に読み取れない手があったため、第${result.snapshots.length - 1}手までを読み込みました（以降の${result.skipped}手は反映されません）`);
       }
       setKifuSnapshots(result.snapshots);
     } catch (err) {

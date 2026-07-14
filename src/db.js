@@ -333,7 +333,12 @@ export async function likeTree(userId, treeId) {
 }
 
 export async function unlikeTree(userId, treeId) {
-  await supabase.from("likes").delete().eq("user_id", userId).eq("tree_id", treeId);
+  const { error } = await supabase.from("likes").delete().eq("user_id", userId).eq("tree_id", treeId);
+  // 失敗を呼び出し側へ伝え、ハート表示を元に戻せるようにする
+  if (error) {
+    console.error("unlikeTree error:", error);
+    throw error;
+  }
 }
 
 /** ユーザーが既にいいね済みのツリーID一覧を返す（みんなのツリーのいいね状態復元用） */

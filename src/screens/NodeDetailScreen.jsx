@@ -329,6 +329,14 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
     navigateFn();
   };
 
+  /** 即時保存フィールドの共通処理。表示を先に更新し、保存に失敗したら元へ戻す
+      （失敗しても選択済みのままになり、表示とDBがズレるのを防ぐ） */
+  const saveField = async (patch, apply, revert) => {
+    apply();
+    const ok = await onUpdate(nodeId, patch);
+    if (ok === false) revert();
+  };
+
   // ── 合流（追加の親子リンク）操作 ──────────────────
   // モデル: 子ノードが mergeParentIds に「追加の親」を持つ。
   //   ・親 → 子（mergeChildren）も同じデータから算出できる（双方向参照）
@@ -546,7 +554,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
                 key={s}
                 status={s}
                 active={status === s}
-                onClick={async () => { setStatus(s); await onUpdate(nodeId, { status: s }); }}
+                onClick={() => saveField({ status: s }, () => setStatus(s), () => setStatus(node.status || "wip"))}
               />
             ))}
           </div>
@@ -558,7 +566,9 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
             <TagPickerField
               label="相手の戦法"
               text={situation}
-              onSelectTag={async (next) => { setSituation(next.join("、")); await onUpdate(nodeId, { situation: next }); }}
+              onSelectTag={(next) => saveField({ situation: next },
+                () => setSituation(next.join("、")),
+                () => setSituation((node.situation || []).join("、")))}
               groups={STRATEGY_GROUPS}
               customTags={customTags}
               onAddCustomTag={handleAddCustomTag}
@@ -567,7 +577,9 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
             <TagPickerField
               label="自分の戦法"
               text={myApproach}
-              onSelectTag={async (next) => { setMyApproach(next.join("、")); await onUpdate(nodeId, { myApproach: next }); }}
+              onSelectTag={(next) => saveField({ myApproach: next },
+                () => setMyApproach(next.join("、")),
+                () => setMyApproach((node.myApproach || []).join("、")))}
               groups={STRATEGY_GROUPS}
               customTags={customTags}
               onAddCustomTag={handleAddCustomTag}
@@ -672,10 +684,9 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
                 return (
                   <div
                     key={o}
-                    onClick={async () => {
-                      setOrientation(o);
-                      await onUpdate(nodeId, { orientation: o });
-                    }}
+                    onClick={() => saveField({ orientation: o },
+                      () => setOrientation(o),
+                      () => setOrientation(node.orientation || ""))}
                     style={{
                       flex:         1,
                       textAlign:    "center",
@@ -710,10 +721,9 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
                   name="usageLevel"
                   value={lvl}
                   checked={usageLevel === lvl}
-                  onChange={async () => {
-                    setUsageLevel(lvl);
-                    await onUpdate(nodeId, { usageLevel: lvl });
-                  }}
+                  onChange={() => saveField({ usageLevel: lvl },
+                    () => setUsageLevel(lvl),
+                    () => setUsageLevel(node.usageLevel || 2))}
                   style={{ width: 15, height: 15, margin: 0, accentColor: T.gold, cursor: "pointer", flexShrink: 0 }}
                 />
                 {i < USAGE_LEVELS.length - 1 && <div style={{ flex: 1, height: 1, background: T.inkLine, margin: "0 3px" }} />}
@@ -737,10 +747,9 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
                   name="winRate"
                   value={lvl}
                   checked={winRate === lvl}
-                  onChange={async () => {
-                    setWinRate(lvl);
-                    await onUpdate(nodeId, { winRate: lvl });
-                  }}
+                  onChange={() => saveField({ winRate: lvl },
+                    () => setWinRate(lvl),
+                    () => setWinRate(node.winRate ?? null))}
                   style={{ width: 15, height: 15, margin: 0, accentColor: T.gold, cursor: "pointer", flexShrink: 0 }}
                 />
                 {i < WIN_RATE_LEVELS.length - 1 && <div style={{ flex: 1, height: 1, background: T.inkLine, margin: "0 3px" }} />}
@@ -767,10 +776,9 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
                   name="likeLevel"
                   value={lvl.value}
                   checked={likeLevel === lvl.value}
-                  onChange={async () => {
-                    setLikeLevel(lvl.value);
-                    await onUpdate(nodeId, { likeLevel: lvl.value });
-                  }}
+                  onChange={() => saveField({ likeLevel: lvl.value },
+                    () => setLikeLevel(lvl.value),
+                    () => setLikeLevel(node.likeLevel ?? null))}
                   style={{ width: 15, height: 15, margin: 0, accentColor: T.gold, cursor: "pointer", flexShrink: 0 }}
                 />
                 {i < LIKE_LEVELS.length - 1 && <div style={{ flex: 1, height: 1, background: T.inkLine, margin: "0 3px" }} />}
@@ -815,7 +823,9 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
           <TagPickerField
             label="一言コメント"
             text={commentTags}
-            onSelectTag={async (next) => { setCommentTags(next.join("、")); await onUpdate(nodeId, { commentTags: next }); }}
+            onSelectTag={(next) => saveField({ commentTags: next },
+              () => setCommentTags(next.join("、")),
+              () => setCommentTags((node.commentTags || []).join("、")))}
             groups={COMMENT_GROUPS}
             customTags={commentCustomTags}
             onAddCustomTag={(tag, group) => {
