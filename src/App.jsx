@@ -2,7 +2,8 @@
 // App.jsx  ―  アプリのルート
 //   セッション管理 / 画面遷移 / DB 操作の統括
 // ══════════════════════════════════════════════════
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useNavigate, useLocation, matchPath } from "react-router-dom";
 import { AuthScreen, PublicTrees, PublicTreePreview } from "./screensPublic";
 import { TreeList } from "./screens/TreeListScreen";
 import { MindMap } from "./screens/MindMapScreen";
@@ -78,13 +79,31 @@ const ONBOARD_TARGET_OPTS = {
 };
 
 export default function App() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // ── 画面はURLから導出する（screen 文字列stateは廃止）──
+  // URL ↔ 画面を一致させることで、局面の共有リンク・ブラウザの戻る・ブックマークが効く。
+  // 画面名（screen）はオンボーディング等の既存ロジックがそのまま使える形で算出する。
+  const route = useMemo(() => {
+    const p = location.pathname;
+    let m;
+    if ((m = matchPath("/tree/:treeId/node/:nodeId", p))) return { screen: "node",          treeId: m.params.treeId, nodeId: m.params.nodeId };
+    if ((m = matchPath("/tree/:treeId/preview",      p))) return { screen: "publicPreview",  treeId: m.params.treeId, nodeId: null };
+    if ((m = matchPath("/tree/:treeId",              p))) return { screen: "map",            treeId: m.params.treeId, nodeId: null };
+    if (matchPath("/public",   p)) return { screen: "public",   treeId: null, nodeId: null };
+    if (matchPath("/trophy",   p)) return { screen: "trophy",   treeId: null, nodeId: null };
+    if (matchPath("/settings", p)) return { screen: "settings", treeId: null, nodeId: null };
+    return { screen: "list", treeId: null, nodeId: null };
+  }, [location.pathname]);
+  const screen       = route.screen;
+  const activeNodeId = route.nodeId;
+
   const [session,          setSession]          = useState(undefined); // undefined = 未確定
   const [profile,          setProfile]          = useState(null);
-  const [screen,           setScreen]           = useState("list");
   const [myTrees,          setMyTrees]          = useState([]);
   const [pubTrees,         setPubTrees]         = useState([]);
   const [activeTree,       setActiveTree]       = useState(null);
-  const [activeNodeId,     setActiveNodeId]     = useState(null);
   const [loading,          setLoading]          = useState(false);
   const [nodeCount,        setNodeCount]        = useState(0);
   const [devStats,         setDevStats]         = useState(null);
@@ -288,14 +307,37 @@ export default function App() {
     }
   }, [myTrees, pubTrees, session]);
 
+  // ── ディープリンク：URL の treeId に対応するツリーを読み込む ──
+  // URL直打ち・ブックマーク・リロードでも該当ツリー（/ノード）を表示できるようにする。
+  // 既読み込み済み・読み込み中は再取得しない（多重防止）。
+  const loadingTreeRef = useRef(null);
+  useEffect(() => {
+    if (!session) return;
+    const treeId = route.treeId;
+    if (!treeId) return;
+    if (activeTree && activeTree.id === treeId) return;
+    if (loadingTreeRef.current === treeId) return;
+    loadingTreeRef.current = treeId;
+    loadTree(treeId)
+      .then((t) => { loadingTreeRef.current = null; if (!t) navigate("/", { replace: true }); })
+      .catch(() => { loadingTreeRef.current = null; });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route.treeId, session, activeTree]);
+
+  // みんなのツリー画面に入ったら最新の公開一覧を取得する（ディープリンク対応）
+  useEffect(() => {
+    if (session && screen === "public") loadPublicTrees();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, session]);
+
   // ── Auth ハンドラ ────────────────────────────
   const handleAuth     = (_user, sess) => setSession(sess);
   const handleSignOut  = async () => {
     await signOut();
     resetUserState(); // セッションキャッシュを空にし、次のユーザーへ持ち越さない
     setSession(null); setProfile(null);
-    setActiveTree(null); setActiveNodeId(null);
-    setMyTrees([]); setScreen("list");
+    setActiveTree(null);
+    setMyTrees([]); navigate("/");
   };
 
   // ── ツリー操作 ───────────────────────────────
@@ -318,9 +360,9 @@ export default function App() {
         board: cloneBoard(null),
       });
       const fixed = await loadTree(treeId);
-      if (fixed) setScreen("map");
+      if (fixed) navigate(`/tree/${treeId}`);
     } else {
-      setScreen("map");
+      navigate(`/tree/${treeId}`);
     }
   };
 
@@ -426,8 +468,8 @@ export default function App() {
 
   // ── ノード操作 ───────────────────────────────
   const handleNodeSelect = (nodeId) => {
-    setActiveNodeId(nodeId);
-    setScreen("node");
+    if (!activeTree) return;
+    navigate(`/tree/${activeTree.id}/node/${nodeId}`);
   };
 
   // 保存の成否を返す（呼び出し側が失敗時に表示を元に戻せるように）
@@ -507,8 +549,7 @@ export default function App() {
     // 全件再フェッチせず、作成ノードをローカルツリーへマージ（ネットワーク往復を削減）
     setActiveTree(prev => addNode(prev, nodeRowToNode(newNode)));
     setNodeCount(c => c + 1);
-    setActiveNodeId(newNode.id);
-    setScreen("node");
+    navigate(`/tree/${activeTree.id}/node/${newNode.id}`);
   };
 
   // ── 棋譜の途中局面から分岐ノードを作成する ──
@@ -531,8 +572,7 @@ export default function App() {
     // 全件再フェッチせず、作成ノードをローカルツリーへマージ（ネットワーク往復を削減）
     setActiveTree(prev => addNode(prev, nodeRowToNode(newNode)));
     setNodeCount(c => c + 1);
-    setActiveNodeId(newNode.id);
-    setScreen("node");
+    navigate(`/tree/${activeTree.id}/node/${newNode.id}`);
   };
 
   const handleDeleteNode = async (idsToDelete, parentId) => {
@@ -561,10 +601,9 @@ export default function App() {
       setActiveTree(tree);
       // 削除後、親ノードか（なければ）マップに戻る
       if (parentId) {
-        setActiveNodeId(parentId);
-        setScreen("node");
+        navigate(`/tree/${activeTree.id}/node/${parentId}`);
       } else {
-        setScreen("map");
+        navigate(`/tree/${activeTree.id}`);
       }
       refreshNodeCount();
     } catch (e) {
@@ -582,7 +621,7 @@ export default function App() {
   const handleOpenPublicTree = async (treeId) => {
     const tree = await loadTree(treeId);
     if (!tree) { alert("ツリーの読み込みに失敗しました。もう一度お試しください。"); return; }
-    setScreen("publicPreview");
+    navigate(`/tree/${treeId}/preview`);
   };
 
   // ── 公開ツリーのコピー（サーバー側RPCで1トランザクション一括コピー）──
@@ -744,9 +783,9 @@ export default function App() {
         {screen==="list" && (
           <TreeList trees={myTrees} profile={profile}
             onOpen={handleOpenTree}
-            onPublic={() => { setScreen("public"); loadPublicTrees(); }}
-            onTrophy={() => setScreen("trophy")}
-            onSettings={() => setScreen("settings")}
+            onPublic={() => navigate("/public")}
+            onTrophy={() => navigate("/trophy")}
+            onSettings={() => navigate("/settings")}
             onNewTree={handleNewTree} onSignOut={handleSignOut}
             onDeleteTree={handleDeleteTree} onEditTree={handleEditTree}
             onPublish={handlePublishTree} onUnpublish={handleUnpublishTree}
@@ -766,7 +805,7 @@ export default function App() {
           };
           return (
             <TrophyScreen
-              onBack={() => setScreen("list")}
+              onBack={() => navigate("/")}
               treeCount={myTrees.length}
               nodeCount={nodeCount}
               loginStats={loginStats}
@@ -775,13 +814,13 @@ export default function App() {
         })()}
         {screen==="map" && activeTree && (
           <MindMap tree={activeTree} onNodeSelect={handleNodeSelect}
-            onBack={() => setScreen("list")} onReparent={handleReparentNode}
+            onBack={() => navigate("/")} onReparent={handleReparentNode}
             canUndoReparent={reparentStack.length > 0} onUndoReparent={handleUndoReparent}
             onMemoSave={handleMemoSave}/>
         )}
-        {screen==="node" && activeTree && activeNodeId && (
+        {screen==="node" && activeTree && activeNodeId && activeTree.nodes[activeNodeId] && (
           <NodeDetail tree={activeTree} nodeId={activeNodeId}
-            onBack={() => setScreen("map")} onNodeSelect={handleNodeSelect}
+            onBack={() => navigate(`/tree/${activeTree.id}`)} onNodeSelect={handleNodeSelect}
             onNewNode={handleNewNode} onUpdate={handleNodeUpdate}
             onDeleteNode={handleDeleteNode} onSetMergeParents={handleSetMergeParents}
             onReparentNode={handleReparentNode}
@@ -789,15 +828,15 @@ export default function App() {
             onBoardFirstShown={startBoardOnboard}/>
         )}
         {screen==="settings" && (
-          <SettingsScreen onBack={() => setScreen("list")}
+          <SettingsScreen onBack={() => navigate("/")}
             fontScale={fontScale} onFontScaleChange={handleFontScaleChange}
-            onResetOnboard={() => { resetOnboard(); setScreen("list"); }}
+            onResetOnboard={() => { resetOnboard(); navigate("/"); }}
             devStats={devStats}/>
         )}
         {screen==="public" && (
           <PublicTrees trees={pubTrees}
             likedTreeIds={likedTreeIds}
-            onBack={() => setScreen("list")}
+            onBack={() => navigate("/")}
             onCopy={handleCopyTree}
             onLike={(treeId) => session && likeTree(session.user.id, treeId)}
             onUnlike={(treeId) => session && unlikeTree(session.user.id, treeId)}
@@ -806,7 +845,7 @@ export default function App() {
         )}
         {screen==="publicPreview" && activeTree && (
           <PublicTreePreview tree={activeTree}
-            onBack={() => setScreen("public")}
+            onBack={() => navigate("/public")}
             onCopy={() => handleCopyTree(activeTree.id)}/>
         )}
       </div>
