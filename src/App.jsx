@@ -15,23 +15,12 @@ import {
   fetchMyTrees, fetchPublicTrees, fetchNodes,
   createTree, createNode, updateNode, updateTree, deleteTree, copyTree,
   buildTreeFromNodes, nodeRowToNode, publishTree, deleteNodes, unpublishTree,
-  countUserNodes, getAppStats, likeTree, unlikeTree, collectTreeTags, fetchAllWipNodes,
+  countUserNodes, getAppStats, likeTree, unlikeTree, fetchAllWipNodes,
   fetchMyLikedTreeIds,
 } from "./db";
-
-// 新規作成したノード行を、全件再フェッチせずローカルツリーへマージする
-function addNodeToTree(prev, row) {
-  if (!prev || !row) return prev;
-  const node  = nodeRowToNode(row);
-  const nodes = { ...prev.nodes, [node.id]: node };
-  if (node.parentId && nodes[node.parentId]) {
-    nodes[node.parentId] = {
-      ...nodes[node.parentId],
-      childIds: [...(nodes[node.parentId].childIds || []), node.id],
-    };
-  }
-  return { ...prev, nodes, rootId: prev.rootId ?? (node.isRoot ? node.id : null) };
-}
+// ツリー変更ロジック（childIds / merge_parent_ids / tags の整合）を一本化した純粋関数群。
+// 各ハンドラは DB 更新後にこれらでローカルツリーを組み替える（手作業の整合を排除）。
+import { nextSortOrder, addNode, applyNodePatch, reparent as reparentTree, setMergeParents as setMergeParentsTree, removeNodes } from "./treeOps";
 import { initUserState, resetUserState, recordLogin, getLoginStats, recordAction, getActions, shouldShowFridayToast, markFridayToastShown, shouldShowOnboard, markOnboardSeen, resetOnboard } from "./rewards";
 import { cloneBoard } from "./theme";
 
@@ -446,28 +435,26 @@ export default function App() {
     const { error } = await updateNode(nodeId, patch);
     if (error) { alert("保存に失敗しました。もう一度お試しください。"); return false; }
 
-    // 戦法タグが変わった場合のみ、ツリー全体のタグ（全ノードのタグの集合）を再計算する。
-    // 集約値は updater の外（closureのactiveTree）で1回だけ計算し、副作用（DB保存・別state更新）も
+    // 戦法タグが変わった場合のみ、ツリー全体のタグを再計算する。
+    // タグは updater の外（closureのactiveTree）で1回だけ算出し、副作用（DB保存・別state更新）も
     // updater の外で実行する。setActiveTree の更新関数内で副作用を起こすと StrictMode で2回走り、
     // updateTree がDBへ二重書き込みされるため。
     const recomputeTags = !!(patch.situation || patch.myApproach || patch.usageLevel);
-    let aggregated = null;
-    if (recomputeTags && activeTree) {
-      const updatedNodes = { ...activeTree.nodes, [nodeId]: { ...activeTree.nodes[nodeId], ...patch } };
-      aggregated = collectTreeTags(updatedNodes);
-    }
+    const tags = recomputeTags && activeTree
+      ? applyNodePatch(activeTree, nodeId, patch, { recomputeTags: true }).tags
+      : null;
 
-    // ローカル state も即時反映（純粋な更新のみ）
+    // ローカル state も即時反映（純粋な更新のみ。タグは事前算出値を上書き）
     setActiveTree(prev => {
       if (!prev) return prev;
-      const nodes = { ...prev.nodes, [nodeId]: { ...prev.nodes[nodeId], ...patch } };
-      return aggregated ? { ...prev, nodes, tags: aggregated } : { ...prev, nodes };
+      const { tree } = applyNodePatch(prev, nodeId, patch);
+      return tags ? { ...tree, tags } : tree;
     });
 
-    if (aggregated && activeTree) {
+    if (tags && activeTree) {
       const treeId = activeTree.id;
-      updateTree(treeId, { tags: aggregated });
-      setMyTrees(mt => mt.map(t => t.id === treeId ? { ...t, tags: aggregated } : t));
+      updateTree(treeId, { tags });
+      setMyTrees(mt => mt.map(t => t.id === treeId ? { ...t, tags } : t));
     }
     return true;
   };
@@ -476,31 +463,10 @@ export default function App() {
   const reparentNode = async (nodeId, newParentId) => {
     // 並び順も新親の末尾に更新する。ローカルでは childIds の末尾に追加されるため、
     // sort_order が旧親時代のままだとリロード時に並び順が変わって位置が跳ねてしまう。
-    const sortOrder = nextSortOrder(newParentId);
+    const sortOrder = nextSortOrder(activeTree, newParentId);
     const { error } = await updateNode(nodeId, { parentId: newParentId, sortOrder });
     if (error) { alert("移動に失敗しました。もう一度お試しください。"); return; }
-    setActiveTree((prev) => {
-      const nodes = { ...prev.nodes };
-      const node  = nodes[nodeId];
-      if (!node) return prev;
-      const oldParentId = node.parentId;
-      // 旧親の childIds から外す
-      if (oldParentId && nodes[oldParentId]) {
-        nodes[oldParentId] = {
-          ...nodes[oldParentId],
-          childIds: (nodes[oldParentId].childIds || []).filter((id) => id !== nodeId),
-        };
-      }
-      // 新親の childIds に追加
-      if (nodes[newParentId]) {
-        nodes[newParentId] = {
-          ...nodes[newParentId],
-          childIds: [...(nodes[newParentId].childIds || []), nodeId],
-        };
-      }
-      nodes[nodeId] = { ...node, parentId: newParentId, sortOrder };
-      return { ...prev, nodes };
-    });
+    setActiveTree((prev) => reparentTree(prev, nodeId, newParentId, sortOrder));
   };
 
   const handleReparentNode = async (nodeId, newParentId) => {
@@ -524,26 +490,7 @@ export default function App() {
       isMergeTarget: mergeParentIds.length > 0,
     });
     if (error) { alert("保存に失敗しました。もう一度お試しください。"); return; }
-    setActiveTree((prev) => ({
-      ...prev,
-      nodes: {
-        ...prev.nodes,
-        [nodeId]: {
-          ...prev.nodes[nodeId],
-          mergeParentIds,
-          isMergeTarget: mergeParentIds.length > 0,
-        },
-      },
-    }));
-  };
-
-  // 兄弟ノードの sort_order の最大値+1 を返す（新規ノードを常に末尾に並べるため。
-  // 全ノード 0 のままだと、リロード時に sort_order:1 を持つ自動生成の「振り飛車」より
-  // 前へ割り込んでしまう）
-  const nextSortOrder = (parentId) => {
-    const sibs = (activeTree?.nodes?.[parentId]?.childIds || [])
-      .map((id) => activeTree.nodes[id]?.sortOrder ?? 0);
-    return sibs.length ? Math.max(...sibs) + 1 : 0;
+    setActiveTree((prev) => setMergeParentsTree(prev, nodeId, mergeParentIds));
   };
 
   const handleNewNode = async (parentId) => {
@@ -554,11 +501,11 @@ export default function App() {
       parentId: parentId,
       label:    "新しいノード",
       status:   "wip",
-      sortOrder: nextSortOrder(parentId),
+      sortOrder: nextSortOrder(activeTree, parentId),
     });
     if (!newNode) { alert("ノードの追加に失敗しました。もう一度お試しください。"); return; }
     // 全件再フェッチせず、作成ノードをローカルツリーへマージ（ネットワーク往復を削減）
-    setActiveTree(prev => addNodeToTree(prev, newNode));
+    setActiveTree(prev => addNode(prev, nodeRowToNode(newNode)));
     setNodeCount(c => c + 1);
     setActiveNodeId(newNode.id);
     setScreen("node");
@@ -578,11 +525,11 @@ export default function App() {
       handSente: snapshot.handSente,
       handGote:  snapshot.handGote,
       branchFromMoveIndex: moveIndex ?? null,
-      sortOrder: nextSortOrder(parentNodeId),
+      sortOrder: nextSortOrder(activeTree, parentNodeId),
     });
     if (!newNode) { alert("分岐ノードの追加に失敗しました。もう一度お試しください。"); return; }
     // 全件再フェッチせず、作成ノードをローカルツリーへマージ（ネットワーク往復を削減）
-    setActiveTree(prev => addNodeToTree(prev, newNode));
+    setActiveTree(prev => addNode(prev, nodeRowToNode(newNode)));
     setNodeCount(c => c + 1);
     setActiveNodeId(newNode.id);
     setScreen("node");
@@ -592,55 +539,26 @@ export default function App() {
     try {
       await deleteNodes(idsToDelete);
 
-      // 削除されたノードを「合流親」に持つ残りノードから、その参照を取り除く
+      // childIds掃除・合流参照掃除・タグ再計算を treeOps で一括整合する。
+      // 副作用（DB保存・別state更新）は StrictMode 二重実行を避けるため updater の外で行う。
+      const { tree, mergeCleanups, tags } = removeNodes(activeTree, idsToDelete, parentId);
+
+      // 削除ノードを「合流親」に持っていた残りノードの参照掃除をDBへ反映する
       // （放置すると他ノードの merge_parent_ids に削除済みIDが残り続けるため）
-      const delSet = new Set(idsToDelete);
-      const affected = [];
-      for (const n of Object.values(activeTree?.nodes || {})) {
-        if (delSet.has(n.id)) continue;
-        const refs = n.mergeParentIds || [];
-        if (refs.some((id) => delSet.has(id))) {
-          affected.push({ id: n.id, cleaned: refs.filter((id) => !delSet.has(id)) });
-        }
-      }
       await Promise.all(
-        affected.map((a) =>
-          updateNode(a.id, { mergeParentIds: a.cleaned, isMergeTarget: a.cleaned.length > 0 })
+        mergeCleanups.map((c) =>
+          updateNode(c.id, { mergeParentIds: c.mergeParentIds, isMergeTarget: c.isMergeTarget })
         )
       );
 
-      // ツリーのタグ（頻度の高いノードの「自分の戦法」の集約）を残ったノードで再計算する。
-      // 削除したノード由来のタグが一覧カードや公開フィルタに残り続けるのを防ぐ。
-      const remaining = { ...(activeTree?.nodes || {}) };
-      idsToDelete.forEach((id) => delete remaining[id]);
-      const aggregated = collectTreeTags(remaining);
-      const tagsChanged = activeTree &&
-        JSON.stringify(aggregated) !== JSON.stringify(activeTree.tags || []);
-      if (tagsChanged) {
+      // タグが変化していれば、一覧カード・公開フィルタ向けのツリータグをDBへ反映する
+      if (tags) {
         const treeId = activeTree.id;
-        updateTree(treeId, { tags: aggregated });
-        setMyTrees((mt) => mt.map((t) => t.id === treeId ? { ...t, tags: aggregated } : t));
+        updateTree(treeId, { tags });
+        setMyTrees((mt) => mt.map((t) => t.id === treeId ? { ...t, tags } : t));
       }
 
-      setActiveTree((prev) => {
-        const newNodes = { ...prev.nodes };
-        idsToDelete.forEach((id) => delete newNodes[id]);
-        // 合流参照の掃除をローカルにも反映
-        affected.forEach((a) => {
-          if (newNodes[a.id]) {
-            newNodes[a.id] = { ...newNodes[a.id], mergeParentIds: a.cleaned, isMergeTarget: a.cleaned.length > 0 };
-          }
-        });
-        if (parentId && newNodes[parentId]) {
-          newNodes[parentId] = {
-            ...newNodes[parentId],
-            childIds: (newNodes[parentId].childIds || []).filter(
-              (id) => !idsToDelete.includes(id)
-            ),
-          };
-        }
-        return tagsChanged ? { ...prev, nodes: newNodes, tags: aggregated } : { ...prev, nodes: newNodes };
-      });
+      setActiveTree(tree);
       // 削除後、親ノードか（なければ）マップに戻る
       if (parentId) {
         setActiveNodeId(parentId);

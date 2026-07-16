@@ -299,25 +299,7 @@ export function buildTreeFromNodes(treeRow, flatNodes) {
   };
 }
 
-// 頻度 4以上のノードの「自分の戦法(myApproach)」を頻度降順で集約し、上位4個を返す
-export function collectTreeTags(nodeMap) {
-  const sorted = Object.values(nodeMap)
-    .filter(n => !n.isRoot && (n.usageLevel || 0) >= 4)
-    .sort((a, b) => (b.usageLevel || 0) - (a.usageLevel || 0));
-
-  const seen = new Set();
-  const tags = [];
-  for (const n of sorted) {
-    for (const t of (n.myApproach || [])) {
-      if (!seen.has(t)) {
-        seen.add(t);
-        tags.push(t);
-        if (tags.length >= 4) return tags;
-      }
-    }
-  }
-  return tags;
-}
+// collectTreeTags は src/treeOps.js（ツリーの純粋変更ロジック）へ移動した。
 
 // ── Likes ─────────────────────────────────────────
 // liked_by カウントは likes テーブルへの insert/delete に応じて
