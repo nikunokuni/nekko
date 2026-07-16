@@ -43,6 +43,15 @@ export async function getProfile(userId) {
   return supabase.from("profiles").select("*").eq("id", userId).single();
 }
 
+// プロフィール行を更新する（ユーザー状態＝実績・カスタムタグの永続化に使う）。
+// patch は DB カラム名（login_days / actions / earned_badges /
+// custom_strategy_tags / custom_comment_tags 等）をそのまま渡す。
+export async function updateProfile(userId, patch) {
+  const result = await supabase.from("profiles").update(patch).eq("id", userId).select().single();
+  if (result.error) console.error("updateProfile error:", result.error);
+  return result;
+}
+
 // ── Trees ─────────────────────────────────────────
 export async function fetchMyTrees(userId) {
   const result = await supabase

@@ -32,7 +32,7 @@ function addNodeToTree(prev, row) {
   }
   return { ...prev, nodes, rootId: prev.rootId ?? (node.isRoot ? node.id : null) };
 }
-import { recordLogin, getLoginStats, recordAction, getActions, shouldShowFridayToast, markFridayToastShown, shouldShowOnboard, markOnboardSeen, resetOnboard } from "./rewards";
+import { initUserState, resetUserState, recordLogin, getLoginStats, recordAction, getActions, shouldShowFridayToast, markFridayToastShown, shouldShowOnboard, markOnboardSeen, resetOnboard } from "./rewards";
 import { cloneBoard } from "./theme";
 
 // 画面ごとの初回オンボーディング文面（その画面に初めて来たとき1度だけ表示する）
@@ -131,10 +131,15 @@ export default function App() {
     if (session === undefined) return; // まだ確定していない
     if (!session) return;              // 未ログイン
     getProfile(session.user.id)
-      .then(({ data }) => setProfile(data))
+      .then(async ({ data }) => {
+        setProfile(data);
+        // ユーザー状態（実績・カスタムタグ）を profiles からハイドレートしてから
+        // ログインを記録する。旧 localStorage データがあればここで一度だけDBへ移行する。
+        await initUserState(session.user.id, data);
+        recordLogin();
+        setLoginStats(getLoginStats());
+      })
       .catch((e) => console.error("getProfile error:", e));
-    recordLogin();
-    setLoginStats(getLoginStats());
     loadMyTrees();
     loadPublicTrees();
     countUserNodes(session.user.id)
@@ -298,6 +303,7 @@ export default function App() {
   const handleAuth     = (_user, sess) => setSession(sess);
   const handleSignOut  = async () => {
     await signOut();
+    resetUserState(); // セッションキャッシュを空にし、次のユーザーへ持ち越さない
     setSession(null); setProfile(null);
     setActiveTree(null); setActiveNodeId(null);
     setMyTrees([]); setScreen("list");
