@@ -8,6 +8,7 @@
   <link rel="icon" type="image/png" href="/icon.png?v=2">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">
   <meta name="theme-color" content="#0d0800">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="ねっこ">
   <meta property="og:title" content="ねっこ">
@@ -17,8 +18,11 @@
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="ねっこ">
   <meta name="twitter:image" content="https://nekko-weld.vercel.app/icon.png?v=3">
+  <!-- 日本語フォントはオンライン時の見栄え向上（未取得でも serif フォールバックで表示可）。
+       Service Worker が初回取得後にキャッシュしてオフラインでも使えるようにする。 -->
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;600&family=Shippori+Mincho+B1:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+  <!-- アイコンフォントは main.jsx で自ホスト読み込み（CDN依存を排除）-->
+
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: #0d0800; }

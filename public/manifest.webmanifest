@@ -1,8 +1,10 @@
 {
+  "id": "/",
   "name": "ねっこ",
   "short_name": "ねっこ",
   "start_url": "/",
   "display": "standalone",
+  "lang": "ja",
   "background_color": "#0d0800",
   "theme_color": "#0d0800",
   "icons": [
