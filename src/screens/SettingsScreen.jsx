@@ -16,6 +16,8 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOn
   const [devOpen, setDevOpen] = useState(false);
   // ログインIDは肩越しに見られないよう既定で伏せ、タップで表示する
   const [idShown, setIdShown] = useState(false);
+  // 利用規約は画面遷移せず、アプリ内モーダルで表示を完結させる
+  const [tosOpen, setTosOpen] = useState(false);
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: T.cream }}>
       {/* ヘッダー */}
@@ -160,6 +162,25 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOn
             <i className="ti ti-external-link" style={{ fontSize: "0.875rem", color: T.inkFaint }} />
           </a>
           <button
+            onClick={() => setTosOpen(true)}
+            style={{
+              display: "flex", alignItems: "center", gap: 10, width: "100%",
+              padding: "14px 16px",
+              fontSize: T.fontSize.lg,
+              color: T.ink,
+              fontFamily: T.fontSerif,
+              background: "none",
+              border: "none",
+              borderBottom: `0.5px solid ${T.inkLineFaint}`,
+              cursor: "pointer",
+              textAlign: "left",
+            }}
+          >
+            <i className="ti ti-file-text" style={{ fontSize: "1rem", color: T.gold }} />
+            <span style={{ flex: 1 }}>利用規約</span>
+            <i className="ti ti-chevron-right" style={{ fontSize: "0.875rem", color: T.inkFaint }} />
+          </button>
+          <button
             onClick={onResetOnboard}
             style={{
               display: "flex", alignItems: "center", gap: 10, width: "100%",
@@ -238,6 +259,56 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOn
           </a>
         </div>
       </div>
+
+      {/* 利用規約モーダル：画面遷移せずアプリ内で表示を完結させる。
+          今後ここに注意事項を追記していく。 */}
+      {tosOpen && (
+        <div
+          onClick={() => setTosOpen(false)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 300,
+            background: "rgba(13,8,0,0.5)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            padding: "24px 20px",
+            fontFamily: T.fontSerif,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="利用規約"
+            style={{
+              width: "100%", maxWidth: 420,
+              maxHeight: "80%",
+              display: "flex", flexDirection: "column",
+              background: T.cream,
+              borderRadius: T.radius.xl,
+              border: `0.5px solid ${T.inkLine}`,
+              overflow: "hidden",
+            }}
+          >
+            {/* ヘッダー */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "16px 18px 12px", borderBottom: `0.5px solid ${T.inkLine}` }}>
+              <div style={{ flex: 1, fontFamily: T.fontTitle, fontSize: "1.125rem", color: T.ink, letterSpacing: "0.1em" }}>
+                利用規約
+              </div>
+              <button
+                onClick={() => setTosOpen(false)}
+                aria-label="閉じる"
+                style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.125rem", padding: 2, lineHeight: 1 }}
+              >
+                <i className="ti ti-x" />
+              </button>
+            </div>
+
+            {/* 本文 */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "20px 18px 24px", fontSize: T.fontSize.lg, color: T.ink, lineHeight: 1.9 }}>
+              将棋戦法メモアプリ　ねっこ
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
