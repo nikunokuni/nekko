@@ -437,13 +437,9 @@ export default function App() {
       {/* 初回オンボーディング（使い方トースト＋指さし。実装は onboarding.jsx） */}
       <OnboardingLayer onboard={onboard} fingerPos={fingerPos} onAdvance={advanceOnboard} />
 
-      {/* リカバリーコードのスクリーンショット案内（発行直後のみ・全画面） */}
-      {recoveryCode && profile && (
-        <RecoveryCodeModal
-          code={recoveryCode}
-          username={profile.username}
-          onClose={dismissRecoveryCode}
-        />
+      {/* リカバリーコードの保存案内（発行直後のみ・全画面。ラベル＋コードのみ表示） */}
+      {recoveryCode && (
+        <RecoveryCodeModal code={recoveryCode} onClose={dismissRecoveryCode} />
       )}
 
       <div style={{ flex:1, overflow:"hidden", position:"relative", minHeight:0 }}>
@@ -505,6 +501,7 @@ export default function App() {
             fontScale={fontScale} onFontScaleChange={handleFontScaleChange}
             onResetOnboard={() => { resetOnboard(); navigate("/"); }}
             onRegenerateRecovery={regenerateRecoveryCode}
+            username={profile?.username}
             devStats={devStats}/>
         )}
         {screen==="public" && (

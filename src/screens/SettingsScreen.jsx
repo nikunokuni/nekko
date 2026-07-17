@@ -11,9 +11,11 @@ const FONT_SCALE_OPTIONS = [
   { label: "特大", value: 1.3 },
 ];
 
-export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOnboard, onRegenerateRecovery, devStats }) {
+export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOnboard, onRegenerateRecovery, username, devStats }) {
   // 開発者向けの3項目はアコーディオンで隠す（デフォルトは閉じた状態）
   const [devOpen, setDevOpen] = useState(false);
+  // ログインIDは肩越しに見られないよう既定で伏せ、タップで表示する
+  const [idShown, setIdShown] = useState(false);
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: T.cream }}>
       {/* ヘッダー */}
@@ -56,6 +58,37 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOn
             );
           })}
         </div>
+
+        {/* アカウント：ログインID（パスワード再設定に使う）。既定で伏せる */}
+        {username && (
+          <div style={{ marginBottom: 28 }}>
+            <div style={{ fontSize: T.fontSize.md, color: T.inkMid, marginBottom: 10, letterSpacing: "0.08em" }}>
+              アカウント
+            </div>
+            <div style={{ borderRadius: T.radius.md, border: `0.5px solid ${T.inkLine}`, overflow: "hidden" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px" }}>
+                <i className="ti ti-user" style={{ fontSize: "1rem", color: T.gold }} />
+                <span style={{ fontSize: T.fontSize.lg, color: T.ink, fontFamily: T.fontSerif }}>
+                  ログインID
+                </span>
+                <span style={{ flex: 1, textAlign: "right", fontSize: T.fontSize.lg, color: T.ink, fontFamily: T.fontSerif, fontWeight: 600, wordBreak: "break-all", marginRight: 4 }}>
+                  {idShown ? username : "••••••••"}
+                </span>
+                <button
+                  onClick={() => setIdShown((v) => !v)}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1rem", padding: 2, lineHeight: 1, flexShrink: 0 }}
+                  aria-label={idShown ? "IDを隠す" : "IDを表示"}
+                >
+                  <i className={`ti ${idShown ? "ti-eye-off" : "ti-eye"}`} />
+                </button>
+              </div>
+              <div style={{ display: "flex", gap: 8, padding: "0 16px 14px", fontSize: T.fontSize.base, color: T.inkMid, lineHeight: 1.7 }}>
+                <i className="ti ti-alert-triangle" style={{ color: "#A93226", marginTop: 3, flexShrink: 0 }} />
+                <span>パスワードの再設定に使います。リカバリーコードと合わせて、他の人に見られないよう注意してください。</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 開発者向け（niku のときだけ表示）。3項目はアコーディオンで隠す */}
         {devStats && (
