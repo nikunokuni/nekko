@@ -11,7 +11,7 @@ const FONT_SCALE_OPTIONS = [
   { label: "特大", value: 1.3 },
 ];
 
-export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOnboard, devStats }) {
+export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOnboard, onRegenerateRecovery, devStats }) {
   // 開発者向けの3項目はアコーディオンで隠す（デフォルトは閉じた状態）
   const [devOpen, setDevOpen] = useState(false);
   return (
@@ -143,6 +143,29 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOn
           >
             <i className="ti ti-bulb" style={{ fontSize: "1rem", color: T.gold }} />
             <span style={{ flex: 1 }}>使い方のヒントをもう一度見る</span>
+            <i className="ti ti-refresh" style={{ fontSize: "0.875rem", color: T.inkFaint }} />
+          </button>
+          <button
+            onClick={() => {
+              if (window.confirm("新しいリカバリーコードを発行します。\n古いコード（保存済みのスクリーンショット）は使えなくなります。よろしいですか？")) {
+                onRegenerateRecovery?.();
+              }
+            }}
+            style={{
+              display: "flex", alignItems: "center", gap: 10, width: "100%",
+              padding: "14px 16px",
+              fontSize: T.fontSize.lg,
+              color: T.ink,
+              fontFamily: T.fontSerif,
+              background: "none",
+              border: "none",
+              borderBottom: `0.5px solid ${T.inkLineFaint}`,
+              cursor: "pointer",
+              textAlign: "left",
+            }}
+          >
+            <i className="ti ti-key" style={{ fontSize: "1rem", color: T.gold }} />
+            <span style={{ flex: 1 }}>リカバリーコードを再発行</span>
             <i className="ti ti-refresh" style={{ fontSize: "0.875rem", color: T.inkFaint }} />
           </button>
           <a

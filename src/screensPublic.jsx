@@ -7,7 +7,7 @@ import { BackBtn, StatusChip } from "./components";
 import { MindMap } from "./screens/MindMapScreen";
 import ShogiBoard from "./ShogiBoard";
 import { ORIENTATION_META, USAGE_META } from "./data";
-import { signIn, signUp } from "./db";
+import { signIn, signUp, resetPasswordWithRecovery } from "./db";
 import { recordAction, resetOnboard } from "./rewards";
 import { T } from "./theme";
 
@@ -55,12 +55,14 @@ function AuthInputField({ label, value, setter, type = "text", placeholder = "",
 // AuthScreen
 // ══════════════════════════════════════════════════
 export function AuthScreen({ onAuth }) {
-  const [mode,        setMode]        = useState("login");
-  const [username,    setUsername]    = useState("");
-  const [password,    setPassword]    = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [loading,     setLoading]     = useState(false);
-  const [error,       setError]       = useState("");
+  // mode: "login" | "signup" | "recovery"（リカバリーコードでパスワード再設定）
+  const [mode,         setMode]         = useState("login");
+  const [username,     setUsername]     = useState("");
+  const [password,     setPassword]     = useState("");
+  const [displayName,  setDisplayName]  = useState("");
+  const [recoveryCode, setRecoveryCode] = useState("");
+  const [loading,      setLoading]      = useState(false);
+  const [error,        setError]        = useState("");
 
   // ID に使える文字（半角英数字と _ . -）。
   // これ以外は idToFakeEmail で除去され、不正なメールアドレスになって登録に失敗するため、
@@ -88,6 +90,32 @@ export function AuthScreen({ onAuth }) {
           return;
         }
         onAuth(data.user, data.session);
+
+      } else if (mode === "recovery") {
+        // リカバリーコードでパスワードを再設定し、そのまま新パスワードでログインする
+        if (!recoveryCode.trim()) { setError("リカバリーコードを入力してください"); return; }
+        try {
+          await resetPasswordWithRecovery({
+            username: username.trim(),
+            code: recoveryCode,
+            newPassword: password,
+          });
+        } catch (err) {
+          const msg = err?.message || "";
+          setError(
+            msg.includes("password too short")
+              ? "パスワードは6文字以上にしてください"
+              : "IDまたはリカバリーコードが違います"
+          );
+          return;
+        }
+        const { data: loginData, error: loginErr } = await signIn({ email: username, password });
+        if (loginErr) {
+          setError("再設定は完了しました。新しいパスワードでログインしてください。");
+          setMode("login"); setPassword("");
+        } else {
+          onAuth(loginData.user, loginData.session);
+        }
 
       } else {
         const { error: err } = await signUp({
@@ -146,24 +174,45 @@ export function AuthScreen({ onAuth }) {
           border: "0.5px solid rgba(200,169,110,0.3)",
         }}
       >
-        {/* タブ */}
-        <div style={{ display: "flex", gap: 0, marginBottom: 28, borderBottom: "0.5px solid rgba(26,15,0,0.12)" }}>
-          {[["login", "ログイン"], ["signup", "新規登録"]].map(([m, lbl]) => (
-            <div
-              key={m}
-              onClick={() => switchMode(m)}
-              style={{
-                flex: 1, textAlign: "center", padding: "10px 0", fontSize: T.fontSize.lg, cursor: "pointer",
-                color:       mode === m ? T.ink          : "rgba(26,15,0,0.4)",
-                fontWeight:  mode === m ? 600                : 400,
-                borderBottom: mode === m ? `2px solid ${T.gold}` : "2px solid transparent",
-                marginBottom: -1, transition: "all 0.15s",
-              }}
+        {/* タブ（再設定モードのときは見出し＋戻るリンクに切り替える） */}
+        {mode === "recovery" ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 28, paddingBottom: 10, borderBottom: "0.5px solid rgba(26,15,0,0.12)" }}>
+            <button
+              type="button"
+              onClick={() => switchMode("login")}
+              style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.125rem", padding: 2, lineHeight: 1 }}
             >
-              {lbl}
+              <i className="ti ti-chevron-left" />
+            </button>
+            <div style={{ flex: 1, fontSize: T.fontSize.lg, color: T.ink, fontWeight: 600 }}>
+              パスワードの再設定
             </div>
-          ))}
-        </div>
+          </div>
+        ) : (
+          <div style={{ display: "flex", gap: 0, marginBottom: 28, borderBottom: "0.5px solid rgba(26,15,0,0.12)" }}>
+            {[["login", "ログイン"], ["signup", "新規登録"]].map(([m, lbl]) => (
+              <div
+                key={m}
+                onClick={() => switchMode(m)}
+                style={{
+                  flex: 1, textAlign: "center", padding: "10px 0", fontSize: T.fontSize.lg, cursor: "pointer",
+                  color:       mode === m ? T.ink          : "rgba(26,15,0,0.4)",
+                  fontWeight:  mode === m ? 600                : 400,
+                  borderBottom: mode === m ? `2px solid ${T.gold}` : "2px solid transparent",
+                  marginBottom: -1, transition: "all 0.15s",
+                }}
+              >
+                {lbl}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {mode === "recovery" && (
+          <div style={{ fontSize: T.fontSize.base, color: T.inkMid, lineHeight: 1.8, marginBottom: 14 }}>
+            登録時に保存したリカバリーコード（スクリーンショット）のIDとコードを入力してください。
+          </div>
+        )}
 
         <AuthInputField
           label={mode === "signup" ? "ID（ログイン用・半角英数字）" : "ID（ログイン用ユーザー名）"}
@@ -176,7 +225,13 @@ export function AuthScreen({ onAuth }) {
           // 空のままではフォームが無言で送信ブロックされ、登録できなくなる
           <AuthInputField label="表示名（任意）"           value={displayName} setter={setDisplayName} type="text"     placeholder="例: 鶴賀 七段"    nameAttr="nickname" required={false} />
         )}
-        <AuthInputField   label="パスワード"               value={password}    setter={setPassword}    type="password" placeholder="8文字以上"         nameAttr="password" />
+        {mode === "recovery" && (
+          <AuthInputField label="リカバリーコード" value={recoveryCode} setter={setRecoveryCode} type="text" placeholder="XXXX-XXXX-XXXX-XXXX" nameAttr="recovery-code" />
+        )}
+        <AuthInputField
+          label={mode === "recovery" ? "新しいパスワード" : "パスワード"}
+          value={password} setter={setPassword}
+          type="password" placeholder="8文字以上" nameAttr="password" />
 
         {/* エラー表示 */}
         {error && (
@@ -190,19 +245,45 @@ export function AuthScreen({ onAuth }) {
           </div>
         )}
 
-        <button
-          type="submit"
-          disabled={loading || !username || !password}
-          style={{
-            width: "100%", padding: "13px", borderRadius: T.radius.lg, border: "none",
-            fontSize: T.fontSize.xl, fontWeight: 600,
-            cursor:     loading || !username || !password ? "default" : "pointer",
-            background: loading || !username || !password ? T.gray : T.gold,
-            color: T.cream, fontFamily: T.fontSerif,
-          }}
-        >
-          {loading ? "処理中..." : mode === "login" ? "ログイン" : "アカウントを作成"}
-        </button>
+        {(() => {
+          const disabled = loading || !username || !password || (mode === "recovery" && !recoveryCode);
+          return (
+            <button
+              type="submit"
+              disabled={disabled}
+              style={{
+                width: "100%", padding: "13px", borderRadius: T.radius.lg, border: "none",
+                fontSize: T.fontSize.xl, fontWeight: 600,
+                cursor:     disabled ? "default" : "pointer",
+                background: disabled ? T.gray : T.gold,
+                color: T.cream, fontFamily: T.fontSerif,
+              }}
+            >
+              {loading ? "処理中..."
+                : mode === "login"    ? "ログイン"
+                : mode === "recovery" ? "パスワードを再設定"
+                :                       "アカウントを作成"}
+            </button>
+          );
+        })()}
+
+        {/* パスワードを忘れた場合（リカバリーコードで再設定） */}
+        {mode === "login" && (
+          <div style={{ textAlign: "center", marginTop: 16 }}>
+            <button
+              type="button"
+              onClick={() => switchMode("recovery")}
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                fontSize: T.fontSize.base, color: T.inkMid,
+                fontFamily: T.fontSerif, textDecoration: "underline",
+                textUnderlineOffset: 3,
+              }}
+            >
+              パスワードを忘れた場合（リカバリーコードで再設定）
+            </button>
+          </div>
+        )}
       </form>
 
       <div style={{ marginTop: 20, fontSize: "0.6875rem", color: "rgba(200,169,110,0.25)", textAlign: "center" }}>

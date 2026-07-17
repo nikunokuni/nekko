@@ -38,6 +38,34 @@ export async function getSession() {
   return data.session;
 }
 
+// ── リカバリーコード ───────────────────────────────
+// コードはサーバー側（SECURITY DEFINER 関数）で生成し、DBにはハッシュのみ保存される。
+// 詳細は supabase/migrations/20260717_recovery_code.sql を参照。
+
+/** ログイン中ユーザーがリカバリーコードを発行済みかどうか */
+export async function hasRecoveryCode() {
+  const { data, error } = await supabase.rpc("has_recovery_code");
+  if (error) { console.error("has_recovery_code error:", error); throw error; }
+  return !!data;
+}
+
+/** リカバリーコードを発行（再発行時は上書き）。平文コードはこの返り値でしか得られない */
+export async function generateRecoveryCode() {
+  const { data, error } = await supabase.rpc("generate_recovery_code");
+  if (error) { console.error("generate_recovery_code error:", error); throw error; }
+  return data || null;
+}
+
+/** ユーザー名＋リカバリーコードでパスワードを再設定する（未ログインで呼べる） */
+export async function resetPasswordWithRecovery({ username, code, newPassword }) {
+  const { error } = await supabase.rpc("reset_password_with_recovery", {
+    p_username:     username,
+    p_code:         code,
+    p_new_password: newPassword,
+  });
+  if (error) { console.error("reset_password_with_recovery error:", error); throw error; }
+}
+
 // ── Profile ───────────────────────────────────────
 export async function getProfile(userId) {
   return supabase.from("profiles").select("*").eq("id", userId).single();

@@ -26,6 +26,8 @@ import { useAuth } from "./hooks/useAuth";
 import { useTreeData } from "./hooks/useTreeData";
 import { useFridayToast } from "./hooks/useFridayToast";
 import { useFontScale } from "./hooks/useFontScale";
+import { useRecoveryCode } from "./hooks/useRecoveryCode";
+import { RecoveryCodeModal } from "./components/RecoveryCodeModal";
 import { useOnboarding, OnboardingLayer } from "./onboarding";
 
 export default function App() {
@@ -59,6 +61,9 @@ export default function App() {
   } = useTreeData(session);
   const fridayToast = useFridayToast(session);
   const [fontScale, handleFontScaleChange] = useFontScale();
+  // リカバリーコード：未発行ならログイン直後に発行し、スクショ案内モーダルを表示する
+  const { newCode: recoveryCode, regenerate: regenerateRecoveryCode, dismiss: dismissRecoveryCode } =
+    useRecoveryCode(session);
   const { onboard, fingerPos, advanceOnboard, startBoardOnboard } =
     useOnboarding({ screen, session, activeTree });
 
@@ -432,6 +437,15 @@ export default function App() {
       {/* 初回オンボーディング（使い方トースト＋指さし。実装は onboarding.jsx） */}
       <OnboardingLayer onboard={onboard} fingerPos={fingerPos} onAdvance={advanceOnboard} />
 
+      {/* リカバリーコードのスクリーンショット案内（発行直後のみ・全画面） */}
+      {recoveryCode && profile && (
+        <RecoveryCodeModal
+          code={recoveryCode}
+          username={profile.username}
+          onClose={dismissRecoveryCode}
+        />
+      )}
+
       <div style={{ flex:1, overflow:"hidden", position:"relative", minHeight:0 }}>
         {loading && (
           <div style={{ position:"absolute", inset:0, background:"rgba(250,244,232,0.8)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:100 }}>
@@ -490,6 +504,7 @@ export default function App() {
           <SettingsScreen onBack={() => navigate("/")}
             fontScale={fontScale} onFontScaleChange={handleFontScaleChange}
             onResetOnboard={() => { resetOnboard(); navigate("/"); }}
+            onRegenerateRecovery={regenerateRecoveryCode}
             devStats={devStats}/>
         )}
         {screen==="public" && (

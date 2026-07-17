@@ -12,9 +12,13 @@ const AUTH_KEY = "nekko_mock_auth_v1";
 function loadDb() {
   try {
     const raw = localStorage.getItem(DB_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const db = JSON.parse(raw);
+      if (!db.recovery_codes) db.recovery_codes = []; // 旧保存データとの互換
+      return db;
+    }
   } catch {}
-  return { users: [], profiles: [], trees: [], nodes: [], likes: [] };
+  return { users: [], profiles: [], trees: [], nodes: [], likes: [], recovery_codes: [] };
 }
 function saveDb(db) {
   localStorage.setItem(DB_KEY, JSON.stringify(db));
@@ -264,6 +268,33 @@ async function rpc(fn, args = {}) {
     }
     saveDb(db);
     return { data: newTree.id, error: null };
+  }
+  // ── リカバリーコード（本番は SECURITY DEFINER 関数。モックは平文保存で流れだけ再現）──
+  if (fn === "has_recovery_code") {
+    if (!session) return { data: null, error: { message: "not authenticated" } };
+    return { data: db.recovery_codes.some((r) => r.user_id === session.user.id), error: null };
+  }
+  if (fn === "generate_recovery_code") {
+    if (!session) return { data: null, error: { message: "not authenticated" } };
+    const alphabet = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+    let raw = "";
+    for (let i = 0; i < 16; i++) raw += alphabet[Math.floor(Math.random() * alphabet.length)];
+    const existing = db.recovery_codes.find((r) => r.user_id === session.user.id);
+    if (existing) existing.code = raw;
+    else db.recovery_codes.push({ user_id: session.user.id, code: raw });
+    saveDb(db);
+    return { data: `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}-${raw.slice(12, 16)}`, error: null };
+  }
+  if (fn === "reset_password_with_recovery") {
+    const newPw = args.p_new_password || "";
+    if (newPw.length < 6) return { data: null, error: { message: "password too short" } };
+    const norm = (args.p_code || "").toUpperCase().replace(/[^0-9A-Z]/g, "");
+    const profile = db.profiles.find((p) => p.username === (args.p_username || "").trim());
+    const rc = profile && db.recovery_codes.find((r) => r.user_id === profile.id);
+    if (!rc || rc.code !== norm) return { data: null, error: { message: "invalid recovery code" } };
+    const user = db.users.find((u) => u.id === profile.id);
+    if (user) { user.password = newPw; saveDb(db); }
+    return { data: null, error: null };
   }
   return { data: null, error: { message: `unknown rpc: ${fn}` } };
 }
