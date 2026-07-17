@@ -11,6 +11,57 @@ const FONT_SCALE_OPTIONS = [
   { label: "特大", value: 1.3 },
 ];
 
+// 利用規約の本文。画面遷移せずモーダル内で表示する。
+// 各節は { title, body } で、body は改行（\n）で段落・箇条書きを分ける。
+// 今後の注意事項の追記はこの配列を編集する。
+const TOS_INTRO =
+  "この規約は、将棋戦法メモアプリ「ねっこ」（以下「本アプリ」）の利用条件を定めるものです。本アプリを利用した時点で、この規約に同意したものとみなします。";
+const TOS_SECTIONS = [
+  {
+    title: "1. 運営について",
+    body:
+      "本アプリは個人が趣味で運営しています。予告なく仕様の変更・一時停止・提供の終了を行う場合があります。サービスを終了する際も、できる限り事前のお知らせやデータの取り扱いに配慮するよう努めます。",
+  },
+  {
+    title: "2. アカウントの管理",
+    body:
+      "ログインID・パスワード・リカバリーコードは、ご自身で責任を持って管理してください。\nパスワードを忘れた場合は、リカバリーコードで再設定できます。パスワードとリカバリーコードの両方を失うと、アカウントを復旧できません。\nリカバリーコードはパスワードと同じくらい大切な情報です。SNSや共有アルバムなど、他の人の目に触れる場所に載せないでください。",
+  },
+  {
+    title: "3. 複数の端末での利用",
+    body:
+      "同じアカウントに複数の端末からログインできます。ただしリアルタイムでの同期ではありません。片方の端末での変更がもう片方にすぐ反映されなかったり、あとから保存した内容で上書きされたりすることがあります。",
+  },
+  {
+    title: "4. 禁止事項",
+    body:
+      "次の行為は禁止します。\n・他人のIDでのログインや、不正アクセスを試みる行為\n・サーバーに過度な負荷をかける行為、自動化されたアクセス\n・本アプリを解析・改変する行為（リバースエンジニアリング等）\n・法令や公序良俗に反する内容の保存\n・第三者の権利を侵害する行為",
+  },
+  {
+    title: "5. 商用利用・二次利用",
+    body:
+      "本アプリの商用利用は禁止します。二次利用をご希望の場合はご相談ください。前向きに検討します。",
+  },
+  {
+    title: "6. 退会について",
+    body:
+      "退会（アカウントの削除）をご希望の場合は、運営者へ直接ご連絡ください。",
+  },
+  {
+    title: "7. データについて",
+    body:
+      "本アプリには、データのエクスポート・インポート機能はありません（今後も実装の予定はありません）。また、ログインに必要な情報以外の個人情報（メールアドレス等）は取得しません。",
+  },
+  {
+    title: "8. 年齢について",
+    body: "未成年の方もご利用いただけます。",
+  },
+  {
+    title: "9. 規約の変更",
+    body: "この規約は、必要に応じて予告なく変更することがあります。",
+  },
+];
+
 export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOnboard, onRegenerateRecovery, username, devStats }) {
   // 開発者向けの3項目はアコーディオンで隠す（デフォルトは閉じた状態）
   const [devOpen, setDevOpen] = useState(false);
@@ -302,9 +353,21 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOn
               </button>
             </div>
 
-            {/* 本文 */}
-            <div style={{ flex: 1, overflowY: "auto", padding: "20px 18px 24px", fontSize: T.fontSize.lg, color: T.ink, lineHeight: 1.9 }}>
-              将棋戦法メモアプリ　ねっこ
+            {/* 本文（今後ここに注意事項を追記していく） */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "20px 18px 24px" }}>
+              <div style={{ fontSize: T.fontSize.base, color: T.inkMid, lineHeight: 1.9, marginBottom: 20 }}>
+                {TOS_INTRO}
+              </div>
+              {TOS_SECTIONS.map((sec) => (
+                <div key={sec.title} style={{ marginBottom: 18 }}>
+                  <div style={{ fontSize: T.fontSize.lg, color: T.ink, fontWeight: 700, marginBottom: 6, letterSpacing: "0.04em" }}>
+                    {sec.title}
+                  </div>
+                  <div style={{ fontSize: T.fontSize.base, color: T.inkMid, lineHeight: 1.9, whiteSpace: "pre-line" }}>
+                    {sec.body}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
