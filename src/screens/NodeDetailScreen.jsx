@@ -11,9 +11,8 @@ import {
 } from "../data";
 import { recordAction, getCustomTagsByGroup, addCustomTag, getCommentCustomTags, addCommentCustomTag } from "../rewards";
 import { T, INPUT_STYLE, MODAL_OVERLAY_STYLE, MODAL_SHEET_STYLE, cloneBoard } from "../theme";
-import { SectionLabel, BoardSection, MergeLinkList, LinkPicker, TagPickerField } from "../components/uiParts";
+import { SectionLabel, BoardSection, MergeLinkList, LinkPicker, TagPickerField, KifuPreviewBoard } from "../components/uiParts";
 import { fetchMyKifus, fetchKifu, kifuRowToKifu } from "../db";
-import ShogiBoard from "../ShogiBoard";
 
 // ──────────────────────────────────────────
 // KifuPickerModal: 棋譜ライブラリから1件選んでノードに取り込む
@@ -105,19 +104,7 @@ function KifuPickerModal({ userId, hasExistingKifu, onClose, onImport }) {
         ) : (
           // ── プレビュー + 取り込み ──
           <>
-            {last ? (
-              <ShogiBoard
-                board={last.board}
-                handSente={last.handSente}
-                handGote={last.handGote}
-                kifu={snaps}
-                readOnly
-              />
-            ) : (
-              <div style={{ padding: "24px 0", textAlign: "center", color: T.inkFaint, fontSize: T.fontSize.base }}>
-                この棋譜には局面がありません
-              </div>
-            )}
+            <KifuPreviewBoard snapshots={snaps} />
 
             {hasExistingKifu && (
               <div style={{ marginTop: 10, fontSize: T.fontSize.sm, color: T.brown, fontFamily: T.fontSerif, lineHeight: 1.6 }}>
@@ -493,14 +480,22 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
     saveField({ turn: next }, () => setTurn(next), () => setTurn(node.turn || null));
   };
 
-  // 評価値：符号（選択式）と数値を合成して保存する。数値が空なら未入力（null）
-  const saveEvaluation = (sign, valueStr) => {
-    const num = valueStr.trim() === "" ? null : Math.abs(parseInt(valueStr, 10));
-    const evaluation = (num == null || Number.isNaN(num)) ? null : (sign === "-" ? -num : num);
-    saveField({ evaluation }, () => {}, () => {
-      setEvalSign((node.evaluation ?? 0) < 0 ? "-" : "+");
-      setEvalValue(node.evaluation != null ? String(Math.abs(node.evaluation)) : "");
-    });
+  // 評価値の入力を「数字と小数点のみ・小数点1個・整数部4桁・小数第1位まで」に整形する
+  // （評価値の形式はソフトによって異なるため、±9999.9 の範囲で自由に記録できるようにする）
+  const sanitizeEvalInput = (raw) => {
+    const v = raw.replace(/[^0-9.]/g, "");
+    const dot = v.indexOf(".");
+    if (dot === -1) return v.slice(0, 4);
+    return v.slice(0, dot).slice(0, 4) + "." + v.slice(dot + 1).replace(/\./g, "").slice(0, 1);
+  };
+
+  // 評価値：符号（選択式）と数値を合成して保留パッチに載せる。数値が空なら未入力（null）。
+  // blur を待たず scheduleSave に載せることで、タブ切替・離脱時の flush 安全網
+  // （beforeunload/pagehide/visibilitychange）の対象になる
+  const scheduleEvaluationSave = (sign, valueStr) => {
+    const num = parseFloat(valueStr);
+    const evaluation = Number.isNaN(num) ? null : (sign === "-" ? -num : num);
+    scheduleSave({ evaluation });
   };
 
   // ── 棋譜ライブラリからの取り込み ──────────────────
@@ -658,9 +653,17 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
                   <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px" }}>
                     <i className="ti ti-git-branch" style={{ fontSize: "0.8125rem", color: T.gray }} />
                     <span style={{ fontSize: T.fontSize.sm, color: T.gray }}>
-                      {node.branchFromMoveIndex === 0
-                        ? `「${parent.label}」の初期局面から分岐`
-                        : `「${parent.label}」の第${node.branchFromMoveIndex}手から分岐`}
+                      {(() => {
+                        const start = node.branchFromMoveIndex;
+                        const startLabel = start === 0 ? "初期局面" : `第${start}手`;
+                        // 範囲切り出しノード（棋譜を持つ）は盤面が終点の局面なので、
+                        // 「第n手から分岐」ではなく切り出した範囲を表示する
+                        if ((node.kifu || []).length > 1) {
+                          const end = start + node.kifu.length - 1;
+                          return `「${parent.label}」の${startLabel}〜第${end}手を切り出し`;
+                        }
+                        return `「${parent.label}」の${startLabel}から分岐`;
+                      })()}
                     </span>
                   </div>
                 )}
@@ -896,7 +899,7 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
                 return (
                   <div
                     key={sign}
-                    onClick={() => { setEvalSign(sign); saveEvaluation(sign, evalValue); }}
+                    onClick={() => { setEvalSign(sign); scheduleEvaluationSave(sign, evalValue); }}
                     title={sign === "+" ? "先手良し" : "後手良し"}
                     style={{
                       width: 28, height: 28, borderRadius: T.radius.md, cursor: "pointer",
@@ -914,9 +917,13 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
               })}
               <input
                 value={evalValue}
-                inputMode="numeric"
-                onChange={(e) => setEvalValue(e.target.value.replace(/[^0-9]/g, ""))}
-                onBlur={(e) => { e.target.style.borderColor = T.inkLine; saveEvaluation(evalSign, evalValue); }}
+                inputMode="decimal"
+                onChange={(e) => {
+                  const v = sanitizeEvalInput(e.target.value);
+                  setEvalValue(v);
+                  scheduleEvaluationSave(evalSign, v);
+                }}
+                onBlur={(e) => { e.target.style.borderColor = T.inkLine; flushSave(); }}
                 onFocus={(e) => (e.target.style.borderColor = T.gold)}
                 placeholder="300"
                 style={{

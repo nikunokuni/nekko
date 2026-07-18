@@ -313,9 +313,9 @@ export default function App() {
     navigate(`/tree/${activeTree.id}/node/${newNode.id}`);
   };
 
-  // ── 棋譜の途中局面から分岐ノードを作成する ──
-  // できる分岐先は通常の新規ノード扱い（元の棋譜は引き継がない）
-  const handleBranchFromKifu = async (parentNodeId, snapshot, moveIndex) => {
+  // ── 分岐ノード作成の共通処理（DB作成＋ローカルマージ＋新ノードへ遷移）──
+  // 「この局面で分岐」と「範囲切り出し」で共用する。差分は extraFields で渡す
+  const createBranchNode = async (parentNodeId, extraFields) => {
     if (!activeTree || !session) return;
     const { data: newNode } = await createNode({
       treeId:    activeTree.id,
@@ -323,11 +323,8 @@ export default function App() {
       parentId:  parentNodeId,
       label:     "新しいノード",
       status:    "wip",
-      board:     snapshot.board,
-      handSente: snapshot.handSente,
-      handGote:  snapshot.handGote,
-      branchFromMoveIndex: moveIndex ?? null,
       sortOrder: nextSortOrder(activeTree, parentNodeId),
+      ...extraFields,
     });
     if (!newNode) { alert("分岐ノードの追加に失敗しました。もう一度お試しください。"); return; }
     // 全件再フェッチせず、作成ノードをローカルツリーへマージ（ネットワーク往復を削減）
@@ -336,37 +333,35 @@ export default function App() {
     navigate(`/tree/${activeTree.id}/node/${newNode.id}`);
   };
 
+  // ── 棋譜の途中局面から分岐ノードを作成する ──
+  // できる分岐先は通常の新規ノード扱い（元の棋譜は引き継がない）
+  const handleBranchFromKifu = (parentNodeId, snapshot, moveIndex) =>
+    createBranchNode(parentNodeId, {
+      board:     snapshot.board,
+      handSente: snapshot.handSente,
+      handGote:  snapshot.handGote,
+      branchFromMoveIndex: moveIndex ?? null,
+    });
+
   // ── 棋譜の範囲（開始手〜終了手）を切り出して分岐ノードを作成する ──
   // その区間の棋譜スナップショットを子ノードへコピーし、盤面は終了手の局面にする。
   // 切り出し先でも再生・再切り出しできるよう kifuImported を立てる。
-  const handleBranchRangeFromKifu = async (parentNodeId, startIdx, endIdx) => {
-    if (!activeTree || !session) return;
-    const snaps = activeTree.nodes[parentNodeId]?.kifu || [];
+  const handleBranchRangeFromKifu = (parentNodeId, startIdx, endIdx) => {
+    const snaps = activeTree?.nodes?.[parentNodeId]?.kifu || [];
     const slice = snaps.slice(startIdx, endIdx + 1);
     const last  = slice[slice.length - 1];
     if (!last) return;
     // 1局面だけの切り出しは棋譜を持たない通常の分岐と同じ扱いにする
     // （1局面の棋譜は「全0手」となり再生UIだけが残ってしまうため）
     const hasKifu = slice.length > 1;
-    const { data: newNode } = await createNode({
-      treeId:    activeTree.id,
-      userId:    session.user.id,
-      parentId:  parentNodeId,
-      label:     "新しいノード",
-      status:    "wip",
+    return createBranchNode(parentNodeId, {
       board:     last.board,
       handSente: last.handSente,
       handGote:  last.handGote,
       kifu:         hasKifu ? slice : [],
       kifuImported: hasKifu,
       branchFromMoveIndex: startIdx,
-      sortOrder: nextSortOrder(activeTree, parentNodeId),
     });
-    if (!newNode) { alert("分岐ノードの追加に失敗しました。もう一度お試しください。"); return; }
-    // 全件再フェッチせず、作成ノードをローカルツリーへマージ（ネットワーク往復を削減）
-    setActiveTree(prev => addNode(prev, nodeRowToNode(newNode)));
-    setNodeCount(c => c + 1);
-    navigate(`/tree/${activeTree.id}/node/${newNode.id}`);
   };
 
   const handleDeleteNode = async (idsToDelete, parentId) => {

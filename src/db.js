@@ -289,9 +289,15 @@ export async function fetchMyKifus(userId) {
   return result;
 }
 
-/** 棋譜1件を snapshots 込みで取得する（プレビュー・取り込み時に呼ぶ） */
+/** 棋譜1件を snapshots 込みで取得する（プレビュー・取り込み時に呼ぶ）。
+ *  source_text（KIF/CSA原文・数KB）は再生・取り込みでは使わないため転送しない。
+ *  エクスポート機能を作るときに原文込みの専用取得関数を追加する。 */
 export async function fetchKifu(kifuId) {
-  const result = await supabase.from("kifus").select("*").eq("id", kifuId).single();
+  const result = await supabase
+    .from("kifus")
+    .select("id, name, memo, snapshots, move_count, created_at")
+    .eq("id", kifuId)
+    .single();
   if (result.error) console.error("fetchKifu error:", result.error);
   return result;
 }

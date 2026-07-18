@@ -248,15 +248,16 @@ export default function ShogiBoard({
   const stampsPropStr = JSON.stringify(stampsProp);
   useEffect(() => { setStamps(stampsProp); }, [stampsPropStr]); // eslint-disable-line
 
-  // 棋譜が差し替わったら（ノード切替・取り込み・範囲切り出しでの遷移など）
-  // 再生位置と範囲選択をリセットする。残すと新しい棋譜の手数を超えた
-  // 再生位置を参照し続けてしまう。
-  const kifuLenProp = kifuProp.length;
+  // 棋譜が差し替わったら（同一ノード内での取り込み・削除など）再生位置と
+  // 範囲選択をリセットする。残すと別の棋譜に対して古い再生位置を参照してしまう。
+  // 手数(length)ではなく配列の同一性で判定する：同じ手数の別棋譜への差し替えでも
+  // リセットが必要なため。空棋譜は毎レンダー新しい [] が渡り得るので定数キーに正規化する。
+  const kifuIdentity = kifuProp.length === 0 ? "empty" : kifuProp;
   useEffect(() => {
     setPlaybackIdx(null);
     setRangeStart(null);
     setRangeEnd(null);
-  }, [kifuLenProp]);
+  }, [kifuIdentity]);
 
   // 持ち駒も board / stamps と同様に、親から渡される prop の変化を内部 state へ反映する。
   // （ノード切替・テンプレート読込・棋譜削除・盤面の元に戻す 等で駒台だけ古いまま残るのを防ぐ）

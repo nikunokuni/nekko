@@ -7,11 +7,10 @@
 // ══════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
 import { T, MODAL_OVERLAY_STYLE, MODAL_SHEET_STYLE } from "../theme";
-import { InputField, SectionLabel, ModalActionButtons } from "../components/uiParts";
+import { InputField, SectionLabel, ModalActionButtons, ConfirmDeleteModal, KifuPreviewBoard } from "../components/uiParts";
 import { importKifuText } from "../kifuParser";
 import { readKifuFile } from "../kifuFile";
 import { fetchMyKifus, fetchKifu, createKifu, updateKifu, deleteKifu, kifuRowToKifu } from "../db";
-import ShogiBoard from "../ShogiBoard";
 
 // 一覧カードの日付表示（例: 2026/7/18）
 function formatDate(iso) {
@@ -37,8 +36,10 @@ function ImportKifuModal({ onClose, onImport }) {
     setError("");
     setSnapshots(null);
     const result = importKifuText(text);
-    if (!result) {
-      setError("棋譜を読み取れませんでした（KIF/CSA形式のテキストか確認してください）");
+    // 1手も読めなかった場合（形式違い・全手が解析不能・指し手なし）は保存対象にしない。
+    // 初期局面だけの棋譜（0手）を登録しても意味がないため
+    if (!result || result.snapshots.length <= 1) {
+      setError("棋譜の手を読み取れませんでした（KIF/CSA形式のテキストか確認してください）");
       return;
     }
     if (result.skipped > 0) {
@@ -165,8 +166,6 @@ function ImportKifuModal({ onClose, onImport }) {
 // KifuPreviewModal: 保存済み棋譜の再生ビュー
 // ──────────────────────────────────────────
 function KifuPreviewModal({ kifu, onClose }) {
-  const snaps = kifu.snapshots || [];
-  const last  = snaps.length > 0 ? snaps[snaps.length - 1] : null;
   return (
     <div style={MODAL_OVERLAY_STYLE} onClick={onClose}>
       <div style={{ ...MODAL_SHEET_STYLE, maxHeight: "90%", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
@@ -178,20 +177,7 @@ function KifuPreviewModal({ kifu, onClose }) {
             <i className="ti ti-x" />
           </button>
         </div>
-        {last ? (
-          // 閲覧専用の盤面 + 既存の棋譜再生ナビをそのまま使う
-          <ShogiBoard
-            board={last.board}
-            handSente={last.handSente}
-            handGote={last.handGote}
-            kifu={snaps}
-            readOnly
-          />
-        ) : (
-          <div style={{ padding: "24px 0", textAlign: "center", color: T.inkFaint, fontSize: T.fontSize.base }}>
-            この棋譜には局面がありません
-          </div>
-        )}
+        <KifuPreviewBoard snapshots={kifu.snapshots} />
       </div>
     </div>
   );
@@ -201,7 +187,19 @@ function KifuPreviewModal({ kifu, onClose }) {
 // RenameKifuModal: 棋譜の名前変更
 // ──────────────────────────────────────────
 function RenameKifuModal({ kifu, onClose, onSave }) {
-  const [name, setName] = useState(kifu.name);
+  const [name,   setName]   = useState(kifu.name);
+  const [saving, setSaving] = useState(false);
+
+  // 保存の完了（成否）を待ってから閉じる。待たずに閉じると、失敗時に
+  // モーダルだけ閉じて一覧が古い名前のまま残ったように見えてしまう
+  const handleConfirm = async () => {
+    if (saving) return;
+    setSaving(true);
+    await onSave(kifu.id, name.trim());
+    setSaving(false);
+    onClose();
+  };
+
   return (
     <div style={MODAL_OVERLAY_STYLE} onClick={onClose}>
       <div style={MODAL_SHEET_STYLE} onClick={(e) => e.stopPropagation()}>
@@ -211,56 +209,9 @@ function RenameKifuModal({ kifu, onClose, onSave }) {
         <InputField label="棋譜の名前" value={name} onChange={setName} placeholder="例：7/18 対局（先手番・中飛車）" />
         <ModalActionButtons
           onCancel={onClose}
-          onConfirm={() => { onSave(kifu.id, name.trim()); onClose(); }}
-          confirmLabel="保存する"
-          disabled={!name.trim()}
-        />
-      </div>
-    </div>
-  );
-}
-
-// ──────────────────────────────────────────
-// DeleteKifuModal: 棋譜削除確認
-// ──────────────────────────────────────────
-function DeleteKifuModal({ kifu, onClose, onConfirm }) {
-  const [deleting, setDeleting] = useState(false);
-  const handleConfirm = async () => {
-    setDeleting(true);
-    await onConfirm(kifu.id);
-    setDeleting(false);
-    onClose();
-  };
-  return (
-    <div
-      style={{
-        position: "absolute", inset: 0, background: "rgba(26,15,0,0.5)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        zIndex: 50, padding: 20,
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{ width: "100%", maxWidth: 360, background: T.cream, borderRadius: T.radius.xl, padding: "28px 24px" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-          <div style={{ width: 48, height: 48, borderRadius: 24, background: T.redBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <i className="ti ti-trash" style={{ fontSize: "1.375rem", color: T.red }} />
-          </div>
-        </div>
-        <div style={{ fontFamily: T.fontTitle, fontSize: T.fontSize.xxl, color: T.ink, textAlign: "center", marginBottom: 8 }}>
-          「{kifu.name}」を削除しますか？
-        </div>
-        <div style={{ fontSize: T.fontSize.base, color: "rgba(26,15,0,0.45)", textAlign: "center", marginBottom: 24, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
-          ノードに取り込み済みの棋譜には影響しません。<br />この操作は取り消せません。
-        </div>
-        <ModalActionButtons
-          onCancel={onClose}
           onConfirm={handleConfirm}
-          confirmLabel={deleting ? "削除中..." : "削除する"}
-          disabled={deleting}
-          danger
+          confirmLabel={saving ? "保存中..." : "保存する"}
+          disabled={!name.trim() || saving}
         />
       </div>
     </div>
@@ -458,7 +409,12 @@ export function KifuList({ userId, onBack }) {
         <RenameKifuModal kifu={renameTarget} onClose={() => setRenameTarget(null)} onSave={handleRename} />
       )}
       {deleteTarget && (
-        <DeleteKifuModal kifu={deleteTarget} onClose={() => setDeleteTarget(null)} onConfirm={handleDelete} />
+        <ConfirmDeleteModal
+          title={`「${deleteTarget.name}」を削除しますか？`}
+          message={<>ノードに取り込み済みの棋譜には影響しません。<br />この操作は取り消せません。</>}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={() => handleDelete(deleteTarget.id)}
+        />
       )}
     </div>
   );

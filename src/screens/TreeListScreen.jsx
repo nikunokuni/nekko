@@ -4,7 +4,7 @@
 // ══════════════════════════════════════════════════════════════════
 import { useState } from "react";
 import { T, MODAL_OVERLAY_STYLE, MODAL_SHEET_STYLE } from "../theme";
-import { InputField, SectionLabel, ModalActionButtons } from "../components/uiParts";
+import { InputField, SectionLabel, ModalActionButtons, ConfirmDeleteModal } from "../components/uiParts";
 import { importKifuText } from "../kifuParser";
 import { readKifuFile } from "../kifuFile";
 
@@ -267,64 +267,6 @@ function EditTreeModal({ tree, onClose, onSave, onPublish, onUnpublish }) {
     </div>
   );
 }
-
-// ──────────────────────────────────────────
-// DeleteTreeModal: ツリー削除確認
-// ──────────────────────────────────────────
-function DeleteTreeModal({ tree, onClose, onConfirm }) {
-  const [deleting, setDeleting] = useState(false);
-
-  const handleConfirm = async () => {
-    setDeleting(true);
-    await onConfirm(tree.id);
-    setDeleting(false);
-    onClose();
-  };
-
-  return (
-    <div
-      style={{
-        position:       "absolute",
-        inset:          0,
-        background:     "rgba(26,15,0,0.5)",
-        display:        "flex",
-        alignItems:     "center",
-        justifyContent: "center",
-        zIndex:         50,
-        padding:        "20px",
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{ width: "100%", maxWidth: 360, background: T.cream, borderRadius: T.radius.xl, padding: "28px 24px" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* ゴミ箱アイコン */}
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-          <div style={{ width: 48, height: 48, borderRadius: 24, background: T.redBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <i className="ti ti-trash" style={{ fontSize: "1.375rem", color: T.red }} />
-          </div>
-        </div>
-
-        <div style={{ fontFamily: T.fontTitle, fontSize: T.fontSize.xxl, color: T.ink, textAlign: "center", marginBottom: 8 }}>
-          「{tree.name}」を削除しますか？
-        </div>
-        <div style={{ fontSize: T.fontSize.base, color: "rgba(26,15,0,0.45)", textAlign: "center", marginBottom: 24, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
-          ツリーと全ノードが完全に削除されます。<br />この操作は取り消せません。
-        </div>
-
-        <ModalActionButtons
-          onCancel={onClose}
-          onConfirm={handleConfirm}
-          confirmLabel={deleting ? "削除中..." : "削除する"}
-          disabled={deleting}
-          danger
-        />
-      </div>
-    </div>
-  );
-}
-
 
 // ══════════════════════════════════════════════════════════════════
 // TreeCard: ツリー一覧の1行カード
@@ -614,10 +556,11 @@ export function TreeList({ trees, profile, onOpen, onPublic, onKifus, onTrophy, 
         />
       )}
       {deleteTarget && (
-        <DeleteTreeModal
-          tree={deleteTarget}
+        <ConfirmDeleteModal
+          title={`「${deleteTarget.name}」を削除しますか？`}
+          message={<>ツリーと全ノードが完全に削除されます。<br />この操作は取り消せません。</>}
           onClose={() => setDeleteTarget(null)}
-          onConfirm={onDeleteTree}
+          onConfirm={() => onDeleteTree(deleteTarget.id)}
         />
       )}
 

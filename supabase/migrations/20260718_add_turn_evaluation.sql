@@ -2,6 +2,7 @@
 -- 盤面の手番（先手番/後手番）と評価値をノードに追加
 --   turn:       'sente' | 'gote' | null（未設定）。手動選択で保存する
 --   evaluation: 符号込みの評価値（例: 300 = 先手300点良し / -300 = 後手300点良し）
+--               ソフトにより形式が異なるため小数第1位まで対応（整数部4桁 = ±9999.9）
 --   あわせて copy_tree RPC を再作成し、INSERT列リストに新カラムを追加する
 --   （copy_tree はカラム明示型のため、nodes へのカラム追加時は必ず追従が必要）
 -- Supabase の SQL Editor で実行してください
@@ -11,7 +12,7 @@ alter table public.nodes
   add column if not exists turn text;
 
 alter table public.nodes
-  add column if not exists evaluation int;
+  add column if not exists evaluation numeric(5,1);
 
 create or replace function public.copy_tree(p_source_tree_id uuid, p_new_name text default null)
 returns uuid

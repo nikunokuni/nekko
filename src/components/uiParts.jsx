@@ -72,6 +72,89 @@ export function ModalActionButtons({ onCancel, onConfirm, confirmLabel, disabled
 }
 
 // ──────────────────────────────────────────
+// ConfirmDeleteModal: 中央寄せの削除確認モーダル
+//   ツリー・棋譜など「名前つきレコードの削除」確認で共用する
+// ──────────────────────────────────────────
+export function ConfirmDeleteModal({ title, message, onClose, onConfirm }) {
+  const [deleting, setDeleting] = useState(false);
+
+  const handleConfirm = async () => {
+    setDeleting(true);
+    await onConfirm();
+    setDeleting(false);
+    onClose();
+  };
+
+  return (
+    <div
+      style={{
+        position:       "absolute",
+        inset:          0,
+        background:     "rgba(26,15,0,0.5)",
+        display:        "flex",
+        alignItems:     "center",
+        justifyContent: "center",
+        zIndex:         50,
+        padding:        "20px",
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{ width: "100%", maxWidth: 360, background: T.cream, borderRadius: T.radius.xl, padding: "28px 24px" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* ゴミ箱アイコン */}
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+          <div style={{ width: 48, height: 48, borderRadius: 24, background: T.redBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <i className="ti ti-trash" style={{ fontSize: "1.375rem", color: T.red }} />
+          </div>
+        </div>
+
+        <div style={{ fontFamily: T.fontTitle, fontSize: T.fontSize.xxl, color: T.ink, textAlign: "center", marginBottom: 8 }}>
+          {title}
+        </div>
+        <div style={{ fontSize: T.fontSize.base, color: "rgba(26,15,0,0.45)", textAlign: "center", marginBottom: 24, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
+          {message}
+        </div>
+
+        <ModalActionButtons
+          onCancel={onClose}
+          onConfirm={handleConfirm}
+          confirmLabel={deleting ? "削除中..." : "削除する"}
+          disabled={deleting}
+          danger
+        />
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────
+// KifuPreviewBoard: 棋譜の閲覧専用プレビュー（最終局面＋再生ナビ）
+//   棋譜ライブラリのプレビューとノードへの取り込みモーダルで共用する
+// ──────────────────────────────────────────
+export function KifuPreviewBoard({ snapshots }) {
+  const snaps = snapshots || [];
+  const last  = snaps.length > 0 ? snaps[snaps.length - 1] : null;
+  if (!last) {
+    return (
+      <div style={{ padding: "24px 0", textAlign: "center", color: T.inkFaint, fontSize: T.fontSize.base }}>
+        この棋譜には局面がありません
+      </div>
+    );
+  }
+  return (
+    <ShogiBoard
+      board={last.board}
+      handSente={last.handSente}
+      handGote={last.handGote}
+      kifu={snaps}
+      readOnly
+    />
+  );
+}
+
+// ──────────────────────────────────────────
 // BoardSection: 将棋盤の表示/追加エリア
 // ──────────────────────────────────────────
 export function BoardSection({ boardVisible, boardData, stamps, handSente, handGote, parentBoard, parentLabel, onToggle, onChange, onDelete, onLoadTemplate, kifu, onKifuChange, onKifuDelete, allowBranch, onBranchFromHere, onBranchRange, canUndo, onUndo }){
