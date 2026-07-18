@@ -11,6 +11,7 @@ import { TreeList } from "./screens/TreeListScreen";
 import { MindMap } from "./screens/MindMapScreen";
 import { NodeDetail } from "./screens/NodeDetailScreen";
 import { TrophyScreen } from "./screens/TrophyScreen";
+import { KifuList } from "./screens/KifuListScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import {
   createTree, createNode, updateNode, updateTree, deleteTree, copyTree,
@@ -44,6 +45,7 @@ export default function App() {
     if ((m = matchPath("/tree/:treeId/preview",      p))) return { screen: "publicPreview",  treeId: m.params.treeId, nodeId: null };
     if ((m = matchPath("/tree/:treeId",              p))) return { screen: "map",            treeId: m.params.treeId, nodeId: null };
     if (matchPath("/public",   p)) return { screen: "public",   treeId: null, nodeId: null };
+    if (matchPath("/kifus",    p)) return { screen: "kifus",    treeId: null, nodeId: null };
     if (matchPath("/trophy",   p)) return { screen: "trophy",   treeId: null, nodeId: null };
     if (matchPath("/settings", p)) return { screen: "settings", treeId: null, nodeId: null };
     return { screen: "list", treeId: null, nodeId: null };
@@ -334,6 +336,39 @@ export default function App() {
     navigate(`/tree/${activeTree.id}/node/${newNode.id}`);
   };
 
+  // ── 棋譜の範囲（開始手〜終了手）を切り出して分岐ノードを作成する ──
+  // その区間の棋譜スナップショットを子ノードへコピーし、盤面は終了手の局面にする。
+  // 切り出し先でも再生・再切り出しできるよう kifuImported を立てる。
+  const handleBranchRangeFromKifu = async (parentNodeId, startIdx, endIdx) => {
+    if (!activeTree || !session) return;
+    const snaps = activeTree.nodes[parentNodeId]?.kifu || [];
+    const slice = snaps.slice(startIdx, endIdx + 1);
+    const last  = slice[slice.length - 1];
+    if (!last) return;
+    // 1局面だけの切り出しは棋譜を持たない通常の分岐と同じ扱いにする
+    // （1局面の棋譜は「全0手」となり再生UIだけが残ってしまうため）
+    const hasKifu = slice.length > 1;
+    const { data: newNode } = await createNode({
+      treeId:    activeTree.id,
+      userId:    session.user.id,
+      parentId:  parentNodeId,
+      label:     "新しいノード",
+      status:    "wip",
+      board:     last.board,
+      handSente: last.handSente,
+      handGote:  last.handGote,
+      kifu:         hasKifu ? slice : [],
+      kifuImported: hasKifu,
+      branchFromMoveIndex: startIdx,
+      sortOrder: nextSortOrder(activeTree, parentNodeId),
+    });
+    if (!newNode) { alert("分岐ノードの追加に失敗しました。もう一度お試しください。"); return; }
+    // 全件再フェッチせず、作成ノードをローカルツリーへマージ（ネットワーク往復を削減）
+    setActiveTree(prev => addNode(prev, nodeRowToNode(newNode)));
+    setNodeCount(c => c + 1);
+    navigate(`/tree/${activeTree.id}/node/${newNode.id}`);
+  };
+
   const handleDeleteNode = async (idsToDelete, parentId) => {
     try {
       await deleteNodes(idsToDelete);
@@ -453,6 +488,7 @@ export default function App() {
           <TreeList trees={myTrees} profile={profile}
             onOpen={handleOpenTree}
             onPublic={() => navigate("/public")}
+            onKifus={() => navigate("/kifus")}
             onTrophy={() => navigate("/trophy")}
             onSettings={() => navigate("/settings")}
             onNewTree={handleNewTree} onSignOut={handleSignOut}
@@ -488,13 +524,17 @@ export default function App() {
             onMemoSave={handleMemoSave}/>
         )}
         {screen==="node" && activeTree && activeNodeId && activeTree.nodes[activeNodeId] && (
-          <NodeDetail tree={activeTree} nodeId={activeNodeId}
+          <NodeDetail tree={activeTree} nodeId={activeNodeId} userId={session.user.id}
             onBack={() => navigate(`/tree/${activeTree.id}`)} onNodeSelect={handleNodeSelect}
             onNewNode={handleNewNode} onUpdate={handleNodeUpdate}
             onDeleteNode={handleDeleteNode} onSetMergeParents={handleSetMergeParents}
             onReparentNode={handleReparentNode}
             onBranchFromKifu={handleBranchFromKifu}
+            onBranchRangeFromKifu={handleBranchRangeFromKifu}
             onBoardFirstShown={startBoardOnboard}/>
+        )}
+        {screen==="kifus" && (
+          <KifuList userId={session.user.id} onBack={() => navigate("/")} />
         )}
         {screen==="settings" && (
           <SettingsScreen onBack={() => navigate("/")}

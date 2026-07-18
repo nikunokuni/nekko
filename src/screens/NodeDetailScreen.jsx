@@ -10,8 +10,142 @@ import {
   STATUS_META, ORIENTATION_META, STRATEGY_GROUPS, WIN_RATE_LEVELS, LIKE_LEVELS, COMMENT_GROUPS, USAGE_LEVELS, USAGE_META,
 } from "../data";
 import { recordAction, getCustomTagsByGroup, addCustomTag, getCommentCustomTags, addCommentCustomTag } from "../rewards";
-import { T, INPUT_STYLE, cloneBoard } from "../theme";
+import { T, INPUT_STYLE, MODAL_OVERLAY_STYLE, MODAL_SHEET_STYLE, cloneBoard } from "../theme";
 import { SectionLabel, BoardSection, MergeLinkList, LinkPicker, TagPickerField } from "../components/uiParts";
+import { fetchMyKifus, fetchKifu, kifuRowToKifu } from "../db";
+import ShogiBoard from "../ShogiBoard";
+
+// ──────────────────────────────────────────
+// KifuPickerModal: 棋譜ライブラリから1件選んでノードに取り込む
+//   一覧（メタデータのみ）→ タップで snapshots 込み取得 → プレビュー再生 → 取り込み
+// ──────────────────────────────────────────
+function KifuPickerModal({ userId, hasExistingKifu, onClose, onImport }) {
+  const [kifus,     setKifus]     = useState(null); // null = 読み込み中
+  const [selected,  setSelected]  = useState(null); // snapshots込みの棋譜（プレビュー表示中）
+  const [fetching,  setFetching]  = useState(false);
+  const [importing, setImporting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchMyKifus(userId).then(({ data }) => {
+      if (!cancelled) setKifus((data || []).map(kifuRowToKifu));
+    });
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  const handlePick = async (kifu) => {
+    if (fetching) return;
+    setFetching(true);
+    const { data, error } = await fetchKifu(kifu.id);
+    setFetching(false);
+    if (error || !data) {
+      alert("棋譜の読み込みに失敗しました。もう一度お試しください。");
+      return;
+    }
+    setSelected(kifuRowToKifu(data));
+  };
+
+  const handleImport = async () => {
+    if (!selected || importing) return;
+    setImporting(true);
+    await onImport(selected);
+    setImporting(false);
+    onClose();
+  };
+
+  const snaps = selected?.snapshots || [];
+  const last  = snaps.length > 0 ? snaps[snaps.length - 1] : null;
+
+  return (
+    <div style={MODAL_OVERLAY_STYLE} onClick={onClose}>
+      <div style={{ ...MODAL_SHEET_STYLE, maxHeight: "90%", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+          {selected && (
+            <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.125rem", padding: 2, lineHeight: 1 }}>
+              <i className="ti ti-chevron-left" />
+            </button>
+          )}
+          <div style={{ flex: 1, fontFamily: T.fontTitle, fontSize: T.fontSize.h, color: T.ink }}>
+            {selected ? selected.name : "保存済み棋譜から選ぶ"}
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: "1.125rem", padding: 2 }}>
+            <i className="ti ti-x" />
+          </button>
+        </div>
+
+        {!selected ? (
+          // ── 一覧 ──
+          kifus === null ? (
+            <div style={{ padding: "24px 0", textAlign: "center", color: T.inkFaint, fontSize: T.fontSize.base }}>
+              読み込み中...
+            </div>
+          ) : kifus.length === 0 ? (
+            <div style={{ padding: "24px 0", textAlign: "center", color: T.inkFaint, fontSize: T.fontSize.base, lineHeight: 1.8 }}>
+              保存した棋譜がまだありません<br />
+              ツリー一覧の「棋譜ライブラリ」から棋譜を保存できます
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {kifus.map((k) => (
+                <div
+                  key={k.id}
+                  onClick={() => handlePick(k)}
+                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 12px", borderRadius: T.radius.sm, border: `0.5px solid ${T.inkLine}`, background: T.cream, cursor: "pointer" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = T.goldLight)}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = T.cream)}
+                >
+                  <i className="ti ti-chess" style={{ fontSize: "0.875rem", color: T.gold }} />
+                  <span style={{ fontSize: T.fontSize.base, color: T.ink, flex: 1 }}>{k.name}</span>
+                  <span style={{ fontSize: T.fontSize.sm, color: T.inkMid, fontFamily: T.fontSerif }}>{k.moveCount}手</span>
+                  <i className="ti ti-chevron-right" style={{ fontSize: "0.875rem", color: T.gray }} />
+                </div>
+              ))}
+            </div>
+          )
+        ) : (
+          // ── プレビュー + 取り込み ──
+          <>
+            {last ? (
+              <ShogiBoard
+                board={last.board}
+                handSente={last.handSente}
+                handGote={last.handGote}
+                kifu={snaps}
+                readOnly
+              />
+            ) : (
+              <div style={{ padding: "24px 0", textAlign: "center", color: T.inkFaint, fontSize: T.fontSize.base }}>
+                この棋譜には局面がありません
+              </div>
+            )}
+
+            {hasExistingKifu && (
+              <div style={{ marginTop: 10, fontSize: T.fontSize.sm, color: T.brown, fontFamily: T.fontSerif, lineHeight: 1.6 }}>
+                <i className="ti ti-alert-triangle" style={{ fontSize: "0.75rem", marginRight: 3 }} />
+                このノードには棋譜があります。取り込むと今の棋譜・盤面は上書きされます
+              </div>
+            )}
+
+            <button
+              onClick={handleImport}
+              disabled={!last || importing}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                width: "100%", marginTop: 10, padding: "11px 12px", borderRadius: T.radius.lg,
+                border: "none", background: (!last || importing) ? T.gray : T.gold, color: T.cream,
+                fontSize: T.fontSize.lg, fontWeight: 600, cursor: (!last || importing) ? "default" : "pointer",
+                fontFamily: T.fontSerif,
+              }}
+            >
+              <i className="ti ti-download" style={{ fontSize: "0.875rem" }} />
+              {importing ? "取り込み中..." : "このノードに取り込む"}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ── セクション見出し ──────────────────────────────
 function SectionHeader({ icon, children, dataOnboard }) {
@@ -30,7 +164,7 @@ function SectionDivider() {
 // ══════════════════════════════════════════════════════════════════
 // NodeDetail: ノード詳細編集画面
 // ══════════════════════════════════════════════════════════════════
-export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUpdate, onDeleteNode, onSetMergeParents, onReparentNode, onBranchFromKifu, onBoardFirstShown }) {
+export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNode, onUpdate, onDeleteNode, onSetMergeParents, onReparentNode, onBranchFromKifu, onBranchRangeFromKifu, onBoardFirstShown }) {
   const node = tree.nodes[nodeId];
 
   const [label,        setLabel]        = useState("");
@@ -64,6 +198,7 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
   const [deleteConfirm,          setDeleteConfirm]          = useState(false);
   const [boardSnapshot,          setBoardSnapshot]          = useState(null);
   const [addOpen,                setAddOpen]                = useState(false);
+  const [kifuPickerOpen,         setKifuPickerOpen]         = useState(false);
 
   // デバウンス付き自動保存（ノード名・メモ・タグなど、入力ごとに即時送信したくないフィールド用）
   const pendingPatch = useRef({});
@@ -343,6 +478,30 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
     apply();
     const ok = await onUpdate(nodeId, patch);
     if (ok === false) revert();
+  };
+
+  // ── 棋譜ライブラリからの取り込み ──────────────────
+  // 棋譜スナップショットをノードへコピーし、盤面を最終局面に合わせる。
+  // 参照ではなくコピーなので、ライブラリ側の削除・編集はノードに影響しない。
+  const handleImportKifu = async (kifu) => {
+    const snaps = kifu.snapshots || [];
+    const lastSnap = snaps[snaps.length - 1];
+    if (!lastSnap) return;
+    dropPendingBoardKeys();
+    const board = cloneBoard(lastSnap.board);
+    const hs = { ...lastSnap.handSente };
+    const hg = { ...lastSnap.handGote };
+    setBoardData(board);
+    setHandSente(hs);
+    setHandGote(hg);
+    setStamps([]);
+    setBoardVisible(true);
+    await onUpdate(nodeId, {
+      board, handSente: hs, handGote: hg, stamps: [],
+      kifu: snaps, kifuImported: true, boardHidden: false,
+    });
+    recordAction("kifu");
+    showToast("棋譜を取り込みました");
   };
 
   // ── 合流（追加の親子リンク）操作 ──────────────────
@@ -674,9 +833,24 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
           }}
           allowBranch={!!node.kifuImported}
           onBranchFromHere={(snapshot, moveIndex) => onBranchFromKifu?.(nodeId, snapshot, moveIndex)}
+          onBranchRange={(startIdx, endIdx) => onBranchRangeFromKifu?.(nodeId, startIdx, endIdx)}
           canUndo={canUndoBoard}
           onUndo={handleUndoBoard}
         />
+
+        {/* 棋譜ライブラリからの取り込み */}
+        {userId && (
+          <div style={{ padding: "0 16px 12px" }}>
+            <div
+              onClick={() => setKifuPickerOpen(true)}
+              style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: T.radius.sm, border: `0.5px dashed ${T.brown}`, cursor: "pointer", color: T.brown, fontSize: T.fontSize.base }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = T.goldLight)}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            >
+              <i className="ti ti-books" style={{ fontSize: "0.875rem" }} />保存済み棋譜から取り込む
+            </div>
+          </div>
+        )}
 
         <SectionDivider />
 
@@ -972,6 +1146,16 @@ export function NodeDetail({ tree, nodeId, onBack, onNodeSelect, onNewNode, onUp
           )}
         </div>
       </div>
+
+      {/* 棋譜ライブラリからの取り込みモーダル */}
+      {kifuPickerOpen && (
+        <KifuPickerModal
+          userId={userId}
+          hasExistingKifu={(node.kifu || []).length > 0}
+          onClose={() => setKifuPickerOpen(false)}
+          onImport={handleImportKifu}
+        />
+      )}
     </div>
   );
 }

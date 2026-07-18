@@ -6,19 +6,7 @@ import { useState } from "react";
 import { T, MODAL_OVERLAY_STYLE, MODAL_SHEET_STYLE } from "../theme";
 import { InputField, SectionLabel, ModalActionButtons } from "../components/uiParts";
 import { importKifuText } from "../kifuParser";
-
-// ── KIF/CSAファイルを文字列として読み込む（Shift_JIS対応） ──
-async function readKifuFile(file) {
-  const buf = await file.arrayBuffer();
-  const tryDecode = (label) => {
-    try { return new TextDecoder(label, { fatal: false }).decode(buf); }
-    catch { return ""; }
-  };
-  const utf8 = tryDecode("utf-8");
-  if (!utf8.includes("�")) return utf8;
-  const sjis = tryDecode("shift_jis");
-  return sjis || utf8;
-}
+import { readKifuFile } from "../kifuFile";
 
 // ──────────────────────────────────────────
 // CreateTreeModal: 新規ツリー作成
@@ -529,7 +517,7 @@ function TreeCard({ tree, onOpen, onEdit, onDelete, onMemoSave }) {
 // ══════════════════════════════════════════════════════════════════
 // TreeList: ツリー一覧画面
 // ══════════════════════════════════════════════════════════════════
-export function TreeList({ trees, profile, onOpen, onPublic, onTrophy, onSettings, onNewTree, onSignOut, onDeleteTree, onEditTree, onPublish, onUnpublish, onMemoSave }) {
+export function TreeList({ trees, profile, onOpen, onPublic, onKifus, onTrophy, onSettings, onNewTree, onSignOut, onDeleteTree, onEditTree, onPublish, onUnpublish, onMemoSave }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editTarget,      setEditTarget]      = useState(null);
   const [deleteTarget,    setDeleteTarget]    = useState(null);
@@ -556,6 +544,9 @@ export function TreeList({ trees, profile, onOpen, onPublic, onTrophy, onSetting
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <button data-onboard="public" onClick={onPublic} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
             <i className="ti ti-world" />
+          </button>
+          <button title="棋譜ライブラリ" onClick={onKifus} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
+            <i className="ti ti-chess" />
           </button>
           <button data-onboard="trophy" onClick={onTrophy} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
             <i className="ti ti-trophy" />

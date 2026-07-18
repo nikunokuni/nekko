@@ -267,6 +267,79 @@ export async function countUserNodes(userId) {
   return count ?? 0;
 }
 
+// ── Kifus（棋譜ライブラリ）───────────────────────────
+// 棋譜はノードから独立した kifus テーブルに保存する。
+// ノードへの取り込みは参照ではなくコピー（nodes.kifu へ複製）なので、
+// ライブラリ側の削除・編集がノードに影響することはない。
+
+/** 棋譜一覧をメタデータのみで取得する（snapshots は重いので含めない） */
+export async function fetchMyKifus(userId) {
+  const result = await supabase
+    .from("kifus")
+    .select("id, name, memo, move_count, created_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+  if (result.error) console.error("fetchMyKifus error:", result.error);
+  return result;
+}
+
+/** 棋譜1件を snapshots 込みで取得する（プレビュー・取り込み時に呼ぶ） */
+export async function fetchKifu(kifuId) {
+  const result = await supabase.from("kifus").select("*").eq("id", kifuId).single();
+  if (result.error) console.error("fetchKifu error:", result.error);
+  return result;
+}
+
+export async function createKifu({ userId, name, memo = "", snapshots, sourceText = "" }) {
+  const result = await supabase
+    .from("kifus")
+    .insert({
+      user_id:     userId,
+      name,
+      memo,
+      snapshots:   snapshots ?? [],
+      source_text: sourceText,
+      // 手数 = スナップ数 - 1（先頭は初期局面）
+      move_count:  Math.max(0, (snapshots?.length ?? 0) - 1),
+    })
+    .select("id, name, memo, move_count, created_at")
+    .single();
+  if (result.error) console.error("createKifu error:", result.error);
+  return result;
+}
+
+export async function updateKifu(kifuId, patch) {
+  // フロント側キー名 → DB カラム名へ変換（updateNode と同じ方式）
+  const map = { name: "name", memo: "memo" };
+  const dbPatch = {};
+  for (const [k, v] of Object.entries(patch)) {
+    if (map[k] !== undefined) dbPatch[map[k]] = v;
+  }
+  const result = await supabase.from("kifus").update(dbPatch).eq("id", kifuId).select().single();
+  if (result.error) console.error("updateKifu error:", result.error);
+  return result;
+}
+
+export async function deleteKifu(kifuId) {
+  const result = await supabase.from("kifus").delete().eq("id", kifuId);
+  if (result.error) console.error("deleteKifu error:", result.error);
+  return result;
+}
+
+// ── DBの棋譜行（snake_case）を内部形式（camelCase）へ変換する ──
+// 一覧取得（snapshots なし）と単体取得（snapshots あり）の両方に対応する
+export function kifuRowToKifu(k) {
+  return {
+    id:        k.id,
+    name:      k.name,
+    memo:      k.memo || "",
+    snapshots: k.snapshots || [],
+    sourceText: k.source_text || "",
+    moveCount: k.move_count ?? 0,
+    createdAt: k.created_at,
+  };
+}
+
 // ── DBのノード行（snake_case）を内部ノード形式（camelCase）へ変換する ──
 // childIds は呼び出し側で親子関係を構築する際に埋める（既存値があれば維持）
 export function nodeRowToNode(n) {

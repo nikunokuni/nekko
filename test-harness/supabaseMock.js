@@ -15,10 +15,11 @@ function loadDb() {
     if (raw) {
       const db = JSON.parse(raw);
       if (!db.recovery_codes) db.recovery_codes = []; // 旧保存データとの互換
+      if (!db.kifus) db.kifus = [];                   // 旧保存データとの互換
       return db;
     }
   } catch {}
-  return { users: [], profiles: [], trees: [], nodes: [], likes: [], recovery_codes: [] };
+  return { users: [], profiles: [], trees: [], nodes: [], likes: [], recovery_codes: [], kifus: [] };
 }
 function saveDb(db) {
   localStorage.setItem(DB_KEY, JSON.stringify(db));

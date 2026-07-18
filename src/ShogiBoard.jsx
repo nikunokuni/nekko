@@ -204,6 +204,7 @@ export default function ShogiBoard({
   readOnly = false,
   allowBranch = false,      // true: 棋譜インポート由来のノードで「この局面で分岐」を表示
   onBranchFromHere,         // (snapshot) => void
+  onBranchRange,            // (startIdx, endIdx) => void 範囲を選んで棋譜ごと切り出し
 }) {
   const canvasRef = useRef(null);
 
@@ -221,6 +222,9 @@ export default function ShogiBoard({
   // ── 棋譜記録・再生 ──────────────────────────────
   const [isRecording,   setIsRecording]   = useState(false);
   const [playbackIdx,   setPlaybackIdx]   = useState(null); // null = 通常モード
+  // 範囲切り出しの選択位置（再生モード中のみ使用。null = 未選択）
+  const [rangeStart,    setRangeStart]    = useState(null);
+  const [rangeEnd,      setRangeEnd]      = useState(null);
   // recordingRef: handleClick クロージャからも最新値を参照できるよう Ref で管理
   const recordingRef = useRef({ active: false, snaps: [] });
 
@@ -243,6 +247,16 @@ export default function ShogiBoard({
 
   const stampsPropStr = JSON.stringify(stampsProp);
   useEffect(() => { setStamps(stampsProp); }, [stampsPropStr]); // eslint-disable-line
+
+  // 棋譜が差し替わったら（ノード切替・取り込み・範囲切り出しでの遷移など）
+  // 再生位置と範囲選択をリセットする。残すと新しい棋譜の手数を超えた
+  // 再生位置を参照し続けてしまう。
+  const kifuLenProp = kifuProp.length;
+  useEffect(() => {
+    setPlaybackIdx(null);
+    setRangeStart(null);
+    setRangeEnd(null);
+  }, [kifuLenProp]);
 
   // 持ち駒も board / stamps と同様に、親から渡される prop の変化を内部 state へ反映する。
   // （ノード切替・テンプレート読込・棋譜削除・盤面の元に戻す 等で駒台だけ古いまま残るのを防ぐ）
@@ -684,7 +698,7 @@ export default function ShogiBoard({
           {/* 再生中は「編集にもどる」で再生モードを終了し、盤面編集に戻れる。
               閲覧専用（readOnly）では編集はできないため「再生を終了」と表記する */}
           {playbackIdx !== null && (
-            <button onClick={() => setPlaybackIdx(null)} style={{
+            <button onClick={() => { setPlaybackIdx(null); setRangeStart(null); setRangeEnd(null); }} style={{
               display:'flex', alignItems:'center', gap:4,
               padding:'5px 12px', borderRadius:8, border:'none',
               background:'#a07840', cursor:'pointer', fontSize:"0.6875rem", flexShrink:0, whiteSpace:'nowrap',
@@ -719,6 +733,58 @@ export default function ShogiBoard({
           <i className="ti ti-git-branch" style={{fontSize:"0.8125rem"}}/>この局面で分岐
         </button>
       )}
+
+      {/* 範囲切り出し（インポートした棋譜のみ）：
+          再生しながら「ここから」「ここまで」で範囲を選び、その区間の棋譜を持つ子ノードを作る */}
+      {allowBranch && playbackIdx !== null && onBranchRange && (() => {
+        const idxLabel = (i) => (i === 0 ? '初期局面' : `第${i}手`);
+        const rangeReady = rangeStart !== null && rangeEnd !== null;
+        const s = rangeReady ? Math.min(rangeStart, rangeEnd) : null;
+        const e = rangeReady ? Math.max(rangeStart, rangeEnd) : null;
+        const markBtnStyle = (marked) => ({
+          display:'flex', alignItems:'center', gap:4,
+          padding:'5px 10px', borderRadius:8, fontSize:"0.6875rem", cursor:'pointer',
+          border:'0.5px solid #854F0B', fontFamily:"'Noto Serif JP',serif", whiteSpace:'nowrap',
+          background: marked ? '#854F0B' : '#faf4e8',
+          color:      marked ? '#fff'    : '#854F0B',
+        });
+        return (
+          <div style={{ marginTop:8, padding:'8px 10px', borderRadius:8, border:'0.5px solid rgba(133,79,11,0.4)', background:'#faf4e8' }}>
+            <div style={{ fontSize:"0.625rem", color:'#854F0B', fontFamily:"'Noto Serif JP',serif", marginBottom:6, display:'flex', alignItems:'center', gap:4 }}>
+              <i className="ti ti-scissors" style={{fontSize:"0.6875rem"}}/>
+              範囲を選んで棋譜ごと切り出し（再生位置で指定）
+            </div>
+            <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
+              <button onClick={() => setRangeStart(playbackIdx)} style={markBtnStyle(rangeStart !== null)}>
+                {rangeStart !== null ? `始点：${idxLabel(rangeStart)}` : 'ここから'}
+              </button>
+              <button onClick={() => setRangeEnd(playbackIdx)} style={markBtnStyle(rangeEnd !== null)}>
+                {rangeEnd !== null ? `終点：${idxLabel(rangeEnd)}` : 'ここまで'}
+              </button>
+              {(rangeStart !== null || rangeEnd !== null) && (
+                <button onClick={() => { setRangeStart(null); setRangeEnd(null); }} title="範囲の選択を解除"
+                  style={{ background:'none', border:'none', cursor:'pointer', color:'rgba(26,15,0,0.35)', fontSize:"0.875rem", padding:2, lineHeight:1 }}>
+                  <i className="ti ti-x"/>
+                </button>
+              )}
+            </div>
+            {rangeReady && (
+              <button
+                onClick={() => { onBranchRange(s, e); setRangeStart(null); setRangeEnd(null); }}
+                style={{
+                  display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+                  width:'100%', marginTop:8, padding:'8px 12px', borderRadius:8,
+                  border:'none', background:'#854F0B', color:'#fff',
+                  fontSize:"0.75rem", cursor:'pointer', fontFamily:"'Noto Serif JP',serif", fontWeight:600,
+                }}
+              >
+                <i className="ti ti-git-branch" style={{fontSize:"0.8125rem"}}/>
+                {idxLabel(s)}〜{idxLabel(e)}を子ノードに切り出す
+              </button>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ヒント文 */}
       {!readOnly && playbackIdx === null && (

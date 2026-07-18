@@ -74,7 +74,7 @@ export function ModalActionButtons({ onCancel, onConfirm, confirmLabel, disabled
 // ──────────────────────────────────────────
 // BoardSection: 将棋盤の表示/追加エリア
 // ──────────────────────────────────────────
-export function BoardSection({ boardVisible, boardData, stamps, handSente, handGote, parentBoard, parentLabel, onToggle, onChange, onDelete, onLoadTemplate, kifu, onKifuChange, onKifuDelete, allowBranch, onBranchFromHere, canUndo, onUndo }){
+export function BoardSection({ boardVisible, boardData, stamps, handSente, handGote, parentBoard, parentLabel, onToggle, onChange, onDelete, onLoadTemplate, kifu, onKifuChange, onKifuDelete, allowBranch, onBranchFromHere, onBranchRange, canUndo, onUndo }){
   const [tmplOpen, setTmplOpen] = useState(false);
 
   // 盤面操作系ボタンの共通スタイル
@@ -230,6 +230,7 @@ export function BoardSection({ boardVisible, boardData, stamps, handSente, handG
           onKifuChange={onKifuChange}
           allowBranch={allowBranch}
           onBranchFromHere={onBranchFromHere}
+          onBranchRange={onBranchRange}
         />
       </div>
     </div>
