@@ -170,6 +170,8 @@ export async function createNode({
   caution = "",
   nextStudy = "",
   commentTags = [],
+  turn = null,
+  evaluation = null,
 }) {
   const result = await supabase
     .from("nodes")
@@ -193,6 +195,8 @@ export async function createNode({
       caution,
       next_study: nextStudy,
       comment_tags: commentTags,
+      turn,
+      evaluation,
     })
     .select()
     .single();
@@ -230,6 +234,8 @@ export async function updateNode(nodeId, patch) {
     caution:        "caution",
     nextStudy:      "next_study",
     commentTags:    "comment_tags",
+    turn:           "turn",
+    evaluation:     "evaluation",
   };
   const dbPatch = {};
   for (const [k, v] of Object.entries(patch)) {
@@ -371,6 +377,8 @@ export function nodeRowToNode(n) {
     caution:        n.caution || "",
     nextStudy:      n.next_study || "",
     commentTags:    n.comment_tags || [],
+    turn:           n.turn || null,
+    evaluation:     n.evaluation ?? null,
     childIds:      [],
   };
 }

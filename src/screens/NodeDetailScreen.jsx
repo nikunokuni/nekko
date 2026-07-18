@@ -179,6 +179,9 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
   const [boardVisible, setBoardVisible] = useState(false);
   const [boardData,    setBoardData]    = useState(null);
   const [stamps,       setStamps]       = useState([]);
+  const [turn,         setTurn]         = useState(null); // 'sente' | 'gote' | null
+  const [evalSign,     setEvalSign]     = useState("+");  // 評価値の符号（選択式）
+  const [evalValue,    setEvalValue]    = useState("");   // 評価値の絶対値（文字列）
   const [handSente,   setHandSente]   = useState({p:0,l:0,n:0,s:0,g:0,b:0,r:0});
   const [handGote,    setHandGote]    = useState({p:0,l:0,n:0,s:0,g:0,b:0,r:0});
   const [toast,        setToast]        = useState("");
@@ -266,6 +269,9 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
       setBoardVisible(!!node.board && !node.boardHidden);
       setBoardData(node.board || null);
       setStamps(node.stamps || []);
+      setTurn(node.turn || null);
+      setEvalSign((node.evaluation ?? 0) < 0 ? "-" : "+");
+      setEvalValue(node.evaluation != null ? String(Math.abs(node.evaluation)) : "");
       setHandSente(node.handSente || {p:0,l:0,n:0,s:0,g:0,b:0,r:0});
       setHandGote(node.handGote  || {p:0,l:0,n:0,s:0,g:0,b:0,r:0});
       setParentDetailsOpen((node.mergeParentIds || []).length > 0);
@@ -480,6 +486,23 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
     if (ok === false) revert();
   };
 
+  // ── 手番・評価値 ─────────────────────────────────
+  // 手番チップ：タップで選択、選択中をもう一度タップで未設定に戻す
+  const handleTurnSelect = (t) => {
+    const next = turn === t ? null : t;
+    saveField({ turn: next }, () => setTurn(next), () => setTurn(node.turn || null));
+  };
+
+  // 評価値：符号（選択式）と数値を合成して保存する。数値が空なら未入力（null）
+  const saveEvaluation = (sign, valueStr) => {
+    const num = valueStr.trim() === "" ? null : Math.abs(parseInt(valueStr, 10));
+    const evaluation = (num == null || Number.isNaN(num)) ? null : (sign === "-" ? -num : num);
+    saveField({ evaluation }, () => {}, () => {
+      setEvalSign((node.evaluation ?? 0) < 0 ? "-" : "+");
+      setEvalValue(node.evaluation != null ? String(Math.abs(node.evaluation)) : "");
+    });
+  };
+
   // ── 棋譜ライブラリからの取り込み ──────────────────
   // 棋譜スナップショットをノードへコピーし、盤面を最終局面に合わせる。
   // 参照ではなくコピーなので、ライブラリ側の削除・編集はノードに影響しない。
@@ -552,9 +575,6 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
     await onReparentNode(childId, nodeId);
     showToast("子ノードに移動しました");
   };
-
-  // 「ついか」内の未入力項目が残っているか（志向・勝率）
-  const addIncomplete = (!node.isRoot && !orientation) || winRate == null;
 
   /** 子孫IDを再帰的に収集してノード削除 */
   const collectDescendantIds = (id) => {
@@ -838,6 +858,74 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
           onUndo={handleUndoBoard}
         />
 
+        {/* 手番・評価値（盤面表示中のみ。局面に紐づく情報のため盤面の直下に置く） */}
+        {boardVisible && (
+          <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap", padding: "0 16px 12px" }}>
+            {/* 手番 */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <SectionLabel>手番</SectionLabel>
+              {[["sente", "先手番", T.blue, T.blueBg], ["gote", "後手番", T.redDark, T.redBg]].map(([val, lbl, color, bg]) => {
+                const selected = turn === val;
+                return (
+                  <div
+                    key={val}
+                    onClick={() => handleTurnSelect(val)}
+                    style={{
+                      padding: "5px 12px", borderRadius: T.radius.md, cursor: "pointer",
+                      fontSize: T.fontSize.base, fontFamily: T.fontSerif, transition: "all 0.15s",
+                      border: selected ? `1.5px solid ${color}` : `0.5px solid ${T.inkLine}`,
+                      background: selected ? bg : T.cream,
+                      color: selected ? color : T.inkMid,
+                      fontWeight: selected ? 600 : 400,
+                    }}
+                  >
+                    {lbl}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* 評価値（符号は選択式・数値は入力） */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <SectionLabel>評価値</SectionLabel>
+              {[["+", T.blue, T.blueBg], ["-", T.redDark, T.redBg]].map(([sign, color, bg]) => {
+                const selected = evalSign === sign;
+                return (
+                  <div
+                    key={sign}
+                    onClick={() => { setEvalSign(sign); saveEvaluation(sign, evalValue); }}
+                    title={sign === "+" ? "先手良し" : "後手良し"}
+                    style={{
+                      width: 28, height: 28, borderRadius: T.radius.md, cursor: "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: T.fontSize.lg, fontFamily: T.fontSerif, transition: "all 0.15s",
+                      border: selected ? `1.5px solid ${color}` : `0.5px solid ${T.inkLine}`,
+                      background: selected ? bg : T.cream,
+                      color: selected ? color : T.inkMid,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {sign === "+" ? "＋" : "－"}
+                  </div>
+                );
+              })}
+              <input
+                value={evalValue}
+                inputMode="numeric"
+                onChange={(e) => setEvalValue(e.target.value.replace(/[^0-9]/g, ""))}
+                onBlur={(e) => { e.target.style.borderColor = T.inkLine; saveEvaluation(evalSign, evalValue); }}
+                onFocus={(e) => (e.target.style.borderColor = T.gold)}
+                placeholder="300"
+                style={{
+                  width: 64, boxSizing: "border-box", border: `0.5px solid ${T.inkLine}`,
+                  borderRadius: T.radius.md, padding: "5px 10px", fontSize: T.fontSize.base,
+                  color: T.ink, background: T.cream, fontFamily: T.fontSerif, outline: "none",
+                }}
+              />
+            </div>
+          </div>
+        )}
+
         {/* 棋譜ライブラリからの取り込み */}
         {userId && (
           <div style={{ padding: "0 16px 12px" }}>
@@ -857,7 +945,7 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
         {/* ════════════════ ついか ════════════════ */}
         <div onClick={() => setAddOpen((v) => !v)} style={{ cursor: "pointer" }}>
           <SectionHeader icon="ti-adjustments" dataOnboard="tsuika">
-            {addIncomplete && <span style={{ color: T.gold, marginRight: 4 }}>・</span>}ついか
+            ついか
             <i className={`ti ti-chevron-${addOpen ? "up" : "down"}`} style={{ fontSize: "0.8125rem", color: T.inkMid, marginLeft: "auto" }} />
           </SectionHeader>
         </div>
