@@ -800,7 +800,10 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
         <Divider />
 
         {/* 盤面 */}
+        {/* key=nodeId: ノード移動時に ShogiBoard ごと再マウントし、
+            再生モード・記録中・選択ツールなどの内部 state を持ち越さない */}
         <BoardSection
+          key={nodeId}
           boardVisible={boardVisible}
           boardData={boardData}
           stamps={stamps}
