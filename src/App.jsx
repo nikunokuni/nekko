@@ -26,7 +26,6 @@ import { recordAction, getActions, resetOnboard } from "./rewards";
 import { cloneBoard } from "./theme";
 import { useAuth } from "./hooks/useAuth";
 import { useTreeData } from "./hooks/useTreeData";
-import { useFridayToast } from "./hooks/useFridayToast";
 import { useFontScale } from "./hooks/useFontScale";
 import { useRecoveryCode } from "./hooks/useRecoveryCode";
 import { RecoveryCodeModal } from "./components/RecoveryCodeModal";
@@ -63,7 +62,6 @@ export default function App() {
     reparentStack, setReparentStack,
     loadMyTrees, loadPublicTrees, loadTree, refreshNodeCount, clearTreeData,
   } = useTreeData(session);
-  const fridayToast = useFridayToast(session);
   const [fontScale, handleFontScaleChange] = useFontScale();
   // リカバリーコード：未発行ならログイン直後に発行し、スクショ案内モーダルを表示する
   const { newCode: recoveryCode, regenerate: regenerateRecoveryCode, dismiss: dismissRecoveryCode } =
@@ -440,31 +438,6 @@ export default function App() {
   // ── レンダリング ─────────────────────────────
   return (
     <div style={{ height:"100dvh", background:"#faf4e8", display:"flex", flexDirection:"column" }}>
-
-      {/* 金曜夜トースト（全画面共通） */}
-      {fridayToast && (
-        <div style={{
-          position:     "fixed",
-          top:          16,
-          left:         "50%",
-          transform:    "translateX(-50%)",
-          zIndex:       200,
-          background:   "rgba(26,15,0,0.88)",
-          color:        "#faf4e8",
-          fontSize:     "0.875rem",
-          fontFamily:   "'Noto Serif JP', serif",
-          padding:      "10px 20px",
-          borderRadius: 24,
-          whiteSpace:   "nowrap",
-          display:      "flex",
-          alignItems:   "center",
-          gap:          8,
-          boxShadow:    "0 4px 20px rgba(26,15,0,0.3)",
-        }}>
-          <i className="ti ti-book" style={{ fontSize: "0.875rem" }} />
-          {fridayToast}
-        </div>
-      )}
 
       {/* 初回オンボーディング（使い方トースト＋指さし。実装は onboarding.jsx） */}
       <OnboardingLayer onboard={onboard} fingerPos={fingerPos} onAdvance={advanceOnboard} />

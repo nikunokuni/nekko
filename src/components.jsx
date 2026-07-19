@@ -4,8 +4,54 @@
 //   Divider / BackBtn / Accordion
 // ══════════════════════════════════════════════════
 import { useState, useMemo } from "react";
-import { STATUS_META } from "./data";
+import { STATUS_META, PIECE_LABEL, PROMOTED_LABEL } from "./data";
 import { T } from "./theme";
+
+// ── MiniBoard ─────────────────────────────────────
+// 読み取り専用のミニ盤面サムネイル（目次・検索結果で「盤面から探す」ために使う）。
+// 駒は空マスを描かない絶対配置（1盤あたり最大40個）、罫線はCSSグラデーションで
+// 描くことで、数十ノード分並べてもDOMが膨らみすぎないようにしている。
+export function MiniBoard({ board, size = 96, style = {} }) {
+  if (!board) return null;
+  const cell = size / 9;
+  const line = "rgba(90,60,20,0.3)";
+  return (
+    <div style={{
+      width: size, height: size, position: "relative", flexShrink: 0,
+      background: "#f3ddab",
+      backgroundImage:
+        `repeating-linear-gradient(0deg, ${line} 0, ${line} 0.5px, transparent 0.5px, transparent ${cell}px),` +
+        `repeating-linear-gradient(90deg, ${line} 0, ${line} 0.5px, transparent 0.5px, transparent ${cell}px)`,
+      border: "1px solid rgba(90,60,20,0.5)",
+      borderRadius: 2,
+      boxSizing: "border-box",
+      overflow: "hidden",
+      ...style,
+    }}>
+      {board.map((row, r) => row.map((p, c) => {
+        if (!p || p === " ") return null;
+        const promoted = p.startsWith("+");
+        const sente    = /^\+?[a-z]$/.test(p);
+        const label    = promoted ? (PROMOTED_LABEL[p.slice(1).toLowerCase()] ?? p) : (PIECE_LABEL[p] ?? p);
+        return (
+          <div key={`${r}-${c}`} style={{
+            position: "absolute", left: c * cell, top: r * cell,
+            width: cell, height: cell,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            // 極小フォントはブラウザの最小フォントサイズ（日本語ロケールのChrome等）で
+            // 勝手に拡大されて崩れるため、12pxで描いて transform で縮小する
+            fontSize: 12, lineHeight: 1,
+            transform: `${sente ? "" : "rotate(180deg) "}scale(${(cell * 0.74) / 12})`,
+            fontFamily: T.fontSerif,
+            color: promoted ? T.red : T.ink,
+          }}>
+            {label}
+          </div>
+        );
+      }))}
+    </div>
+  );
+}
 
 // ── StatusChip ────────────────────────────────────
 export function StatusChip({ status, active, onClick, style = {} }) {
@@ -112,6 +158,16 @@ function AccordionItem({ node, nodes, depth, onSelect }) {
         )}
       </div>
 
+      {/* ミニ盤面（盤面から目当てのノードを探せるように。非表示設定の盤面は出さない） */}
+      {node.board && !node.boardHidden && (
+        <div
+          onClick={() => onSelect?.(node.id)}
+          style={{ padding:`0 12px 9px ${pl + 9}px`, cursor:'pointer' }}
+        >
+          <MiniBoard board={node.board}/>
+        </div>
+      )}
+
       {hasChildren && open && (
         <div>
           {node.childIds.map((cid, idx) => {
@@ -155,6 +211,15 @@ export function Accordion({ nodes, rootId, rootChildIds, onSelect }) {
           <div style={{ width:2, minHeight:14, borderRadius:1, flexShrink:0, alignSelf:'stretch', background:T.gold }}/>
           <span style={{fontSize:T.fontSize.base, color:T.ink, fontWeight:600, flex:1, lineHeight:1.35}}>{root.label}</span>
           <span style={{fontSize:T.fontSize.xs, color:T.gold, fontFamily:T.fontSerif, flexShrink:0}}>おおもとの戦法</span>
+        </div>
+      )}
+      {/* ルートの盤面（棋譜インポート作成時はルートが最終局面を持つ） */}
+      {root && root.board && !root.boardHidden && (
+        <div
+          onClick={() => onSelect?.(root.id)}
+          style={{ padding:'8px 12px 9px 21px', cursor:'pointer', background:'rgba(160,120,64,0.06)', borderBottom:'0.5px solid rgba(26,15,0,0.06)' }}
+        >
+          <MiniBoard board={root.board}/>
         </div>
       )}
       {safeIds.map((id, i) => {

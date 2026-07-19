@@ -217,43 +217,8 @@ export function addCommentCustomTag(name, group = null) {
   persist({ custom_comment_tags: _state.commentTags });
 }
 
-// ── 金曜夜トースト ────────────────────────────────
-const FRIDAY_TOAST_KEY = "nekko_friday_toast_week";
-
-/** ISO週番号（例: "2025-W23"）を返す */
-function isoWeekKey(d) {
-  const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7));
-  const year = tmp.getUTCFullYear();
-  const week = Math.ceil(((tmp - new Date(Date.UTC(year, 0, 1))) / 86400000 + 1) / 7);
-  return `${year}-W${String(week).padStart(2, "0")}`;
-}
-
-/**
- * 今がトースト表示タイミングかどうかを返す。
- * 条件: 金曜日（日本時間）かつ 18:00 以降、かつ今週まだ未表示。
- */
-export function shouldShowFridayToast() {
-  try {
-    const now  = new Date();
-    const jst  = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Tokyo" }));
-    if (jst.getDay() !== 5) return false;        // 金曜以外は不要
-    if (jst.getHours() < 18) return false;       // 18時前は不要
-    const week = isoWeekKey(jst);
-    return localStorage.getItem(FRIDAY_TOAST_KEY) !== week;
-  } catch { return false; }
-}
-
-/** 今週の金曜トーストを表示済みとしてマークする */
-export function markFridayToastShown() {
-  try {
-    const jst  = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }));
-    localStorage.setItem(FRIDAY_TOAST_KEY, isoWeekKey(jst));
-  } catch {}
-}
-
 // 日本時間基準の日付キーを返す（UTC基準だと JST 朝9時に日付が切り替わってしまい、
-// 金曜トースト判定（JST基準）とログイン日数判定の基準がズレてしまうため統一する）
+// ログイン日数のカウントが実際の感覚とズレてしまうため JST に統一する）
 const toDateKey = (d) => {
   const jst = new Date(d.toLocaleString("en-US", { timeZone: "Asia/Tokyo" }));
   const y = jst.getFullYear();

@@ -7,7 +7,7 @@
 // ══════════════════════════════════════════════════════════════════
 import { useState, useEffect, useMemo } from "react";
 import { T } from "../theme";
-import { BackBtn, StatusChip } from "../components";
+import { BackBtn, StatusChip, MiniBoard } from "../components";
 import { USAGE_META, LIKE_LEVELS } from "../data";
 import { fetchAllMyNodes } from "../db";
 
@@ -206,46 +206,54 @@ export function NodeSearch({ userId, trees, onBack, onOpenNode }) {
                   onMouseEnter={(e) => (e.currentTarget.style.background = T.goldLight)}
                   onMouseLeave={(e) => (e.currentTarget.style.background = T.cream)}
                 >
-                  {/* 1行目: 所属ツリー名 */}
-                  <div style={{ fontSize: T.fontSize.sm, color: T.gold, fontFamily: T.fontSerif, marginBottom: 2 }}>
-                    <i className="ti ti-plant" style={{ fontSize: "0.625rem", marginRight: 3 }} />
-                    {treeName.get(n.tree_id) || "（不明なツリー）"}
-                  </div>
-                  {/* 2行目: ノード名 + ステータス */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: T.fontSize.base, color: T.ink, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {n.label}
-                    </span>
-                    <StatusChip status={n.status} />
-                    <i className="ti ti-chevron-right" style={{ fontSize: "0.875rem", color: T.gray, flexShrink: 0 }} />
-                  </div>
-                  {/* 3行目: タグ + 評価バッジ（設定済みのものだけ表示） */}
-                  {(tags.length > 0 || n.win_rate != null || n.like_level != null || n.usage_level != null) && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
-                      {tags.slice(0, 4).map((t) => (
-                        <span key={t} style={{ fontSize: T.fontSize.xs, padding: "1px 6px", borderRadius: T.radius.sm, background: "rgba(26,15,0,0.06)", color: T.inkMid, fontFamily: T.fontSerif }}>
-                          {t}
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {/* 1行目: 所属ツリー名 */}
+                      <div style={{ fontSize: T.fontSize.sm, color: T.gold, fontFamily: T.fontSerif, marginBottom: 2 }}>
+                        <i className="ti ti-plant" style={{ fontSize: "0.625rem", marginRight: 3 }} />
+                        {treeName.get(n.tree_id) || "（不明なツリー）"}
+                      </div>
+                      {/* 2行目: ノード名 + ステータス */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: T.fontSize.base, color: T.ink, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {n.label}
                         </span>
-                      ))}
-                      <span style={{ display: "inline-flex", gap: 8, marginLeft: "auto" }}>
-                        {n.usage_level != null && n.usage_level !== 2 && (
-                          <MiniStat icon="ti-flame" color={T.gold}>{USAGE_META[n.usage_level]?.label}</MiniStat>
-                        )}
-                        {n.win_rate != null && (
-                          <MiniStat icon="ti-trophy" color={T.green}>{n.win_rate}割</MiniStat>
-                        )}
-                        {n.like_level != null && (
-                          <MiniStat icon="ti-heart" color={T.red}>{LIKE_LEVELS.find((l) => l.value === n.like_level)?.label}</MiniStat>
-                        )}
-                      </span>
+                        <StatusChip status={n.status} />
+                        <i className="ti ti-chevron-right" style={{ fontSize: "0.875rem", color: T.gray, flexShrink: 0 }} />
+                      </div>
+                      {/* 3行目: タグ + 評価バッジ（設定済みのものだけ表示） */}
+                      {(tags.length > 0 || n.win_rate != null || n.like_level != null || n.usage_level != null) && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
+                          {tags.slice(0, 4).map((t) => (
+                            <span key={t} style={{ fontSize: T.fontSize.xs, padding: "1px 6px", borderRadius: T.radius.sm, background: "rgba(26,15,0,0.06)", color: T.inkMid, fontFamily: T.fontSerif }}>
+                              {t}
+                            </span>
+                          ))}
+                          <span style={{ display: "inline-flex", gap: 8, marginLeft: "auto" }}>
+                            {n.usage_level != null && n.usage_level !== 2 && (
+                              <MiniStat icon="ti-flame" color={T.gold}>{USAGE_META[n.usage_level]?.label}</MiniStat>
+                            )}
+                            {n.win_rate != null && (
+                              <MiniStat icon="ti-trophy" color={T.green}>{n.win_rate}割</MiniStat>
+                            )}
+                            {n.like_level != null && (
+                              <MiniStat icon="ti-heart" color={T.red}>{LIKE_LEVELS.find((l) => l.value === n.like_level)?.label}</MiniStat>
+                            )}
+                          </span>
+                        </div>
+                      )}
+                      {/* 4行目: メモの冒頭（あれば1行だけ） */}
+                      {n.memo && (
+                        <div style={{ fontSize: T.fontSize.sm, color: T.inkMid, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: T.fontSerif }}>
+                          {n.memo}
+                        </div>
+                      )}
                     </div>
-                  )}
-                  {/* 4行目: メモの冒頭（あれば1行だけ） */}
-                  {n.memo && (
-                    <div style={{ fontSize: T.fontSize.sm, color: T.inkMid, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: T.fontSerif }}>
-                      {n.memo}
-                    </div>
-                  )}
+                    {/* ミニ盤面（盤面から探せるように。非表示設定の盤面は出さない） */}
+                    {n.board && !n.board_hidden && (
+                      <MiniBoard board={n.board} size={80} style={{ alignSelf: "center" }} />
+                    )}
+                  </div>
                 </div>
               );
             })}
