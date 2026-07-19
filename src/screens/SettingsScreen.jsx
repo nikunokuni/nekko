@@ -149,7 +149,7 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOn
         {/* ノード詳細「ついか」の表示項目カスタマイズ */}
         <div style={{ marginBottom: 28 }}>
           <div style={{ fontSize: T.fontSize.md, color: T.inkMid, marginBottom: 10, letterSpacing: "0.08em" }}>
-            ノード編集の「ついか」に表示する項目
+            ノード編集画面に表示する項目
           </div>
           <div style={{ borderRadius: T.radius.md, border: `0.5px solid ${T.inkLine}`, overflow: "hidden" }}>
             {TSUIKA_ITEMS.map((it, i) => (

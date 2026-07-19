@@ -391,6 +391,9 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
     studyMemo:   isTsuikaVisible("studyMemo"),
   };
   const tsuikaAny = Object.values(tsuikaShow).some(Boolean);
+  // 「ついか」の外にあるカスタム対象（一言コメント＝メモの下 / 評価値＝盤面の下）
+  const showCommentTags = isTsuikaVisible("commentTags");
+  const showEvaluation  = isTsuikaVisible("evaluation");
 
   // 「親ノードの盤面を引き継いでいます」バナーは、実際に親と同一局面（＝引き継いだまま
   // 編集していない）ときだけ表示する。テンプレート読込や編集で局面が変わったら消す。
@@ -814,6 +817,7 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
         {/* 一言コメント（感触・課題タグ）
             言葉にするのが難しいときの受け皿なので、「ついか」の奥ではなく
             対局直後に目に入るメモの直下に置く（閉じているときは選択済みタグのみ表示） */}
+        {showCommentTags && (
         <TagPickerField
           label="一言コメント（タップで気軽に記録）"
           text={commentTags}
@@ -827,6 +831,7 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
             setCommentCustomTags(getCommentCustomTags());
           }}
         />
+        )}
 
         <Divider />
 
@@ -919,7 +924,8 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
               })}
             </div>
 
-            {/* 評価値（符号は選択式・数値は入力） */}
+            {/* 評価値（符号は選択式・数値は入力）。設定でOFFにできる（手番は残る） */}
+            {showEvaluation && (
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <SectionLabel>評価値</SectionLabel>
               {[["+", T.blue, T.blueBg], ["-", T.redDark, T.redBg]].map(([sign, color, bg]) => {
@@ -961,6 +967,7 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
                 }}
               />
             </div>
+            )}
           </div>
         )}
 

@@ -194,11 +194,15 @@ export const BOARD_TEMPLATES = [
 */
 ];
 
-// ── 「ついか」欄のカスタム表示項目 ─────────────────
-// ノード詳細の「ついか」内の項目は設定でON/OFFできる
-// （メモアプリとして、自分に必要な評価軸だけに絞れるように）。
+// ── ノード編集画面のカスタム表示項目 ─────────────────
+// ノード詳細の項目は設定でON/OFFできる
+// （メモアプリとして、自分に必要な項目だけに絞れるように）。
 // OFFは表示を消すだけで、入力済みのデータは消えない。
+// 「ついか」内の5項目に加え、一言コメント（メモの下）と評価値（盤面の下）も対象。
+// ※ 保存先のDB列名は歴史的経緯で tsuika_visibility のまま
 export const TSUIKA_ITEMS = [
+  { key: "commentTags", label: "一言コメント（メモの下）",       icon: "ti-message-2" },
+  { key: "evaluation",  label: "評価値（盤面の下）",             icon: "ti-chart-line" },
   { key: "orientation", label: "志向（攻め・受け・バランス）",   icon: "ti-compass" },
   { key: "usage",       label: "頻度（どのくらい指すか）",       icon: "ti-flame" },
   { key: "winRate",     label: "勝率（どのくらい勝てるか）",     icon: "ti-trophy" },
