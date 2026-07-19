@@ -391,9 +391,12 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
     studyMemo:   isTsuikaVisible("studyMemo"),
   };
   const tsuikaAny = Object.values(tsuikaShow).some(Boolean);
-  // 「ついか」の外にあるカスタム対象（一言コメント＝メモの下 / 評価値＝盤面の下）
+  // 「ついか」の外にあるカスタム対象（一言コメント＝メモの下 / 評価値＝盤面の下 /
+  // 合流＝親・子ノードの「その他の操作」内）。
+  // 合流OFFで消えるのは編集UIのみ。既存の合流データ（バッジ・マップの合流線）は残る
   const showCommentTags = isTsuikaVisible("commentTags");
   const showEvaluation  = isTsuikaVisible("evaluation");
+  const showMerge       = isTsuikaVisible("merge");
 
   // 「親ノードの盤面を引き継いでいます」バナーは、実際に親と同一局面（＝引き継いだまま
   // 編集していない）ときだけ表示する。テンプレート読込や編集で局面が変わったら消す。
@@ -688,12 +691,12 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
                   style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 4px", marginTop: 2, cursor: "pointer", color: T.inkFaint, fontSize: T.fontSize.sm, fontFamily: T.fontSerif }}
                 >
                   <i className="ti ti-chevron-right" style={{ fontSize: "0.6875rem", transition: "transform 0.15s", transform: parentDetailsOpen ? "rotate(90deg)" : "none" }} />
-                  その他の操作（合流・親の変更）
+                  その他の操作（{showMerge ? "合流・親の変更" : "親の変更"}）
                 </div>
 
                 {parentDetailsOpen && (
                   <div style={{ display: "flex", flexDirection: "row", gap: 8, padding: "2px 0 0 4px" }}>
-                    {onSetMergeParents && (
+                    {showMerge && onSetMergeParents && (
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <MergeLinkList
                           items={mergeParentIds.map((pid) => tree.nodes[pid]).filter(Boolean)}
@@ -1173,13 +1176,13 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
                 style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 4px", marginTop: 2, cursor: "pointer", color: T.inkFaint, fontSize: T.fontSize.sm, fontFamily: T.fontSerif }}
               >
                 <i className="ti ti-chevron-right" style={{ fontSize: "0.6875rem", transition: "transform 0.15s", transform: childDetailsOpen ? "rotate(90deg)" : "none" }} />
-                その他の操作（合流・子の移動）
+                その他の操作（{showMerge ? "合流・子の移動" : "子の移動"}）
               </div>
             )}
 
             {childDetailsOpen && (
               <div style={{ display: "flex", flexDirection: "row", gap: 8 }}>
-                {!node.isRoot && onSetMergeParents && (
+                {showMerge && !node.isRoot && onSetMergeParents && (
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <MergeLinkList
                       items={mergeChildren}

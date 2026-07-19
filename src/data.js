@@ -208,6 +208,7 @@ export const TSUIKA_ITEMS = [
   { key: "winRate",     label: "勝率（どのくらい勝てるか）",     icon: "ti-trophy" },
   { key: "likeLevel",   label: "好き度（どのくらい好きか）",     icon: "ti-heart" },
   { key: "studyMemo",   label: "研究メモ（狙い・注意・宿題）",   icon: "ti-notes" },
+  { key: "merge",       label: "合流（追加の親子リンク）",       icon: "ti-arrow-merge" },
 ];
 
 // ── 戦法グループ（相手の戦法・自分の戦法で共用）────
