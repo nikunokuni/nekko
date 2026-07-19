@@ -1,8 +1,33 @@
 // ══════════════════════════════════════════════════════════════════
 // SettingsScreen.jsx  ―  設定画面
 // ══════════════════════════════════════════════════════════════════
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { T } from "../theme";
+import { TSUIKA_ITEMS } from "../data";
+import { isTsuikaVisible, setTsuikaVisible } from "../rewards";
+
+// ── Toggle: ON/OFFスイッチ（ついか項目の表示設定で使用）──
+function Toggle({ on, onChange }) {
+  return (
+    <div
+      onClick={onChange}
+      role="switch"
+      aria-checked={on}
+      style={{
+        width: 40, height: 22, borderRadius: 11, flexShrink: 0,
+        background: on ? T.gold : "rgba(26,15,0,0.15)",
+        position: "relative", cursor: "pointer", transition: "background 0.15s",
+      }}
+    >
+      <div style={{
+        position: "absolute", top: 2, left: on ? 20 : 2,
+        width: 18, height: 18, borderRadius: "50%",
+        background: T.cream, transition: "left 0.15s",
+        boxShadow: "0 1px 3px rgba(26,15,0,0.25)",
+      }} />
+    </div>
+  );
+}
 
 const FONT_SCALE_OPTIONS = [
   { label: "小",   value: 0.85 },
@@ -60,6 +85,20 @@ const TOS_SECTIONS = [
 export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOnboard, onRegenerateRecovery, username, devStats }) {
   // 開発者向けの3項目はアコーディオンで隠す（デフォルトは閉じた状態）
   const [devOpen, setDevOpen] = useState(false);
+  // 「ついか」項目の表示設定（rewards のキャッシュを初期値に、切替時は両方更新）
+  const [tsuikaVis, setTsuikaVis] = useState(() =>
+    Object.fromEntries(TSUIKA_ITEMS.map((it) => [it.key, isTsuikaVisible(it.key)]))
+  );
+  // リロード直後は profiles のハイドレートより先にこの画面がマウントされることが
+  // あるため、profile（username）が届いた時点で保存済みの表示設定を読み直す
+  useEffect(() => {
+    setTsuikaVis(Object.fromEntries(TSUIKA_ITEMS.map((it) => [it.key, isTsuikaVisible(it.key)])));
+  }, [username]);
+  const handleTsuikaToggle = (key) => {
+    const next = !tsuikaVis[key];
+    setTsuikaVis((prev) => ({ ...prev, [key]: next }));
+    setTsuikaVisible(key, next);
+  };
   // ログインIDは肩越しに見られないよう既定で伏せ、タップで表示する
   const [idShown, setIdShown] = useState(false);
   // 利用規約は画面遷移せず、アプリ内モーダルで表示を完結させる
@@ -105,6 +144,35 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOn
               </button>
             );
           })}
+        </div>
+
+        {/* ノード詳細「ついか」の表示項目カスタマイズ */}
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ fontSize: T.fontSize.md, color: T.inkMid, marginBottom: 10, letterSpacing: "0.08em" }}>
+            ノード編集の「ついか」に表示する項目
+          </div>
+          <div style={{ borderRadius: T.radius.md, border: `0.5px solid ${T.inkLine}`, overflow: "hidden" }}>
+            {TSUIKA_ITEMS.map((it, i) => (
+              <div
+                key={it.key}
+                style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  padding: "13px 16px",
+                  borderBottom: i < TSUIKA_ITEMS.length - 1 ? `0.5px solid ${T.inkLineFaint}` : "none",
+                }}
+              >
+                <i className={`ti ${it.icon}`} style={{ fontSize: "1rem", color: tsuikaVis[it.key] ? T.gold : T.gray }} />
+                <span style={{ flex: 1, fontSize: T.fontSize.lg, color: tsuikaVis[it.key] ? T.ink : T.inkMid, fontFamily: T.fontSerif }}>
+                  {it.label}
+                </span>
+                <Toggle on={tsuikaVis[it.key]} onChange={() => handleTsuikaToggle(it.key)} />
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 6, marginTop: 8, fontSize: T.fontSize.base, color: T.inkFaint, lineHeight: 1.7 }}>
+            <i className="ti ti-info-circle" style={{ marginTop: 3, flexShrink: 0 }} />
+            <span>OFFにしても入力済みのデータは消えません。ONに戻すとそのまま再表示されます。</span>
+          </div>
         </div>
 
         {/* アカウント：ログインID（パスワード再設定に使う）。既定で伏せる */}

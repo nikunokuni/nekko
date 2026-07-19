@@ -25,10 +25,12 @@ export function useAuth() {
     if (!session) return;
     getProfile(session.user.id)
       .then(async ({ data }) => {
-        setProfile(data);
-        // ユーザー状態（実績・カスタムタグ）を profiles からハイドレートしてから
-        // ログインを記録する。旧 localStorage データがあればここで一度だけDBへ移行する。
+        // ユーザー状態（実績・カスタムタグ・ついか表示設定）を profiles から
+        // ハイドレートしてから profile を公開する。先に setProfile すると、
+        // profile の変化を合図に設定を読み直す画面がハイドレート前の既定値を
+        // 掴んでしまうため、順序を保証する。
         await initUserState(session.user.id, data);
+        setProfile(data);
         recordLogin();
         setLoginStats(getLoginStats());
       })

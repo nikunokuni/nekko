@@ -194,6 +194,18 @@ export const BOARD_TEMPLATES = [
 */
 ];
 
+// ── 「ついか」欄のカスタム表示項目 ─────────────────
+// ノード詳細の「ついか」内の項目は設定でON/OFFできる
+// （メモアプリとして、自分に必要な評価軸だけに絞れるように）。
+// OFFは表示を消すだけで、入力済みのデータは消えない。
+export const TSUIKA_ITEMS = [
+  { key: "orientation", label: "志向（攻め・受け・バランス）",   icon: "ti-compass" },
+  { key: "usage",       label: "頻度（どのくらい指すか）",       icon: "ti-flame" },
+  { key: "winRate",     label: "勝率（どのくらい勝てるか）",     icon: "ti-trophy" },
+  { key: "likeLevel",   label: "好き度（どのくらい好きか）",     icon: "ti-heart" },
+  { key: "studyMemo",   label: "研究メモ（狙い・注意・宿題）",   icon: "ti-notes" },
+];
+
 // ── 戦法グループ（相手の戦法・自分の戦法で共用）────
 export const STRATEGY_GROUPS = [
   {

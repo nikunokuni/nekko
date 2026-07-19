@@ -9,7 +9,7 @@ import {
 import {
   STATUS_META, ORIENTATION_META, STRATEGY_GROUPS, WIN_RATE_LEVELS, LIKE_LEVELS, COMMENT_GROUPS, USAGE_LEVELS, USAGE_META,
 } from "../data";
-import { recordAction, getCustomTagsByGroup, addCustomTag, getCommentCustomTags, addCommentCustomTag } from "../rewards";
+import { recordAction, getCustomTagsByGroup, addCustomTag, getCommentCustomTags, addCommentCustomTag, isTsuikaVisible } from "../rewards";
 import { T, INPUT_STYLE, MODAL_OVERLAY_STYLE, MODAL_SHEET_STYLE, cloneBoard } from "../theme";
 import { SectionLabel, BoardSection, MergeLinkList, LinkPicker, TagPickerField, KifuPreviewBoard, IconRating } from "../components/uiParts";
 import { fetchMyKifus, fetchKifu, kifuRowToKifu } from "../db";
@@ -380,6 +380,17 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
 
   const parent   = node.parentId ? tree.nodes[node.parentId] : null;
   const children = (node.childIds || []).map((id) => tree.nodes[id]).filter(Boolean);
+
+  // 「ついか」内の各項目の表示可否（設定でON/OFF可能。OFFでもデータは残る）。
+  // 全項目OFFなら「ついか」セクション自体を出さない
+  const tsuikaShow = {
+    orientation: !node.isRoot && isTsuikaVisible("orientation"),
+    usage:       isTsuikaVisible("usage"),
+    winRate:     isTsuikaVisible("winRate"),
+    likeLevel:   isTsuikaVisible("likeLevel"),
+    studyMemo:   isTsuikaVisible("studyMemo"),
+  };
+  const tsuikaAny = Object.values(tsuikaShow).some(Boolean);
 
   // 「親ノードの盤面を引き継いでいます」バナーは、実際に親と同一局面（＝引き継いだまま
   // 編集していない）ときだけ表示する。テンプレート読込や編集で局面が変わったら消す。
@@ -969,7 +980,9 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
 
         <SectionDivider />
 
-        {/* ════════════════ ついか ════════════════ */}
+        {/* ════════════════ ついか ════════════════
+            項目は設定でON/OFFできる。全項目OFFのときはセクションごと非表示 */}
+        {tsuikaAny && <>
         <div onClick={() => setAddOpen((v) => !v)} style={{ cursor: "pointer" }}>
           <SectionHeader icon="ti-adjustments" dataOnboard="tsuika">
             ついか
@@ -980,7 +993,7 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
         {addOpen && <>
 
         {/* 志向（攻め / 受け / バランス / 不明）*/}
-        {!node.isRoot && (
+        {tsuikaShow.orientation && (
           <div style={{ padding: "0 16px 10px" }}>
             <SectionLabel style={{ marginBottom: 5 }}>志向</SectionLabel>
             <div style={{ display: "flex", gap: 6 }}>
@@ -1019,6 +1032,7 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
         {/* 頻度（炎）／勝率（トロフィー）／好き度（ハート）
             同じ形のラジオが3段並ぶと軸の違いが分かりにくいため、
             軸ごとにアイコンの形と色を変えて視覚で区別する */}
+        {tsuikaShow.usage && (
         <div style={{ padding: "0 16px 10px" }}>
           <SectionLabel style={{ marginBottom: 5 }}>
             <i className="ti ti-flame" style={{ fontSize: "0.75rem", color: T.gold, marginRight: 4 }} />
@@ -1035,7 +1049,9 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
             valueLabel={USAGE_META[usageLevel]?.label ?? "未設定"}
           />
         </div>
+        )}
 
+        {tsuikaShow.winRate && (
         <div style={{ padding: "0 16px 10px" }}>
           <SectionLabel style={{ marginBottom: 5 }}>
             <i className="ti ti-trophy" style={{ fontSize: "0.75rem", color: T.green, marginRight: 4 }} />
@@ -1051,7 +1067,9 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
             valueLabel={winRate != null ? `${winRate}割くらい勝てる` : "未設定"}
           />
         </div>
+        )}
 
+        {tsuikaShow.likeLevel && (
         <div style={{ padding: "0 16px 10px" }}>
           <SectionLabel style={{ marginBottom: 5 }}>
             <i className="ti ti-heart" style={{ fontSize: "0.75rem", color: T.red, marginRight: 4 }} />
@@ -1068,8 +1086,10 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
             valueLabel={LIKE_LEVELS.find((l) => l.value === likeLevel)?.label ?? "未設定"}
           />
         </div>
+        )}
 
-        {/* ════ コメント（折りたたみ） ════ */}
+        {/* ════ 研究メモ（折りたたみ） ════ */}
+        {tsuikaShow.studyMemo && <>
         <div
           onClick={() => setCommentOpen((v) => !v)}
           style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 16px 6px", cursor: "pointer" }}
@@ -1099,10 +1119,12 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
             </div>
           ))}
         </>}
+        </>}
 
         </>}
 
         <SectionDivider />
+        </>}
 
         {/* ════════════════ 子ノード ════════════════ */}
         <SectionHeader icon="ti-git-branch" dataOnboard="children">子ノード</SectionHeader>

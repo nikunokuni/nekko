@@ -21,6 +21,7 @@ let _state = {
   earnedBadges: [], // バッジID[]
   customTags:   [], // { name, group }[]（戦法タグ）
   commentTags:  [], // { name, group }[]（コメントタグ）
+  tsuikaVisibility: {}, // 「ついか」欄の表示設定。{ key:false } のときだけ非表示
 };
 
 // 旧localStorageキー（初回ログイン時にDBへ一度だけ移行してから掃除する）
@@ -76,6 +77,8 @@ export async function initUserState(userId, profileRow) {
     earnedBadges: Array.isArray(profileRow?.earned_badges) ? [...profileRow.earned_badges] : [],
     customTags:   normTags(profileRow?.custom_strategy_tags),
     commentTags:  normTags(profileRow?.custom_comment_tags),
+    tsuikaVisibility: profileRow?.tsuika_visibility && typeof profileRow.tsuika_visibility === "object"
+      ? { ...profileRow.tsuika_visibility } : {},
   };
   await migrateLegacyLocalStorage();
 }
@@ -83,7 +86,22 @@ export async function initUserState(userId, profileRow) {
 /** ログアウト時にキャッシュを空にする（次のユーザーへ持ち越さない） */
 export function resetUserState() {
   _userId = null;
-  _state = { loginDays: [], actions: {}, earnedBadges: [], customTags: [], commentTags: [] };
+  _state = { loginDays: [], actions: {}, earnedBadges: [], customTags: [], commentTags: [], tsuikaVisibility: {} };
+}
+
+// ── 「ついか」欄の表示設定 ─────────────────────────
+// { key:false } のときだけ非表示（既定＝全項目表示）。
+// OFFにしても入力済みのデータは消えず、ONに戻せばそのまま再表示される。
+
+/** その項目を表示するかどうか（未設定は表示） */
+export function isTsuikaVisible(key) {
+  return _state.tsuikaVisibility[key] !== false;
+}
+
+/** 項目の表示/非表示を切り替えて保存する */
+export function setTsuikaVisible(key, visible) {
+  _state.tsuikaVisibility = { ..._state.tsuikaVisibility, [key]: !!visible };
+  persist({ tsuika_visibility: _state.tsuikaVisibility });
 }
 
 // 旧 localStorage のユーザー状態を DB へ一度だけ移行する。
