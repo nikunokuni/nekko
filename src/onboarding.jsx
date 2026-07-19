@@ -10,10 +10,20 @@ import { shouldShowOnboard, markOnboardSeen } from "./rewards";
 // 各画面は配列で、複数枚を順番に（連続で）表示する
 export const ONBOARD_MESSAGES = {
   list: [
+    <span><i className="ti ti-search" />ノード検索　全ツリーのノードをまとめて探せます</span>,
     <span><i className="ti ti-world" />みんなのツリー　公開されているツリーを見れます</span>,
     <span><i className="ti ti-trophy" />トロフィー　獲得したトロフィーを見れます</span>,
     <span><i className="ti ti-settings" />設定　文字サイズ変更、使い方はこちら</span>,
     <span>「<i className="ti ti-plus" />新規」から自分のツリーを作っていきましょう</span>,
+  ],
+  // ノード検索画面に初めて来たとき、絞り込み・並び替え・盤面サムネイルを案内する
+  search: [
+    <span><b>ノード検索</b>　名前・メモ・戦法で、全ツリーのノードをまとめて探せます</span>,
+    <span>ステータスや戦法で<b>絞り込み</b>、勝率・好き度・頻度で<b>並び替え</b>。盤面のサムネイルからも探せます</span>,
+  ],
+  // 設定画面に初めて来たとき、追加した「表示項目カスタマイズ」を案内する
+  settings: [
+    <span><b>ノード編集画面に表示する項目</b>　使わない項目をオフにして、入力をすっきりできます</span>,
   ],
   map: [
     <span>ノードを<b>タップ</b>で編集</span>,
@@ -47,7 +57,8 @@ export const ONBOARD_MESSAGES = {
 
 // 各トーストが指さす対象（data-onboard 属性値）。null は指さし対象なし（トーストのみ）
 export const ONBOARD_TARGETS = {
-  list: ["public", "trophy", "settings", "new"],
+  list: ["search", "public", "trophy", "settings", "new"],
+  // search / settings は指さし対象なし（中央にトーストのみ表示）
   map:  ["map-node", "map-node", "map-menu"],
   node: ["kihon", "tsuika", "children"],
   board: ["board-tmpl", "board-hide", "board-undo", "board-delete", "board-move", "board-stamp", "board-erase", "board-kifu"],

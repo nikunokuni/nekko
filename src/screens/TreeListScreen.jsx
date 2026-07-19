@@ -484,7 +484,7 @@ export function TreeList({ trees, profile, onOpen, onPublic, onSearch, onKifus, 
         </div>
 
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <button title="ノード検索" onClick={onSearch} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
+          <button data-onboard="search" title="ノード検索" onClick={onSearch} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
             <i className="ti ti-search" />
           </button>
           <button data-onboard="public" onClick={onPublic} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
