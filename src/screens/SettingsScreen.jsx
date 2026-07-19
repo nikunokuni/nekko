@@ -85,6 +85,8 @@ const TOS_SECTIONS = [
 export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOnboard, onRegenerateRecovery, username, devStats }) {
   // 開発者向けの3項目はアコーディオンで隠す（デフォルトは閉じた状態）
   const [devOpen, setDevOpen] = useState(false);
+  // 表示項目カスタマイズも普段は触らないため、アコーディオンで隠す（デフォルト閉じる）
+  const [tsuikaOpen, setTsuikaOpen] = useState(false);
   // 「ついか」項目の表示設定（rewards のキャッシュを初期値に、切替時は両方更新）
   const [tsuikaVis, setTsuikaVis] = useState(() =>
     Object.fromEntries(TSUIKA_ITEMS.map((it) => [it.key, isTsuikaVisible(it.key)]))
@@ -146,11 +148,23 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOn
           })}
         </div>
 
-        {/* ノード詳細「ついか」の表示項目カスタマイズ */}
+        {/* ノード詳細の表示項目カスタマイズ。普段は触らないためアコーディオンで隠す */}
         <div style={{ marginBottom: 28 }}>
-          <div style={{ fontSize: T.fontSize.md, color: T.inkMid, marginBottom: 10, letterSpacing: "0.08em" }}>
-            ノード編集画面に表示する項目
-          </div>
+          <button
+            onClick={() => setTsuikaOpen((v) => !v)}
+            style={{
+              display: "flex", alignItems: "center", gap: 6, width: "100%",
+              marginBottom: tsuikaOpen ? 10 : 0,
+              padding: 0,
+              background: "none", border: "none", cursor: "pointer",
+              fontSize: T.fontSize.md, color: T.inkMid, letterSpacing: "0.08em",
+              fontFamily: T.fontSerif, textAlign: "left",
+            }}
+          >
+            <span style={{ flex: 1 }}>ノード編集画面に表示する項目</span>
+            <i className={`ti ti-chevron-${tsuikaOpen ? "up" : "down"}`} style={{ fontSize: "0.8125rem", color: T.inkMid }} />
+          </button>
+          {tsuikaOpen && <>
           <div style={{ borderRadius: T.radius.md, border: `0.5px solid ${T.inkLine}`, overflow: "hidden" }}>
             {TSUIKA_ITEMS.map((it, i) => (
               <div
@@ -173,6 +187,7 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOn
             <i className="ti ti-info-circle" style={{ marginTop: 3, flexShrink: 0 }} />
             <span>OFFにしても入力済みのデータは消えません。ONに戻すとそのまま再表示されます。</span>
           </div>
+          </>}
         </div>
 
         {/* アカウント：ログインID（パスワード再設定に使う）。既定で伏せる */}
