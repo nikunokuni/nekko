@@ -12,6 +12,7 @@ import { MindMap } from "./screens/MindMapScreen";
 import { NodeDetail } from "./screens/NodeDetailScreen";
 import { TrophyScreen } from "./screens/TrophyScreen";
 import { KifuList } from "./screens/KifuListScreen";
+import { NodeSearch } from "./screens/NodeSearchScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import {
   createTree, createNode, updateNode, updateTree, deleteTree, copyTree,
@@ -45,6 +46,7 @@ export default function App() {
     if ((m = matchPath("/tree/:treeId/preview",      p))) return { screen: "publicPreview",  treeId: m.params.treeId, nodeId: null };
     if ((m = matchPath("/tree/:treeId",              p))) return { screen: "map",            treeId: m.params.treeId, nodeId: null };
     if (matchPath("/public",   p)) return { screen: "public",   treeId: null, nodeId: null };
+    if (matchPath("/search",   p)) return { screen: "search",   treeId: null, nodeId: null };
     if (matchPath("/kifus",    p)) return { screen: "kifus",    treeId: null, nodeId: null };
     if (matchPath("/trophy",   p)) return { screen: "trophy",   treeId: null, nodeId: null };
     if (matchPath("/settings", p)) return { screen: "settings", treeId: null, nodeId: null };
@@ -483,6 +485,7 @@ export default function App() {
           <TreeList trees={myTrees} profile={profile}
             onOpen={handleOpenTree}
             onPublic={() => navigate("/public")}
+            onSearch={() => navigate("/search")}
             onKifus={() => navigate("/kifus")}
             onTrophy={() => navigate("/trophy")}
             onSettings={() => navigate("/settings")}
@@ -530,6 +533,16 @@ export default function App() {
         )}
         {screen==="kifus" && (
           <KifuList userId={session.user.id} onBack={() => navigate("/")} />
+        )}
+        {screen==="search" && (
+          <NodeSearch
+            userId={session.user.id}
+            trees={myTrees}
+            onBack={() => navigate("/")}
+            // 結果タップでノード詳細へ直接ジャンプする。
+            // ツリーの読み込みはディープリンク用の useEffect（route.treeId 監視）が行う
+            onOpenNode={(treeId, nodeId) => navigate(`/tree/${treeId}/node/${nodeId}`)}
+          />
         )}
         {screen==="settings" && (
           <SettingsScreen onBack={() => navigate("/")}

@@ -370,7 +370,7 @@ function TreeCard({ tree, onOpen, onEdit, onDelete, onMemoSave }) {
               value={memoValue}
               onChange={(e) => setMemoValue(e.target.value)}
               onBlur={handleMemoBlur}
-              placeholder="一言メモをさっと入力..."
+              placeholder="時間がないときは、とりあえずここへ（あとで整理すればOK）"
               rows={2}
               style={{
                 width: "100%", boxSizing: "border-box",
@@ -459,7 +459,7 @@ function TreeCard({ tree, onOpen, onEdit, onDelete, onMemoSave }) {
 // ══════════════════════════════════════════════════════════════════
 // TreeList: ツリー一覧画面
 // ══════════════════════════════════════════════════════════════════
-export function TreeList({ trees, profile, onOpen, onPublic, onKifus, onTrophy, onSettings, onNewTree, onSignOut, onDeleteTree, onEditTree, onPublish, onUnpublish, onMemoSave }) {
+export function TreeList({ trees, profile, onOpen, onPublic, onSearch, onKifus, onTrophy, onSettings, onNewTree, onSignOut, onDeleteTree, onEditTree, onPublish, onUnpublish, onMemoSave }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editTarget,      setEditTarget]      = useState(null);
   const [deleteTarget,    setDeleteTarget]    = useState(null);
@@ -484,6 +484,9 @@ export function TreeList({ trees, profile, onOpen, onPublic, onKifus, onTrophy, 
         </div>
 
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <button title="ノード検索" onClick={onSearch} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
+            <i className="ti ti-search" />
+          </button>
           <button data-onboard="public" onClick={onPublic} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
             <i className="ti ti-world" />
           </button>

@@ -11,7 +11,7 @@ import {
 } from "../data";
 import { recordAction, getCustomTagsByGroup, addCustomTag, getCommentCustomTags, addCommentCustomTag } from "../rewards";
 import { T, INPUT_STYLE, MODAL_OVERLAY_STYLE, MODAL_SHEET_STYLE, cloneBoard } from "../theme";
-import { SectionLabel, BoardSection, MergeLinkList, LinkPicker, TagPickerField, KifuPreviewBoard } from "../components/uiParts";
+import { SectionLabel, BoardSection, MergeLinkList, LinkPicker, TagPickerField, KifuPreviewBoard, IconRating } from "../components/uiParts";
 import { fetchMyKifus, fetchKifu, kifuRowToKifu } from "../db";
 
 // ──────────────────────────────────────────
@@ -792,13 +792,30 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
           <textarea
             value={memo}
             onChange={(e) => { setMemo(e.target.value); scheduleSave({ memo: e.target.value }); }}
-            placeholder="気づき・方針・手順のポイントなど"
+            placeholder="この局面の気づき・方針を自由に（迷ったらまずここに）"
             rows={4}
             style={{ width: "100%", border: `0.5px solid ${T.inkLine}`, borderRadius: T.radius.sm, padding: "10px 12px", fontSize: T.fontSize.base, color: T.ink, background: T.cream, resize: "none", fontFamily: T.fontSerif, lineHeight: 1.7, outline: "none" }}
             onFocus={(e) => (e.target.style.borderColor = T.gold)}
             onBlur={(e)  => { e.target.style.borderColor = T.inkLine; flushSave(); }}
           />
         </div>
+
+        {/* 一言コメント（感触・課題タグ）
+            言葉にするのが難しいときの受け皿なので、「ついか」の奥ではなく
+            対局直後に目に入るメモの直下に置く（閉じているときは選択済みタグのみ表示） */}
+        <TagPickerField
+          label="一言コメント（タップで気軽に記録）"
+          text={commentTags}
+          onSelectTag={(next) => saveField({ commentTags: next },
+            () => setCommentTags(next.join("、")),
+            () => setCommentTags((node.commentTags || []).join("、")))}
+          groups={COMMENT_GROUPS}
+          customTags={commentCustomTags}
+          onAddCustomTag={(tag, group) => {
+            addCommentCustomTag(tag, group);
+            setCommentCustomTags(getCommentCustomTags());
+          }}
+        />
 
         <Divider />
 
@@ -999,85 +1016,57 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
           </div>
         )}
 
-        {/* 頻度 */}
+        {/* 頻度（炎）／勝率（トロフィー）／好き度（ハート）
+            同じ形のラジオが3段並ぶと軸の違いが分かりにくいため、
+            軸ごとにアイコンの形と色を変えて視覚で区別する */}
         <div style={{ padding: "0 16px 10px" }}>
-          <SectionLabel style={{ marginBottom: 5 }}>頻度</SectionLabel>
-          <div style={{ display: "flex", alignItems: "center" }}>
-            {USAGE_LEVELS.map((lvl, i) => (
-              <div key={lvl} style={{ display: "flex", alignItems: "center", flex: i < USAGE_LEVELS.length - 1 ? 1 : "0 0 auto" }}>
-                <input
-                  type="radio"
-                  name="usageLevel"
-                  value={lvl}
-                  checked={usageLevel === lvl}
-                  onChange={() => saveField({ usageLevel: lvl },
-                    () => setUsageLevel(lvl),
-                    () => setUsageLevel(node.usageLevel || 2))}
-                  style={{ width: 15, height: 15, margin: 0, accentColor: T.gold, cursor: "pointer", flexShrink: 0 }}
-                />
-                {i < USAGE_LEVELS.length - 1 && <div style={{ flex: 1, height: 1, background: T.inkLine, margin: "0 3px" }} />}
-              </div>
-            ))}
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-            <span style={{ fontSize: T.fontSize.xs, color: T.inkMid, fontFamily: T.fontSerif }}>{USAGE_META[USAGE_LEVELS[0]].label}</span>
-            <span style={{ fontSize: T.fontSize.xs, color: T.inkMid, fontFamily: T.fontSerif }}>{USAGE_META[USAGE_LEVELS[USAGE_LEVELS.length - 1]].label}</span>
-          </div>
+          <SectionLabel style={{ marginBottom: 5 }}>
+            <i className="ti ti-flame" style={{ fontSize: "0.75rem", color: T.gold, marginRight: 4 }} />
+            頻度（どのくらい指すか）
+          </SectionLabel>
+          <IconRating
+            icon="ti-flame" color={T.gold} bg={T.goldLight}
+            levels={USAGE_LEVELS} value={usageLevel}
+            onChange={(lvl) => saveField({ usageLevel: lvl },
+              () => setUsageLevel(lvl),
+              () => setUsageLevel(node.usageLevel || 2))}
+            lowLabel={USAGE_META[USAGE_LEVELS[0]].label}
+            highLabel={USAGE_META[USAGE_LEVELS[USAGE_LEVELS.length - 1]].label}
+            valueLabel={USAGE_META[usageLevel]?.label ?? "未設定"}
+          />
         </div>
 
-        {/* 勝率 */}
         <div style={{ padding: "0 16px 10px" }}>
-          <SectionLabel style={{ marginBottom: 5 }}>勝率</SectionLabel>
-          <div style={{ display: "flex", alignItems: "center" }}>
-            {WIN_RATE_LEVELS.map((lvl, i) => (
-              <div key={lvl} style={{ display: "flex", alignItems: "center", flex: i < WIN_RATE_LEVELS.length - 1 ? 1 : "0 0 auto" }}>
-                <input
-                  type="radio"
-                  name="winRate"
-                  value={lvl}
-                  checked={winRate === lvl}
-                  onChange={() => saveField({ winRate: lvl },
-                    () => setWinRate(lvl),
-                    () => setWinRate(node.winRate ?? null))}
-                  style={{ width: 15, height: 15, margin: 0, accentColor: T.gold, cursor: "pointer", flexShrink: 0 }}
-                />
-                {i < WIN_RATE_LEVELS.length - 1 && <div style={{ flex: 1, height: 1, background: T.inkLine, margin: "0 3px" }} />}
-              </div>
-            ))}
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-            <span style={{ fontSize: T.fontSize.xs, color: T.inkMid, fontFamily: T.fontSerif }}>勝てない</span>
-            <span style={{ fontSize: T.fontSize.xs, color: T.inkMid, fontFamily: T.fontSerif }}>勝ちやすい</span>
-          </div>
-          <div style={{ fontSize: T.fontSize.xs, color: T.inkMid, marginTop: 3, fontFamily: T.fontSerif }}>
-            {winRate != null ? `${winRate}割くらい勝てる` : "未設定"}
-          </div>
+          <SectionLabel style={{ marginBottom: 5 }}>
+            <i className="ti ti-trophy" style={{ fontSize: "0.75rem", color: T.green, marginRight: 4 }} />
+            勝率（どのくらい勝てるか）
+          </SectionLabel>
+          <IconRating
+            icon="ti-trophy" color={T.green} bg={T.greenBg}
+            levels={WIN_RATE_LEVELS} value={winRate} clearable
+            onChange={(lvl) => saveField({ winRate: lvl },
+              () => setWinRate(lvl),
+              () => setWinRate(node.winRate ?? null))}
+            lowLabel="勝てない" highLabel="勝ちやすい"
+            valueLabel={winRate != null ? `${winRate}割くらい勝てる` : "未設定"}
+          />
         </div>
 
-        {/* 好き度 */}
         <div style={{ padding: "0 16px 10px" }}>
-          <SectionLabel style={{ marginBottom: 5 }}>好き度</SectionLabel>
-          <div style={{ display: "flex", alignItems: "center" }}>
-            {LIKE_LEVELS.map((lvl, i) => (
-              <div key={lvl.value} style={{ display: "flex", alignItems: "center", flex: i < LIKE_LEVELS.length - 1 ? 1 : "0 0 auto" }}>
-                <input
-                  type="radio"
-                  name="likeLevel"
-                  value={lvl.value}
-                  checked={likeLevel === lvl.value}
-                  onChange={() => saveField({ likeLevel: lvl.value },
-                    () => setLikeLevel(lvl.value),
-                    () => setLikeLevel(node.likeLevel ?? null))}
-                  style={{ width: 15, height: 15, margin: 0, accentColor: T.gold, cursor: "pointer", flexShrink: 0 }}
-                />
-                {i < LIKE_LEVELS.length - 1 && <div style={{ flex: 1, height: 1, background: T.inkLine, margin: "0 3px" }} />}
-              </div>
-            ))}
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-            <span style={{ fontSize: T.fontSize.xs, color: T.inkMid, fontFamily: T.fontSerif }}>{LIKE_LEVELS[0].label}</span>
-            <span style={{ fontSize: T.fontSize.xs, color: T.inkMid, fontFamily: T.fontSerif }}>{LIKE_LEVELS[LIKE_LEVELS.length - 1].label}</span>
-          </div>
+          <SectionLabel style={{ marginBottom: 5 }}>
+            <i className="ti ti-heart" style={{ fontSize: "0.75rem", color: T.red, marginRight: 4 }} />
+            好き度（どのくらい好きか）
+          </SectionLabel>
+          <IconRating
+            icon="ti-heart" color={T.red} bg={T.redBg}
+            levels={LIKE_LEVELS.map((l) => l.value)} value={likeLevel} clearable
+            onChange={(lvl) => saveField({ likeLevel: lvl },
+              () => setLikeLevel(lvl),
+              () => setLikeLevel(node.likeLevel ?? null))}
+            lowLabel={LIKE_LEVELS[0].label}
+            highLabel={LIKE_LEVELS[LIKE_LEVELS.length - 1].label}
+            valueLabel={LIKE_LEVELS.find((l) => l.value === likeLevel)?.label ?? "未設定"}
+          />
         </div>
 
         {/* ════ コメント（折りたたみ） ════ */}
@@ -1085,15 +1074,16 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
           onClick={() => setCommentOpen((v) => !v)}
           style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 16px 6px", cursor: "pointer" }}
         >
-          <SectionLabel style={{ marginBottom: 0 }}>コメント</SectionLabel>
+          {/* 一言コメントはメモ直下（きほん）へ移動済み。ここは研究時に書く3欄のみ */}
+          <SectionLabel style={{ marginBottom: 0 }}>研究メモ（狙い・注意・宿題）</SectionLabel>
           <i className={`ti ti-chevron-${commentOpen ? "up" : "down"}`} style={{ fontSize: "0.8125rem", color: T.inkMid }} />
         </div>
 
         {commentOpen && <>
           {[
-            { label: "ここでの狙い",   value: aim,       set: setAim,       key: "aim",       placeholder: "この局面・戦法で目指すこと" },
-            { label: "気を付けること", value: caution,   set: setCaution,   key: "caution",   placeholder: "ミスしやすい点・落とし穴" },
-            { label: "次に調べること", value: nextStudy, set: setNextStudy, key: "nextStudy", placeholder: "宿題・深掘りしたい手順" },
+            { label: "ここでの狙い",   value: aim,       set: setAim,       key: "aim",       placeholder: "じっくり研究するときに：この局面で目指すこと" },
+            { label: "気を付けること", value: caution,   set: setCaution,   key: "caution",   placeholder: "じっくり研究するときに：ミスしやすい点・落とし穴" },
+            { label: "次に調べること", value: nextStudy, set: setNextStudy, key: "nextStudy", placeholder: "次の研究への宿題・深掘りしたい手順" },
           ].map(({ label, value, set, key, placeholder }) => (
             <div key={key} style={{ padding: "0 16px 10px" }}>
               <SectionLabel style={{ marginBottom: 5 }}>{label}</SectionLabel>
@@ -1108,21 +1098,6 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
               />
             </div>
           ))}
-
-          <TagPickerField
-            label="一言コメント"
-            text={commentTags}
-            onSelectTag={(next) => saveField({ commentTags: next },
-              () => setCommentTags(next.join("、")),
-              () => setCommentTags((node.commentTags || []).join("、")))}
-            groups={COMMENT_GROUPS}
-            customTags={commentCustomTags}
-            onAddCustomTag={(tag, group) => {
-              addCommentCustomTag(tag, group);
-              setCommentCustomTags(getCommentCustomTags());
-            }}
-            noToggle
-          />
         </>}
 
         </>}

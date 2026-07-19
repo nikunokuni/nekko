@@ -41,6 +41,63 @@ export function SectionLabel({ children, style }) {
 }
 
 // ──────────────────────────────────────────
+// IconRating: アイコン連続タップ式の評価入力（頻度・勝率・好き度で共用）
+//   同じ見た目のラジオが3段並ぶと軸の違いが分かりにくいため、
+//   軸ごとにアイコンの形と色を変えて「何の評価か」を視覚で示す。
+//   levels: 保存される値の配列（例 [1,3,5,7,9]）。選んだ値以下のアイコンが点灯する
+//   clearable: 選択中の値をもう一度タップで未設定(null)に戻せる
+// ──────────────────────────────────────────
+export function IconRating({ icon, color, bg, levels, value, onChange, lowLabel, highLabel, valueLabel, clearable = false }) {
+  const selectedIdx = levels.indexOf(value); // -1 = 未設定
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+      <div>
+        <div style={{ display: "flex", gap: 6 }}>
+          {levels.map((lvl, i) => {
+            const active = selectedIdx >= 0 && i <= selectedIdx;
+            return (
+              <div
+                key={lvl}
+                onClick={() => onChange(clearable && value === lvl ? null : lvl)}
+                title={String(lvl)}
+                style={{ cursor: "pointer", padding: "2px 3px", lineHeight: 1 }}
+              >
+                <i
+                  className={`ti ${icon}`}
+                  style={{
+                    fontSize:   "1.25rem",
+                    color:      active ? color : T.gray,
+                    opacity:    active ? 1 : 0.4,
+                    transition: "all 0.15s",
+                  }}
+                />
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 3 }}>
+          <span style={{ fontSize: T.fontSize.xs, color: T.inkMid, fontFamily: T.fontSerif }}>{lowLabel}</span>
+          <span style={{ fontSize: T.fontSize.xs, color: T.inkMid, fontFamily: T.fontSerif }}>{highLabel}</span>
+        </div>
+      </div>
+      {/* 現在値バッジ（未設定時は薄く表示） */}
+      <span style={{
+        fontSize:     T.fontSize.sm,
+        fontFamily:   T.fontSerif,
+        marginTop:    4,
+        padding:      "3px 9px",
+        borderRadius: T.radius.sm,
+        background:   value != null ? bg : "transparent",
+        color:        value != null ? color : T.inkFaint,
+        whiteSpace:   "nowrap",
+      }}>
+        {valueLabel}
+      </span>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────
 // ModalActionButtons: モーダル下部のボタン行
 // ──────────────────────────────────────────
 export function ModalActionButtons({ onCancel, onConfirm, confirmLabel, disabled, danger = false }) {

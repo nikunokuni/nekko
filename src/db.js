@@ -141,6 +141,20 @@ export async function fetchNodes(treeId) {
   return result;
 }
 
+/** 全ツリー横断のノード検索用に、自分の全ノードをメタデータのみで取得する。
+ *  board / kifu / stamps は重いので含めない。
+ *  ルートはツリー名と同一のため除外する（ツリー自体は一覧から探せる）。 */
+export async function fetchAllMyNodes(userId) {
+  const result = await supabase
+    .from("nodes")
+    .select("id, tree_id, label, status, memo, situation, my_approach, orientation, win_rate, like_level, usage_level, created_at")
+    .eq("user_id", userId)
+    .eq("is_root", false)
+    .order("created_at", { ascending: false });
+  if (result.error) console.error("fetchAllMyNodes error:", result.error);
+  return result;
+}
+
 /** ユーザーの全ツリーから未完成（wip / todo）かつルートでないノードを取得 */
 export async function fetchAllWipNodes(userId) {
   return supabase
