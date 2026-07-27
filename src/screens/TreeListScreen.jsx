@@ -273,6 +273,7 @@ function EditTreeModal({ tree, onClose, onSave, onPublish, onUnpublish }) {
 // ══════════════════════════════════════════════════════════════════
 function TreeCard({ tree, onOpen, onEdit, onDelete, onMemoSave }) {
   const [menuOpen,  setMenuOpen]  = useState(false);
+  const [memoOpen,  setMemoOpen]  = useState(false);
   const [memoValue, setMemoValue] = useState(tree.quick_memo || "");
 
   const nodeList      = (Array.isArray(tree.nodes) ? tree.nodes : []).filter((n) => !n.is_root);
@@ -287,9 +288,11 @@ function TreeCard({ tree, onOpen, onEdit, onDelete, onMemoSave }) {
   const handleMenuToggle = (e) => { e.stopPropagation(); setMenuOpen((v) => !v); };
   const handleEdit       = (e) => { e.stopPropagation(); setMenuOpen(false); onEdit(tree); };
   const handleDelete     = (e) => { e.stopPropagation(); setMenuOpen(false); onDelete(tree); };
+  const handleMemoToggle = (e) => { e.stopPropagation(); setMemoOpen((v) => !v); };
   const handleMemoBlur   = () => {
     const trimmed = memoValue.trim();
     if (trimmed !== (tree.quick_memo || "").trim()) onMemoSave?.(tree.id, trimmed);
+    setMemoOpen(false);
   };
 
   return (
@@ -308,11 +311,20 @@ function TreeCard({ tree, onOpen, onEdit, onDelete, onMemoSave }) {
         onMouseEnter={(e) => (e.currentTarget.style.borderColor = T.gold)}
         onMouseLeave={(e) => (e.currentTarget.style.borderColor = "rgba(200,169,110,0.35)")}
       >
-        {/* 1行目: 名前 + ステータスバッジ + 公開バッジ + メニューボタン */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        {/* 1行目: 名前 + メモアイコン + ステータスバッジ + 公開バッジ + メニューボタン */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: memoOpen ? 8 : 10 }}>
           <span style={{ fontSize: T.fontSize.xxl, fontWeight: 600, color: T.ink, fontFamily: T.fontTitle, flex: 1 }}>
             {tree.name}
           </span>
+
+          {/* 一言メモボタン */}
+          <button
+            onClick={handleMemoToggle}
+            title={memoValue || "一言メモ"}
+            style={{ background: "none", border: "none", cursor: "pointer", color: memoValue ? T.gold : T.inkFaint, fontSize: "1rem", padding: "2px 4px", borderRadius: 6, lineHeight: 1 }}
+          >
+            <i className="ti ti-notes" />
+          </button>
 
           {/* 使用中 / 休止中バッジ */}
           <span style={{
@@ -350,32 +362,31 @@ function TreeCard({ tree, onOpen, onEdit, onDelete, onMemoSave }) {
           </button>
         </div>
 
-        {/* 一言メモ入力欄（常に表示）。以前はアイコンで開閉していたが、
-            すぐ書けるよう常時表示にした */}
-        <div onClick={(e) => e.stopPropagation()} style={{ marginBottom: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 4, fontSize: T.fontSize.sm, color: memoValue ? T.gold : T.inkFaint, fontFamily: T.fontSerif }}>
-            <i className="ti ti-notes" style={{ fontSize: "0.75rem" }} />一言メモ
+        {/* 一言メモ入力欄（展開時） */}
+        {memoOpen && (
+          <div onClick={(e) => e.stopPropagation()} style={{ marginBottom: 10 }}>
+            <textarea
+              autoFocus
+              value={memoValue}
+              onChange={(e) => setMemoValue(e.target.value)}
+              onBlur={handleMemoBlur}
+              placeholder="時間がないときは、とりあえずここへ（あとで整理すればOK）"
+              rows={2}
+              style={{
+                width: "100%", boxSizing: "border-box",
+                border: "0.5px solid rgba(200,169,110,0.6)",
+                borderRadius: T.radius.md,
+                background: "rgba(255,252,240,0.9)",
+                padding: "8px 10px",
+                fontSize: T.fontSize.md,
+                color: T.ink,
+                fontFamily: T.fontSerif,
+                resize: "none",
+                outline: "none",
+              }}
+            />
           </div>
-          <textarea
-            value={memoValue}
-            onChange={(e) => setMemoValue(e.target.value)}
-            onBlur={handleMemoBlur}
-            placeholder="時間がないときは、とりあえずここへ（あとで整理すればOK）"
-            rows={2}
-            style={{
-              width: "100%", boxSizing: "border-box",
-              border: "0.5px solid rgba(200,169,110,0.6)",
-              borderRadius: T.radius.md,
-              background: "rgba(255,252,240,0.9)",
-              padding: "8px 10px",
-              fontSize: T.fontSize.md,
-              color: T.ink,
-              fontFamily: T.fontSerif,
-              resize: "none",
-              outline: "none",
-            }}
-          />
-        </div>
+        )}
 
         {/* 2行目: タグ */}
         {(tree.tags || []).length > 0 && (

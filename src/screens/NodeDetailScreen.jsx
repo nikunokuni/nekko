@@ -852,6 +852,7 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
             addCommentCustomTag(tag, group);
             setCommentCustomTags(getCommentCustomTags());
           }}
+          noToggle
         />
         )}
 
