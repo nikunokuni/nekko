@@ -5,47 +5,17 @@
 import { useState } from "react";
 import { T, MODAL_OVERLAY_STYLE, MODAL_SHEET_STYLE } from "../theme";
 import { InputField, SectionLabel, ModalActionButtons, ConfirmDeleteModal } from "../components/uiParts";
-import { importKifuText } from "../kifuParser";
-import { readKifuFile } from "../kifuFile";
 
 // ──────────────────────────────────────────
 // CreateTreeModal: 新規ツリー作成
 // ──────────────────────────────────────────
 function CreateTreeModal({ onClose, onCreate }) {
   const [name, setName] = useState("");
-  const [kifuFileName, setKifuFileName] = useState("");
-  const [kifuSnapshots, setKifuSnapshots] = useState(null);
-  const [kifuError, setKifuError] = useState("");
 
   const handleCreate = () => {
     if (!name.trim()) return;
-    onCreate(name.trim(), kifuSnapshots);
+    onCreate(name.trim());
     onClose();
-  };
-
-  const handleFileChange = async (e) => {
-    const file = e.target.files?.[0];
-    // 同じファイルをもう一度選んでも change が発火するよう value をリセットする
-    e.target.value = "";
-    if (!file) return;
-    setKifuFileName(file.name);
-    setKifuError("");
-    setKifuSnapshots(null);
-    try {
-      const text = await readKifuFile(file);
-      const result = importKifuText(text);
-      if (!result) {
-        setKifuError("棋譜を読み取れませんでした（KIF/CSA形式のファイルを選んでください）");
-        return;
-      }
-      if (result.skipped > 0) {
-        setKifuError(`途中に読み取れない手があったため、第${result.snapshots.length - 1}手までを読み込みました（以降の${result.skipped}手は反映されません）`);
-      }
-      setKifuSnapshots(result.snapshots);
-    } catch (err) {
-      console.error("棋譜の読み込みに失敗しました", err);
-      setKifuError("棋譜の読み込みに失敗しました");
-    }
   };
 
   return (
@@ -55,40 +25,6 @@ function CreateTreeModal({ onClose, onCreate }) {
           新しいツリーを作成
         </div>
         <InputField label="戦法名"              value={name} onChange={setName} placeholder="例：中飛車" />
-
-        {/* 棋譜インポート（新規作成時のみ） */}
-        <div style={{ marginBottom: 20 }}>
-          <SectionLabel style={{ marginBottom: 8 }}>棋譜インポート（任意・KIF/CSA）</SectionLabel>
-          <label
-            htmlFor="kifu-file-input"
-            style={{
-              display: "flex", alignItems: "center", gap: 8,
-              padding: "10px 12px", borderRadius: T.radius.md,
-              border: `0.5px dashed ${T.gold}`, cursor: "pointer",
-              color: T.gold, fontSize: T.fontSize.base, fontFamily: T.fontSerif,
-            }}
-          >
-            <i className="ti ti-file-upload" style={{ fontSize: "0.875rem" }} />
-            {kifuFileName || "KIF / CSA ファイルを選択"}
-          </label>
-          <input
-            id="kifu-file-input"
-            type="file"
-            accept=".kif,.kifu,.csa,.txt"
-            onChange={handleFileChange}
-            style={{ display: "none" }}
-          />
-          {kifuSnapshots && (
-            <div style={{ marginTop: 8, fontSize: T.fontSize.sm, color: T.green, fontFamily: T.fontSerif }}>
-              <i className="ti ti-check" style={{ fontSize: "0.75rem" }} /> {kifuSnapshots.length - 1}手の棋譜を読み込みました
-            </div>
-          )}
-          {kifuError && (
-            <div style={{ marginTop: 8, fontSize: T.fontSize.sm, color: T.red, fontFamily: T.fontSerif }}>
-              {kifuError}
-            </div>
-          )}
-        </div>
 
         <ModalActionButtons
           onCancel={onClose}
@@ -546,7 +482,7 @@ export function TreeList({ trees, profile, onOpen, onPublic, onSearch, onKifus, 
       {showCreateModal && (
         <CreateTreeModal
           onClose={() => setShowCreateModal(false)}
-          onCreate={(name, kifuSnapshots) => onNewTree(name, [], kifuSnapshots)}
+          onCreate={(name) => onNewTree(name, [])}
         />
       )}
       {editTarget && (

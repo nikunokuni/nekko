@@ -131,7 +131,7 @@ export default function App() {
     }
   };
 
-  const handleNewTree = async (name, tags = [], kifuSnapshots = null) => {
+  const handleNewTree = async (name, tags = []) => {
     const { data, error } = await createTree({ userId: session.user.id, name, tags });
     if (error || !data) {
       console.error("createTree error:", error);
@@ -139,18 +139,10 @@ export default function App() {
       return;
     }
 
-    const hasKifu = kifuSnapshots && kifuSnapshots.length > 0;
-    const last = hasKifu ? kifuSnapshots[kifuSnapshots.length - 1] : null;
-
     const { data: rootNode, error: nodeError } = await createNode({
       treeId: data.id, userId: session.user.id,
       parentId: null, label: name, isRoot: true, status: "todo",
-      // 棋譜インポートがあれば、ルートノードに最終局面・棋譜を反映する
-      board:        hasKifu ? last.board     : cloneBoard(null),
-      handSente:    hasKifu ? last.handSente : undefined,
-      handGote:     hasKifu ? last.handGote  : undefined,
-      kifu:         hasKifu ? kifuSnapshots  : [],
-      kifuImported: hasKifu,
+      board: cloneBoard(null),
     });
     if (nodeError) {
       console.error("createNode error:", nodeError);
