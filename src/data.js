@@ -201,6 +201,7 @@ export const BOARD_TEMPLATES = [
 // 「ついか」内の項目に加え、一言コメント（メモの下）と評価値（盤面の下）も対象。
 // ※ 保存先のDB列名は歴史的経緯で tsuika_visibility のまま
 export const TSUIKA_ITEMS = [
+  { key: "merge",        label: "合流（追加の親子リンク）",       icon: "ti-arrow-merge" },
   { key: "commentTags",  label: "一言コメント（メモの下）",       icon: "ti-message-2" },
   { key: "evaluation",   label: "評価値（盤面の下）",             icon: "ti-chart-line" },
   { key: "orientation",  label: "志向（攻め・受け・バランス）",   icon: "ti-compass" },
@@ -209,7 +210,6 @@ export const TSUIKA_ITEMS = [
   { key: "winRate",      label: "勝率（どのくらい勝てるか）",     icon: "ti-trophy" },
   { key: "likeLevel",    label: "好き度（どのくらい好きか）",     icon: "ti-heart" },
   { key: "studyMemo",    label: "研究メモ（狙い・注意・宿題）",   icon: "ti-notes" },
-  { key: "merge",        label: "合流（追加の親子リンク）",       icon: "ti-arrow-merge" },
 ];
 
 // ── 戦法グループ（相手の戦法・自分の戦法で共用）────
