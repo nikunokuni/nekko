@@ -129,108 +129,6 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOn
 
       <div style={{ flex: 1, overflowY: "auto", padding: "20px 18px 32px" }}>
 
-        {/* 文字サイズ */}
-        <div style={{ fontSize: T.fontSize.md, color: T.inkMid, marginBottom: 10, letterSpacing: "0.08em" }}>
-          文字サイズ
-        </div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 28 }}>
-          {FONT_SCALE_OPTIONS.map((opt) => {
-            const active = fontScale === opt.value;
-            return (
-              <button
-                key={opt.label}
-                onClick={() => onFontScaleChange(opt.value)}
-                style={{
-                  flex: 1,
-                  padding: "10px 0",
-                  borderRadius: T.radius.md,
-                  border: `0.5px solid ${active ? T.gold : T.inkLine}`,
-                  background: active ? T.gold : "transparent",
-                  color: active ? T.cream : T.inkMid,
-                  fontFamily: T.fontSerif,
-                  fontSize: T.fontSize.lg,
-                  cursor: "pointer",
-                }}
-              >
-                {opt.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* ノード詳細の表示項目カスタマイズ。普段は触らないためアコーディオンで隠す */}
-        <div style={{ marginBottom: 28 }}>
-          <button
-            onClick={() => setTsuikaOpen((v) => !v)}
-            style={{
-              display: "flex", alignItems: "center", gap: 6, width: "100%",
-              marginBottom: tsuikaOpen ? 10 : 0,
-              padding: 0,
-              background: "none", border: "none", cursor: "pointer",
-              fontSize: T.fontSize.md, color: T.inkMid, letterSpacing: "0.08em",
-              fontFamily: T.fontSerif, textAlign: "left",
-            }}
-          >
-            <span style={{ flex: 1 }}>ノード編集画面に表示する項目</span>
-            <i className={`ti ti-chevron-${tsuikaOpen ? "up" : "down"}`} style={{ fontSize: "0.8125rem", color: T.inkMid }} />
-          </button>
-          {tsuikaOpen && <>
-          <div style={{ borderRadius: T.radius.md, border: `0.5px solid ${T.inkLine}`, overflow: "hidden" }}>
-            {TSUIKA_ITEMS.map((it, i) => (
-              <div
-                key={it.key}
-                style={{
-                  display: "flex", alignItems: "center", gap: 10,
-                  padding: "13px 16px",
-                  borderBottom: i < TSUIKA_ITEMS.length - 1 ? `0.5px solid ${T.inkLineFaint}` : "none",
-                }}
-              >
-                <i className={`ti ${it.icon}`} style={{ fontSize: "1rem", color: tsuikaVis[it.key] ? T.gold : T.gray }} />
-                <span style={{ flex: 1, fontSize: T.fontSize.lg, color: tsuikaVis[it.key] ? T.ink : T.inkMid, fontFamily: T.fontSerif }}>
-                  {it.label}
-                </span>
-                <Toggle on={tsuikaVis[it.key]} onChange={() => handleTsuikaToggle(it.key)} />
-              </div>
-            ))}
-          </div>
-          <div style={{ display: "flex", gap: 6, marginTop: 8, fontSize: T.fontSize.base, color: T.inkFaint, lineHeight: 1.7 }}>
-            <i className="ti ti-info-circle" style={{ marginTop: 3, flexShrink: 0 }} />
-            <span>OFFにしても入力済みのデータは消えません。ONに戻すとそのまま再表示されます。</span>
-          </div>
-          </>}
-        </div>
-
-        {/* アカウント：ログインID（パスワード再設定に使う）。既定で伏せる */}
-        {username && (
-          <div style={{ marginBottom: 28 }}>
-            <div style={{ fontSize: T.fontSize.md, color: T.inkMid, marginBottom: 10, letterSpacing: "0.08em" }}>
-              アカウント
-            </div>
-            <div style={{ borderRadius: T.radius.md, border: `0.5px solid ${T.inkLine}`, overflow: "hidden" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px" }}>
-                <i className="ti ti-user" style={{ fontSize: "1rem", color: T.gold }} />
-                <span style={{ fontSize: T.fontSize.lg, color: T.ink, fontFamily: T.fontSerif }}>
-                  ログインID
-                </span>
-                <span style={{ flex: 1, textAlign: "right", fontSize: T.fontSize.lg, color: T.ink, fontFamily: T.fontSerif, fontWeight: 600, wordBreak: "break-all", marginRight: 4 }}>
-                  {idShown ? username : "••••••••"}
-                </span>
-                <button
-                  onClick={() => setIdShown((v) => !v)}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1rem", padding: 2, lineHeight: 1, flexShrink: 0 }}
-                  aria-label={idShown ? "IDを隠す" : "IDを表示"}
-                >
-                  <i className={`ti ${idShown ? "ti-eye-off" : "ti-eye"}`} />
-                </button>
-              </div>
-              <div style={{ display: "flex", gap: 8, padding: "0 16px 14px", fontSize: T.fontSize.base, color: T.inkMid, lineHeight: 1.7 }}>
-                <i className="ti ti-alert-triangle" style={{ color: "#A93226", marginTop: 3, flexShrink: 0 }} />
-                <span>パスワードの再設定に使います。リカバリーコードと合わせて、他の人に見られないよう注意してください。</span>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* 開発者向け（niku のときだけ表示）。3項目はアコーディオンで隠す */}
         {devStats && (
           <div style={{ marginBottom: 28 }}>
@@ -276,6 +174,108 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOn
             )}
           </div>
         )}
+
+        {/* アカウント：ログインID（パスワード再設定に使う）。既定で伏せる */}
+        {username && (
+          <div style={{ marginBottom: 28 }}>
+            <div style={{ fontSize: T.fontSize.md, color: T.inkMid, marginBottom: 10, letterSpacing: "0.08em" }}>
+              アカウント
+            </div>
+            <div style={{ borderRadius: T.radius.md, border: `0.5px solid ${T.inkLine}`, overflow: "hidden" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px" }}>
+                <i className="ti ti-user" style={{ fontSize: "1rem", color: T.gold }} />
+                <span style={{ fontSize: T.fontSize.lg, color: T.ink, fontFamily: T.fontSerif }}>
+                  ログインID
+                </span>
+                <span style={{ flex: 1, textAlign: "right", fontSize: T.fontSize.lg, color: T.ink, fontFamily: T.fontSerif, fontWeight: 600, wordBreak: "break-all", marginRight: 4 }}>
+                  {idShown ? username : "••••••••"}
+                </span>
+                <button
+                  onClick={() => setIdShown((v) => !v)}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1rem", padding: 2, lineHeight: 1, flexShrink: 0 }}
+                  aria-label={idShown ? "IDを隠す" : "IDを表示"}
+                >
+                  <i className={`ti ${idShown ? "ti-eye-off" : "ti-eye"}`} />
+                </button>
+              </div>
+              <div style={{ display: "flex", gap: 8, padding: "0 16px 14px", fontSize: T.fontSize.base, color: T.inkMid, lineHeight: 1.7 }}>
+                <i className="ti ti-alert-triangle" style={{ color: "#A93226", marginTop: 3, flexShrink: 0 }} />
+                <span>パスワードの再設定に使います。リカバリーコードと合わせて、他の人に見られないよう注意してください。</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ノード詳細の表示項目カスタマイズ。普段は触らないためアコーディオンで隠す */}
+        <div style={{ marginBottom: 28 }}>
+          <button
+            onClick={() => setTsuikaOpen((v) => !v)}
+            style={{
+              display: "flex", alignItems: "center", gap: 6, width: "100%",
+              marginBottom: tsuikaOpen ? 10 : 0,
+              padding: 0,
+              background: "none", border: "none", cursor: "pointer",
+              fontSize: T.fontSize.md, color: T.inkMid, letterSpacing: "0.08em",
+              fontFamily: T.fontSerif, textAlign: "left",
+            }}
+          >
+            <span style={{ flex: 1 }}>ノード編集画面に表示する項目</span>
+            <i className={`ti ti-chevron-${tsuikaOpen ? "up" : "down"}`} style={{ fontSize: "0.8125rem", color: T.inkMid }} />
+          </button>
+          {tsuikaOpen && <>
+          <div style={{ borderRadius: T.radius.md, border: `0.5px solid ${T.inkLine}`, overflow: "hidden" }}>
+            {TSUIKA_ITEMS.map((it, i) => (
+              <div
+                key={it.key}
+                style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  padding: "13px 16px",
+                  borderBottom: i < TSUIKA_ITEMS.length - 1 ? `0.5px solid ${T.inkLineFaint}` : "none",
+                }}
+              >
+                <i className={`ti ${it.icon}`} style={{ fontSize: "1rem", color: tsuikaVis[it.key] ? T.gold : T.gray }} />
+                <span style={{ flex: 1, fontSize: T.fontSize.lg, color: tsuikaVis[it.key] ? T.ink : T.inkMid, fontFamily: T.fontSerif }}>
+                  {it.label}
+                </span>
+                <Toggle on={tsuikaVis[it.key]} onChange={() => handleTsuikaToggle(it.key)} />
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 6, marginTop: 8, fontSize: T.fontSize.base, color: T.inkFaint, lineHeight: 1.7 }}>
+            <i className="ti ti-info-circle" style={{ marginTop: 3, flexShrink: 0 }} />
+            <span>OFFにしても入力済みのデータは消えません。ONに戻すとそのまま再表示されます。</span>
+          </div>
+          </>}
+        </div>
+
+        {/* 文字サイズ */}
+        <div style={{ fontSize: T.fontSize.md, color: T.inkMid, marginBottom: 10, letterSpacing: "0.08em" }}>
+          文字サイズ
+        </div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 28 }}>
+          {FONT_SCALE_OPTIONS.map((opt) => {
+            const active = fontScale === opt.value;
+            return (
+              <button
+                key={opt.label}
+                onClick={() => onFontScaleChange(opt.value)}
+                style={{
+                  flex: 1,
+                  padding: "10px 0",
+                  borderRadius: T.radius.md,
+                  border: `0.5px solid ${active ? T.gold : T.inkLine}`,
+                  background: active ? T.gold : "transparent",
+                  color: active ? T.cream : T.inkMid,
+                  fontFamily: T.fontSerif,
+                  fontSize: T.fontSize.lg,
+                  cursor: "pointer",
+                }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
 
         {/* その他 */}
         <div style={{ fontSize: T.fontSize.md, color: T.inkMid, marginBottom: 10, letterSpacing: "0.08em" }}>
