@@ -179,6 +179,8 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
   const [aim,         setAim]         = useState("");
   const [caution,     setCaution]     = useState("");
   const [nextStudy,   setNextStudy]   = useState("");
+  const [whenToUse,   setWhenToUse]   = useState(""); // きほん：いつ使う（短文）
+  const [openingFocus, setOpeningFocus] = useState(""); // ついか：序盤の意識
   const [mergePickerOpen,        setMergePickerOpen]        = useState(false);
   const [mergeChildPickerOpen,   setMergeChildPickerOpen]   = useState(false);
   const [parentDetailsOpen,      setParentDetailsOpen]      = useState(false);
@@ -253,6 +255,8 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
       setAim(node.aim || "");
       setCaution(node.caution || "");
       setNextStudy(node.nextStudy || "");
+      setWhenToUse(node.whenToUse || "");
+      setOpeningFocus(node.openingFocus || "");
       setBoardVisible(!!node.board && !node.boardHidden);
       setBoardData(node.board || null);
       setStamps(node.stamps || []);
@@ -384,11 +388,12 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
   // 「ついか」内の各項目の表示可否（設定でON/OFF可能。OFFでもデータは残る）。
   // 全項目OFFなら「ついか」セクション自体を出さない
   const tsuikaShow = {
-    orientation: !node.isRoot && isTsuikaVisible("orientation"),
-    usage:       isTsuikaVisible("usage"),
-    winRate:     isTsuikaVisible("winRate"),
-    likeLevel:   isTsuikaVisible("likeLevel"),
-    studyMemo:   isTsuikaVisible("studyMemo"),
+    orientation:  !node.isRoot && isTsuikaVisible("orientation"),
+    openingFocus: isTsuikaVisible("openingFocus"),
+    usage:        isTsuikaVisible("usage"),
+    winRate:      isTsuikaVisible("winRate"),
+    likeLevel:    isTsuikaVisible("likeLevel"),
+    studyMemo:    isTsuikaVisible("studyMemo"),
   };
   const tsuikaAny = Object.values(tsuikaShow).some(Boolean);
   // 「ついか」の外にあるカスタム対象（一言コメント＝メモの下 / 評価値＝盤面の下 /
@@ -817,6 +822,20 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
           />
         </div>
 
+        {/* いつ使う（短文）。この戦法・局面をどんなときに使うかを一言で。
+            親から子ノード一覧を見たときに、入力があれば各子の下に表示される */}
+        <div style={{ padding: "0 16px 10px" }}>
+          <SectionLabel style={{ marginBottom: 5 }}>いつ使う</SectionLabel>
+          <input
+            value={whenToUse}
+            onChange={(e) => { setWhenToUse(e.target.value); scheduleSave({ whenToUse: e.target.value }); }}
+            onBlur={(e)  => { e.target.style.borderColor = T.inkLine; flushSave(); }}
+            onFocus={(e) => (e.target.style.borderColor = T.gold)}
+            placeholder="例：相手が急戦できたとき／早く固めたいとき"
+            style={INPUT_STYLE}
+          />
+        </div>
+
         {/* 一言コメント（感触・課題タグ）
             言葉にするのが難しいときの受け皿なので、「ついか」の奥ではなく
             対局直後に目に入るメモの直下に置く（閉じているときは選択済みタグのみ表示） */}
@@ -1039,6 +1058,25 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
           </div>
         )}
 
+        {/* 序盤の意識（この局面へ持っていくために序盤で意識すべきこと）*/}
+        {tsuikaShow.openingFocus && (
+          <div style={{ padding: "0 16px 10px" }}>
+            <SectionLabel style={{ marginBottom: 5 }}>
+              <i className="ti ti-flag" style={{ fontSize: "0.75rem", color: T.gold, marginRight: 4 }} />
+              序盤の意識
+            </SectionLabel>
+            <textarea
+              value={openingFocus}
+              onChange={(e) => { setOpeningFocus(e.target.value); scheduleSave({ openingFocus: e.target.value }); }}
+              onBlur={(e) => { e.target.style.borderColor = T.inkLine; flushSave(); }}
+              onFocus={(e) => (e.target.style.borderColor = T.gold)}
+              placeholder="この局面に持っていくために、序盤で意識すべきこと"
+              rows={2}
+              style={{ width: "100%", border: `0.5px solid ${T.inkLine}`, borderRadius: T.radius.sm, padding: "8px 12px", fontSize: T.fontSize.base, color: T.ink, background: T.cream, resize: "none", fontFamily: T.fontSerif, lineHeight: 1.7, outline: "none", boxSizing: "border-box" }}
+            />
+          </div>
+        )}
+
         {/* 頻度（炎）／勝率（トロフィー）／好き度（ハート）
             同じ形のラジオが3段並ぶと軸の違いが分かりにくいため、
             軸ごとにアイコンの形と色を変えて視覚で区別する */}
@@ -1142,6 +1180,7 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {children.map((child) => {
               const m = STATUS_META[child.status] || STATUS_META.todo;
+              const childWhenToUse = (child.whenToUse || "").trim();
               return (
                 <div
                   key={child.id}
@@ -1150,8 +1189,17 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
                   onMouseEnter={(e) => (e.currentTarget.style.background = T.goldLight)}
                   onMouseLeave={(e) => (e.currentTarget.style.background = T.cream)}
                 >
-                  <div style={{ width: 2, height: 20, borderRadius: 1, flexShrink: 0, background: m.dashed ? "transparent" : m.dot, border: m.dashed ? "0.5px dashed #B4B2A9" : "none" }} />
-                  <span style={{ fontSize: T.fontSize.base, color: T.ink, flex: 1 }}>{child.label}</span>
+                  <div style={{ width: 2, height: childWhenToUse ? 30 : 20, borderRadius: 1, flexShrink: 0, background: m.dashed ? "transparent" : m.dot, border: m.dashed ? "0.5px dashed #B4B2A9" : "none" }} />
+                  {/* いつ使うメモがあれば、ノード名の下に小さく表示する */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ fontSize: T.fontSize.base, color: T.ink }}>{child.label}</span>
+                    {childWhenToUse && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2, fontSize: T.fontSize.sm, color: T.inkMid, fontFamily: T.fontSerif }}>
+                        <i className="ti ti-player-play" style={{ fontSize: "0.625rem", color: T.gold, flexShrink: 0 }} />
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{childWhenToUse}</span>
+                      </div>
+                    )}
+                  </div>
                   {child.isMergeTarget && <MergeTag />}
                   <StatusChip status={child.status} />
                   <i className="ti ti-chevron-right" style={{ fontSize: "0.875rem", color: T.gray }} />

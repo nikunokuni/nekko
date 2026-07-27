@@ -176,6 +176,8 @@ export async function createNode({
   commentTags = [],
   turn = null,
   evaluation = null,
+  whenToUse = "",
+  openingFocus = "",
 }) {
   const result = await supabase
     .from("nodes")
@@ -201,6 +203,8 @@ export async function createNode({
       comment_tags: commentTags,
       turn,
       evaluation,
+      when_to_use: whenToUse,
+      opening_focus: openingFocus,
     })
     .select()
     .single();
@@ -240,6 +244,8 @@ export async function updateNode(nodeId, patch) {
     commentTags:    "comment_tags",
     turn:           "turn",
     evaluation:     "evaluation",
+    whenToUse:      "when_to_use",
+    openingFocus:   "opening_focus",
   };
   const dbPatch = {};
   for (const [k, v] of Object.entries(patch)) {
@@ -389,6 +395,8 @@ export function nodeRowToNode(n) {
     commentTags:    n.comment_tags || [],
     turn:           n.turn || null,
     evaluation:     n.evaluation ?? null,
+    whenToUse:      n.when_to_use || "",
+    openingFocus:   n.opening_focus || "",
     childIds:      [],
   };
 }
