@@ -29,6 +29,8 @@ import { useTreeData } from "./hooks/useTreeData";
 import { useFontScale } from "./hooks/useFontScale";
 import { useRecoveryCode } from "./hooks/useRecoveryCode";
 import { RecoveryCodeModal } from "./components/RecoveryCodeModal";
+import { UpdateBanner } from "./components/UpdateBanner";
+import { usePwaUpdate } from "./hooks/usePwaUpdate";
 import { useOnboarding, OnboardingLayer } from "./onboarding";
 
 export default function App() {
@@ -68,6 +70,8 @@ export default function App() {
     useRecoveryCode(session);
   const { onboard, fingerPos, advanceOnboard, startBoardOnboard } =
     useOnboarding({ screen, session, activeTree });
+  // 新バージョンの検知（Service Worker）。検知したら画面上部にバナーを出す
+  const { needRefresh, update: applyUpdate } = usePwaUpdate();
 
   // ── ディープリンク：URL の treeId に対応するツリーを読み込む ──
   // URL直打ち・ブックマーク・リロードでも該当ツリー（/ノード）を表示できるようにする。
@@ -433,11 +437,19 @@ export default function App() {
       </div>
     );
   }
-  if (!session) return <AuthScreen onAuth={handleAuth}/>;
+  if (!session) return (
+    <>
+      {needRefresh && <UpdateBanner onUpdate={applyUpdate} />}
+      <AuthScreen onAuth={handleAuth}/>
+    </>
+  );
 
   // ── レンダリング ─────────────────────────────
   return (
     <div style={{ height:"100dvh", background:"#faf4e8", display:"flex", flexDirection:"column" }}>
+
+      {/* 新バージョン通知バナー（Service Worker が更新を検知したときだけ表示） */}
+      {needRefresh && <UpdateBanner onUpdate={applyUpdate} />}
 
       {/* 初回オンボーディング（使い方トースト＋指さし。実装は onboarding.jsx） */}
       <OnboardingLayer onboard={onboard} fingerPos={fingerPos} onAdvance={advanceOnboard} />

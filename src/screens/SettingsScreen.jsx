@@ -5,6 +5,16 @@ import { useState, useEffect } from "react";
 import { T } from "../theme";
 import { TSUIKA_ITEMS } from "../data";
 import { isTsuikaVisible, setTsuikaVisible } from "../rewards";
+import { APP_VERSION, BUILD_TIME } from "../version";
+
+// ビルド時刻を「YYYY.MM.DD」表記に整形（未設定の開発環境では空文字）
+function formatBuildDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}.${p(d.getMonth() + 1)}.${p(d.getDate())}`;
+}
 
 // ── Toggle: ON/OFFスイッチ（ついか項目の表示設定で使用）──
 function Toggle({ on, onChange }) {
@@ -386,6 +396,13 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOn
             <span style={{ flex: 1 }}>ご意見・感想・バグ報告</span>
             <i className="ti ti-external-link" style={{ fontSize: "0.875rem", color: T.inkFaint }} />
           </a>
+        </div>
+
+        {/* バージョン表示（package.json の version をビルド時に埋め込んだもの）。
+            新バージョンが出ると自動で更新バナーが出るので、ここは現在版の確認用。 */}
+        <div style={{ marginTop: 24, textAlign: "center", fontSize: T.fontSize.base, color: T.inkFaint, fontFamily: T.fontSerif, letterSpacing: "0.06em" }}>
+          ねっこ v{APP_VERSION}
+          {formatBuildDate(BUILD_TIME) && ` ・ ${formatBuildDate(BUILD_TIME)}`}
         </div>
       </div>
 

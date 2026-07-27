@@ -1,14 +1,31 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
+import { readFileSync } from "fs";
+
+// package.json の version をアプリに埋め込み、画面（設定）に表示できるようにする。
+// バージョンはここ（package.json）で一元管理する。
+const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url)));
 
 export default defineConfig({
+  // ビルド時にバージョン・ビルド時刻をコードへ差し込む（src/version.js で参照）。
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+  },
   plugins: [
     react(),
     VitePWA({
-      // 新バージョンを自動で取り込む（更新後の次回起動で反映）
-      registerType: "autoUpdate",
-      injectRegister: "auto",
+      // 新バージョンを検知したらユーザーに知らせて、タップで即反映する（prompt）。
+      //   autoUpdate はサイレントに次回起動で入れ替わるため、編集中に勝手に
+      //   リロードされたり、いつ更新されたか分からなかったりする。prompt にして
+      //   「新しいバージョンがあります」バナー（src/hooks/usePwaUpdate.js）から
+      //   ユーザー操作で更新する方式にした。
+      registerType: "prompt",
+      // Service Worker の登録は自前で行う（usePwaUpdate フック）。
+      //   仮想モジュール virtual:pwa-register は使わない：モックQA構成
+      //   （vite.mock.config.js）に PWA プラグインが無く import 解決に失敗するため。
+      injectRegister: null,
       // 手書きの public/manifest.webmanifest をそのまま使う（プラグインは生成しない）
       manifest: false,
       workbox: {
