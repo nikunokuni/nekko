@@ -127,6 +127,7 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
   const dragStart    = useRef(null);
   const pinchStart   = useRef(null);
   const mapRef       = useRef(null);
+  const drawerRef    = useRef(null);  // 目次ドロワー本体（ホイール操作の判定に使う）
   const nodeDragRef  = useRef(null);  // window リスナーから最新値を読むため
   const dropTargetRef = useRef(null);
 
@@ -140,6 +141,10 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
   const offsetRef = useRef(canvasOffset);
   useEffect(() => { scaleRef.current  = scale;        }, [scale]);
   useEffect(() => { offsetRef.current = canvasOffset; }, [canvasOffset]);
+
+  // 目次ドロワーの開閉状態も ref で保持する（一度だけ登録する wheel リスナーから参照するため）
+  const drawerOpenRef = useRef(drawerOpen);
+  useEffect(() => { drawerOpenRef.current = drawerOpen; }, [drawerOpen]);
 
   /** マップ領域内の点 (px, py) が動かないように拡大率を変更する
       （カーソル位置・ピンチ中心・画面中央を基準にしたズーム） */
@@ -374,6 +379,11 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
     const el = mapRef.current;
     if (!el) return;
     const onWheelNative = (e) => {
+      // 目次ドロワーは mapRef の内側にあるため、ドロワー上のホイールもここに届く。
+      // ズームに変換せずブラウザ既定のスクロールに任せて、目次を上下に動かせるようにする
+      if (drawerRef.current?.contains(e.target)) return;
+      // ドロワーを開いている間は背景（オーバーレイ）側のズームも止める
+      if (drawerOpenRef.current) return;
       e.preventDefault();
       const rect = el.getBoundingClientRect();
       setAnimate(false);
@@ -676,7 +686,7 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
         )}
 
         {/* 目次ドロワー */}
-        <div style={{
+        <div ref={drawerRef} style={{
           position:   "absolute",
           top: 0, right: 0, bottom: 0,
           width:      235,
@@ -694,7 +704,7 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
               <i className="ti ti-x" />
             </button>
           </div>
-          <div style={{ flex: 1, overflowY: "auto" }}>
+          <div style={{ flex: 1, overflowY: "auto", overscrollBehavior: "contain" }}>
             <Accordion nodes={nodes} rootId={rootId} rootChildIds={rootNode?.childIds || []} onSelect={jumpToNode} />
           </div>
 
