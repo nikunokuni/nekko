@@ -17,8 +17,8 @@ import { fetchMyKifus, fetchKifu, kifuRowToKifu } from "../db";
 // ──────────────────────────────────────────
 // KifuPickerModal: 棋譜ライブラリから1件選んでノードに取り込む
 //   一覧（メタデータのみ）→ タップで snapshots 込み取得 → プレビュー再生 → 取り込み
-//   一覧はこのノードの戦法タグと一致する棋譜を先頭に、次にタグなし、
-//   最後にそれ以外のタグの棋譜を並べる（研究中の戦法の棋譜から選びやすくする）
+//   一覧は「同じタグの棋譜」「その他の棋譜」の2段に分けて表示する
+//   （研究中の戦法の棋譜から選びやすくする）
 // ──────────────────────────────────────────
 function KifuPickerModal({ userId, nodeTags = [], hasExistingKifu, onClose, onImport }) {
   const [kifus,     setKifus]     = useState(null); // null = 読み込み中
@@ -34,7 +34,8 @@ function KifuPickerModal({ userId, nodeTags = [], hasExistingKifu, onClose, onIm
     return () => { cancelled = true; };
   }, [userId]);
 
-  // タグの一致で3グループに分ける（空のグループは出さない）
+  // タグの一致で「同じタグ」「その他」の2グループに分ける（空のグループは出さない）。
+  // その他の中はタグなしを先に、ほかのタグが付いた棋譜を後ろに並べる
   const kifuGroups = useMemo(() => {
     const want = new Set(nodeTags);
     const matched = [], untagged = [], others = [];
@@ -45,9 +46,8 @@ function KifuPickerModal({ userId, nodeTags = [], hasExistingKifu, onClose, onIm
       else                                      others.push(k);
     }
     return [
-      { key: "matched",  label: "このノードのタグと同じ棋譜", items: matched },
-      { key: "untagged", label: "タグなしの棋譜",             items: untagged },
-      { key: "others",   label: "ほかのタグの棋譜",           items: others },
+      { key: "matched", label: "同じタグの棋譜", items: matched },
+      { key: "others",  label: "その他の棋譜",   items: [...untagged, ...others] },
     ].filter((g) => g.items.length > 0);
   }, [kifus, nodeTags]);
 
