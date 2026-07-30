@@ -10,15 +10,17 @@ import {
   STATUS_META, ORIENTATION_META, STRATEGY_GROUPS, WIN_RATE_LEVELS, LIKE_LEVELS, COMMENT_GROUPS, USAGE_LEVELS, USAGE_META,
 } from "../data";
 import { recordAction, getCustomTagsByGroup, addCustomTag, getCommentCustomTags, addCommentCustomTag, isTsuikaVisible } from "../rewards";
-import { T, INPUT_STYLE, MODAL_OVERLAY_STYLE, MODAL_SHEET_STYLE, cloneBoard } from "../theme";
+import { T, INPUT_STYLE, MODAL_OVERLAY_STYLE, MODAL_SHEET_STYLE, cloneBoard, parseTags } from "../theme";
 import { SectionLabel, BoardSection, MergeLinkList, LinkPicker, TagPickerField, KifuPreviewBoard, IconRating } from "../components/uiParts";
 import { fetchMyKifus, fetchKifu, kifuRowToKifu } from "../db";
 
 // ──────────────────────────────────────────
 // KifuPickerModal: 棋譜ライブラリから1件選んでノードに取り込む
 //   一覧（メタデータのみ）→ タップで snapshots 込み取得 → プレビュー再生 → 取り込み
+//   一覧はこのノードの戦法タグと一致する棋譜を先頭に、次にタグなし、
+//   最後にそれ以外のタグの棋譜を並べる（研究中の戦法の棋譜から選びやすくする）
 // ──────────────────────────────────────────
-function KifuPickerModal({ userId, hasExistingKifu, onClose, onImport }) {
+function KifuPickerModal({ userId, nodeTags = [], hasExistingKifu, onClose, onImport }) {
   const [kifus,     setKifus]     = useState(null); // null = 読み込み中
   const [selected,  setSelected]  = useState(null); // snapshots込みの棋譜（プレビュー表示中）
   const [fetching,  setFetching]  = useState(false);
@@ -31,6 +33,23 @@ function KifuPickerModal({ userId, hasExistingKifu, onClose, onImport }) {
     });
     return () => { cancelled = true; };
   }, [userId]);
+
+  // タグの一致で3グループに分ける（空のグループは出さない）
+  const kifuGroups = useMemo(() => {
+    const want = new Set(nodeTags);
+    const matched = [], untagged = [], others = [];
+    for (const k of kifus || []) {
+      const tags = k.tags || [];
+      if (tags.length === 0)                    untagged.push(k);
+      else if (tags.some((t) => want.has(t)))   matched.push(k);
+      else                                      others.push(k);
+    }
+    return [
+      { key: "matched",  label: "このノードのタグと同じ棋譜", items: matched },
+      { key: "untagged", label: "タグなしの棋譜",             items: untagged },
+      { key: "others",   label: "ほかのタグの棋譜",           items: others },
+    ].filter((g) => g.items.length > 0);
+  }, [kifus, nodeTags]);
 
   const handlePick = async (kifu) => {
     if (fetching) return;
@@ -84,19 +103,40 @@ function KifuPickerModal({ userId, hasExistingKifu, onClose, onImport }) {
               ツリー一覧の「棋譜ライブラリ」から棋譜を保存できます
             </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {kifus.map((k) => (
-                <div
-                  key={k.id}
-                  onClick={() => handlePick(k)}
-                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 12px", borderRadius: T.radius.sm, border: `0.5px solid ${T.inkLine}`, background: T.cream, cursor: "pointer" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = T.goldLight)}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = T.cream)}
-                >
-                  <i className="ti ti-chess" style={{ fontSize: "0.875rem", color: T.gold }} />
-                  <span style={{ fontSize: T.fontSize.base, color: T.ink, flex: 1 }}>{k.name}</span>
-                  <span style={{ fontSize: T.fontSize.sm, color: T.inkMid, fontFamily: T.fontSerif }}>{k.moveCount}手</span>
-                  <i className="ti ti-chevron-right" style={{ fontSize: "0.875rem", color: T.gray }} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {kifuGroups.map((g) => (
+                <div key={g.key}>
+                  {/* グループが1つだけのときは見出しを出さない（並べ替える意味がないため） */}
+                  {kifuGroups.length > 1 && (
+                    <SectionLabel style={{ marginBottom: 6 }}>{g.label}</SectionLabel>
+                  )}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {g.items.map((k) => (
+                      <div
+                        key={k.id}
+                        onClick={() => handlePick(k)}
+                        style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 12px", borderRadius: T.radius.sm, border: `0.5px solid ${g.key === "matched" ? T.gold : T.inkLine}`, background: T.cream, cursor: "pointer" }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = T.goldLight)}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = T.cream)}
+                      >
+                        <i className="ti ti-chess" style={{ fontSize: "0.875rem", color: T.gold }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: T.fontSize.base, color: T.ink }}>{k.name}</div>
+                          {(k.tags || []).length > 0 && (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+                              {k.tags.map((tag) => (
+                                <span key={tag} style={{ fontSize: T.fontSize.sm, padding: "2px 7px", borderRadius: T.radius.sm, background: T.goldLight, color: T.gold, fontFamily: T.fontSerif }}>
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <span style={{ fontSize: T.fontSize.sm, color: T.inkMid, fontFamily: T.fontSerif }}>{k.moveCount}手</span>
+                        <i className="ti ti-chevron-right" style={{ fontSize: "0.875rem", color: T.gray }} />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
@@ -306,6 +346,12 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
 
   // アンマウント時に未発火のトーストタイマーを破棄する（unmount後のsetState警告を防ぐ）
   useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
+
+  // このノードの戦法タグ（相手の戦法＋自分の戦法）。棋譜ピッカーの並べ替えに使う
+  const nodeTags = useMemo(
+    () => [...new Set([...parseTags(situation), ...parseTags(myApproach)])],
+    [situation, myApproach],
+  );
 
   /** タグピッカーから新しいカスタムタグを追加する（戦法タグ系の入力欄で共有） */
   const handleAddCustomTag = (tag, group) => {
@@ -1305,6 +1351,7 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
       {kifuPickerOpen && (
         <KifuPickerModal
           userId={userId}
+          nodeTags={nodeTags}
           hasExistingKifu={(node.kifu || []).length > 0}
           onClose={() => setKifuPickerOpen(false)}
           onImport={handleImportKifu}

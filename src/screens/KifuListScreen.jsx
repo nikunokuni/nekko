@@ -1,13 +1,15 @@
 // ══════════════════════════════════════════════════════════════════
 // KifuListScreen.jsx  ―  棋譜ライブラリ画面
 //   KifuCard / KifuList / ImportKifuModal / KifuPreviewModal /
-//   RenameKifuModal / DeleteKifuModal
+//   EditKifuModal / DeleteKifuModal
 //   棋譜（kifus テーブル）の一覧・インポート・再生・削除を行う。
 //   ノードへの取り込みはノード編集画面側（KifuPickerModal）から行う。
 // ══════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
-import { T, MODAL_OVERLAY_STYLE, MODAL_SHEET_STYLE } from "../theme";
-import { InputField, SectionLabel, ModalActionButtons, ConfirmDeleteModal, KifuPreviewBoard } from "../components/uiParts";
+import { T, MODAL_OVERLAY_STYLE, MODAL_SHEET_STYLE, parseTags } from "../theme";
+import { InputField, SectionLabel, ModalActionButtons, ConfirmDeleteModal, KifuPreviewBoard, TagPickerField } from "../components/uiParts";
+import { STRATEGY_GROUPS } from "../data";
+import { recordAction, getCustomTagsByGroup, addCustomTag } from "../rewards";
 import { importKifuText } from "../kifuParser";
 import { readKifuFile } from "../kifuFile";
 import { fetchMyKifus, fetchKifu, createKifu, updateKifu, deleteKifu, kifuRowToKifu } from "../db";
@@ -22,8 +24,9 @@ function formatDate(iso) {
 // ──────────────────────────────────────────
 // ImportKifuModal: ファイル選択 or テキスト貼り付けで棋譜を登録
 // ──────────────────────────────────────────
-function ImportKifuModal({ onClose, onImport }) {
+function ImportKifuModal({ onClose, onImport, customTags, onAddCustomTag }) {
   const [name,      setName]      = useState("");
+  const [tags,      setTags]      = useState("");   // 「、」区切りの戦法タグ（TagPickerField の形式）
   const [fileName,  setFileName]  = useState("");
   const [pasteText, setPasteText] = useState("");
   const [snapshots, setSnapshots] = useState(null);
@@ -68,7 +71,7 @@ function ImportKifuModal({ onClose, onImport }) {
   const handleSave = async () => {
     if (!name.trim() || !snapshots || saving) return;
     setSaving(true);
-    const ok = await onImport(name.trim(), snapshots, sourceText);
+    const ok = await onImport(name.trim(), snapshots, sourceText, parseTags(tags));
     setSaving(false);
     if (ok) onClose();
   };
@@ -151,6 +154,18 @@ function ImportKifuModal({ onClose, onImport }) {
 
         <InputField label="棋譜の名前" value={name} onChange={setName} placeholder="例：7/18 対局（先手番・中飛車）" />
 
+        {/* 戦法タグ（ノード編集画面と同じタグを使う。ここで追加したタグはノード側でも選べる） */}
+        <div style={{ margin: "0 -16px" }}>
+          <TagPickerField
+            label="戦法タグ（任意）"
+            text={tags}
+            onSelectTag={(next) => setTags(next.join("、"))}
+            groups={STRATEGY_GROUPS}
+            customTags={customTags}
+            onAddCustomTag={onAddCustomTag}
+          />
+        </div>
+
         <ModalActionButtons
           onCancel={onClose}
           onConfirm={handleSave}
@@ -184,10 +199,11 @@ function KifuPreviewModal({ kifu, onClose }) {
 }
 
 // ──────────────────────────────────────────
-// RenameKifuModal: 棋譜の名前変更
+// EditKifuModal: 棋譜の名前・戦法タグの変更
 // ──────────────────────────────────────────
-function RenameKifuModal({ kifu, onClose, onSave }) {
+function EditKifuModal({ kifu, onClose, onSave, customTags, onAddCustomTag }) {
   const [name,   setName]   = useState(kifu.name);
+  const [tags,   setTags]   = useState((kifu.tags || []).join("、"));
   const [saving, setSaving] = useState(false);
 
   // 保存の完了（成否）を待ってから閉じる。待たずに閉じると、失敗時に
@@ -195,18 +211,28 @@ function RenameKifuModal({ kifu, onClose, onSave }) {
   const handleConfirm = async () => {
     if (saving) return;
     setSaving(true);
-    await onSave(kifu.id, name.trim());
+    await onSave(kifu.id, { name: name.trim(), tags: parseTags(tags) });
     setSaving(false);
     onClose();
   };
 
   return (
     <div style={MODAL_OVERLAY_STYLE} onClick={onClose}>
-      <div style={MODAL_SHEET_STYLE} onClick={(e) => e.stopPropagation()}>
+      <div style={{ ...MODAL_SHEET_STYLE, maxHeight: "85%", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
         <div style={{ fontFamily: T.fontTitle, fontSize: T.fontSize.h, color: T.ink, marginBottom: 20 }}>
-          棋譜の名前を変更
+          棋譜を編集
         </div>
         <InputField label="棋譜の名前" value={name} onChange={setName} placeholder="例：7/18 対局（先手番・中飛車）" />
+        <div style={{ margin: "0 -16px" }}>
+          <TagPickerField
+            label="戦法タグ（任意）"
+            text={tags}
+            onSelectTag={(next) => setTags(next.join("、"))}
+            groups={STRATEGY_GROUPS}
+            customTags={customTags}
+            onAddCustomTag={onAddCustomTag}
+          />
+        </div>
         <ModalActionButtons
           onCancel={onClose}
           onConfirm={handleConfirm}
@@ -255,7 +281,18 @@ function KifuCard({ kifu, onOpen, onRename, onDelete }) {
           </button>
         </div>
 
-        {/* 2行目: 手数 / 保存日 */}
+        {/* 2行目: 戦法タグ */}
+        {(kifu.tags || []).length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 }}>
+            {kifu.tags.map((tag) => (
+              <span key={tag} style={{ fontSize: T.fontSize.sm, padding: "3px 9px", borderRadius: T.radius.sm, background: T.goldLight, color: T.gold, fontFamily: T.fontSerif }}>
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* 3行目: 手数 / 保存日 */}
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <span style={{ fontSize: T.fontSize.sm, color: T.inkMid, fontFamily: T.fontSerif }}>
             <i className="ti ti-chess" style={{ fontSize: "0.625rem", marginRight: 3 }} />
@@ -284,7 +321,7 @@ function KifuCard({ kifu, onOpen, onRename, onDelete }) {
               onMouseEnter={(e) => (e.currentTarget.style.background = T.goldLight)}
               onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
             >
-              <i className="ti ti-pencil" style={{ fontSize: "0.875rem", color: T.gold }} />名前を変更
+              <i className="ti ti-pencil" style={{ fontSize: "0.875rem", color: T.gold }} />名前・タグを編集
             </div>
             <div style={{ height: "0.5px", background: T.inkLineFaint }} />
             <div
@@ -312,8 +349,16 @@ export function KifuList({ userId, onBack }) {
   const [showImportModal, setShowImportModal] = useState(false);
   const [previewTarget,   setPreviewTarget]   = useState(null); // snapshots込みの棋譜
   const [previewLoading,  setPreviewLoading]  = useState(false);
-  const [renameTarget,    setRenameTarget]    = useState(null);
+  const [editTarget,      setEditTarget]      = useState(null);
   const [deleteTarget,    setDeleteTarget]    = useState(null);
+  // 戦法タグはノード編集画面と同じユーザー資産（profiles）を共有する
+  const [customTags,      setCustomTags]      = useState(() => getCustomTagsByGroup());
+
+  const handleAddCustomTag = (tag, group) => {
+    addCustomTag(tag, group);
+    setCustomTags(getCustomTagsByGroup());
+    recordAction("customTag");
+  };
 
   useEffect(() => {
     if (!userId) return;
@@ -326,8 +371,8 @@ export function KifuList({ userId, onBack }) {
     return () => { cancelled = true; };
   }, [userId]);
 
-  const handleImport = async (name, snapshots, sourceText) => {
-    const { data, error } = await createKifu({ userId, name, snapshots, sourceText });
+  const handleImport = async (name, snapshots, sourceText, tags) => {
+    const { data, error } = await createKifu({ userId, name, tags, snapshots, sourceText });
     if (error || !data) {
       alert("棋譜の保存に失敗しました。もう一度お試しください。");
       return false;
@@ -349,10 +394,10 @@ export function KifuList({ userId, onBack }) {
     setPreviewTarget(kifuRowToKifu(data));
   };
 
-  const handleRename = async (kifuId, name) => {
-    const { error } = await updateKifu(kifuId, { name });
+  const handleEdit = async (kifuId, patch) => {
+    const { error } = await updateKifu(kifuId, patch);
     if (error) { alert("保存に失敗しました。もう一度お試しください。"); return; }
-    setKifus((prev) => prev.map((k) => (k.id === kifuId ? { ...k, name } : k)));
+    setKifus((prev) => prev.map((k) => (k.id === kifuId ? { ...k, ...patch } : k)));
   };
 
   const handleDelete = async (kifuId) => {
@@ -393,20 +438,31 @@ export function KifuList({ userId, onBack }) {
           </div>
         ) : (
           kifus.map((k) => (
-            <KifuCard key={k.id} kifu={k} onOpen={handleOpen} onRename={setRenameTarget} onDelete={setDeleteTarget} />
+            <KifuCard key={k.id} kifu={k} onOpen={handleOpen} onRename={setEditTarget} onDelete={setDeleteTarget} />
           ))
         )}
       </div>
 
       {/* ── モーダル群 ── */}
       {showImportModal && (
-        <ImportKifuModal onClose={() => setShowImportModal(false)} onImport={handleImport} />
+        <ImportKifuModal
+          onClose={() => setShowImportModal(false)}
+          onImport={handleImport}
+          customTags={customTags}
+          onAddCustomTag={handleAddCustomTag}
+        />
       )}
       {previewTarget && (
         <KifuPreviewModal kifu={previewTarget} onClose={() => setPreviewTarget(null)} />
       )}
-      {renameTarget && (
-        <RenameKifuModal kifu={renameTarget} onClose={() => setRenameTarget(null)} onSave={handleRename} />
+      {editTarget && (
+        <EditKifuModal
+          kifu={editTarget}
+          onClose={() => setEditTarget(null)}
+          onSave={handleEdit}
+          customTags={customTags}
+          onAddCustomTag={handleAddCustomTag}
+        />
       )}
       {deleteTarget && (
         <ConfirmDeleteModal

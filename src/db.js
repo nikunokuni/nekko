@@ -292,7 +292,7 @@ export async function countUserNodes(userId) {
 export async function fetchMyKifus(userId) {
   const result = await supabase
     .from("kifus")
-    .select("id, name, memo, move_count, created_at")
+    .select("id, name, memo, tags, move_count, created_at")
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
   if (result.error) console.error("fetchMyKifus error:", result.error);
@@ -305,26 +305,27 @@ export async function fetchMyKifus(userId) {
 export async function fetchKifu(kifuId) {
   const result = await supabase
     .from("kifus")
-    .select("id, name, memo, snapshots, move_count, created_at")
+    .select("id, name, memo, tags, snapshots, move_count, created_at")
     .eq("id", kifuId)
     .single();
   if (result.error) console.error("fetchKifu error:", result.error);
   return result;
 }
 
-export async function createKifu({ userId, name, memo = "", snapshots, sourceText = "" }) {
+export async function createKifu({ userId, name, memo = "", tags = [], snapshots, sourceText = "" }) {
   const result = await supabase
     .from("kifus")
     .insert({
       user_id:     userId,
       name,
       memo,
+      tags:        tags ?? [],
       snapshots:   snapshots ?? [],
       source_text: sourceText,
       // 手数 = スナップ数 - 1（先頭は初期局面）
       move_count:  Math.max(0, (snapshots?.length ?? 0) - 1),
     })
-    .select("id, name, memo, move_count, created_at")
+    .select("id, name, memo, tags, move_count, created_at")
     .single();
   if (result.error) console.error("createKifu error:", result.error);
   return result;
@@ -332,7 +333,7 @@ export async function createKifu({ userId, name, memo = "", snapshots, sourceTex
 
 export async function updateKifu(kifuId, patch) {
   // フロント側キー名 → DB カラム名へ変換（updateNode と同じ方式）
-  const map = { name: "name", memo: "memo" };
+  const map = { name: "name", memo: "memo", tags: "tags" };
   const dbPatch = {};
   for (const [k, v] of Object.entries(patch)) {
     if (map[k] !== undefined) dbPatch[map[k]] = v;
@@ -355,6 +356,7 @@ export function kifuRowToKifu(k) {
     id:        k.id,
     name:      k.name,
     memo:      k.memo || "",
+    tags:      k.tags || [],
     snapshots: k.snapshots || [],
     sourceText: k.source_text || "",
     moveCount: k.move_count ?? 0,
