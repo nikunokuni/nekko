@@ -12,6 +12,7 @@ import { MindMap } from "./screens/MindMapScreen";
 import { NodeDetail } from "./screens/NodeDetailScreen";
 import { TrophyScreen } from "./screens/TrophyScreen";
 import { KifuList } from "./screens/KifuListScreen";
+import { KifuInsight } from "./screens/KifuInsightScreen";
 import { NodeSearch } from "./screens/NodeSearchScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import {
@@ -48,6 +49,7 @@ export default function App() {
     if ((m = matchPath("/tree/:treeId",              p))) return { screen: "map",            treeId: m.params.treeId, nodeId: null };
     if (matchPath("/public",   p)) return { screen: "public",   treeId: null, nodeId: null };
     if (matchPath("/search",   p)) return { screen: "search",   treeId: null, nodeId: null };
+    if (matchPath("/kifus/insight", p)) return { screen: "kifuInsight", treeId: null, nodeId: null };
     if (matchPath("/kifus",    p)) return { screen: "kifus",    treeId: null, nodeId: null };
     if (matchPath("/trophy",   p)) return { screen: "trophy",   treeId: null, nodeId: null };
     if (matchPath("/settings", p)) return { screen: "settings", treeId: null, nodeId: null };
@@ -509,7 +511,16 @@ export default function App() {
             onBoardFirstShown={startBoardOnboard}/>
         )}
         {screen==="kifus" && (
-          <KifuList userId={session.user.id} onBack={() => navigate("/")} />
+          <KifuList
+            userId={session.user.id}
+            onBack={() => navigate("/")}
+            onInsight={() => navigate("/kifus/insight")} />
+        )}
+        {screen==="kifuInsight" && (
+          <KifuInsight
+            userId={session.user.id}
+            onBack={() => navigate("/kifus")}
+            onGoSettings={() => navigate("/settings")} />
         )}
         {screen==="search" && (
           <NodeSearch

@@ -16,6 +16,11 @@ function loadDb() {
       const db = JSON.parse(raw);
       if (!db.recovery_codes) db.recovery_codes = []; // 旧保存データとの互換
       if (!db.kifus) db.kifus = [];                   // 旧保存データとの互換
+      // 対局情報の列が増える前に保存した棋譜を、未解析（meta_parsed=false）として扱う。
+      // 実DBの alter table ... default false に相当する。
+      for (const k of db.kifus) {
+        if (k.meta_parsed === undefined) k.meta_parsed = false;
+      }
       return db;
     }
   } catch {}
@@ -170,6 +175,10 @@ class Query {
 function defaultsFor(table) {
   if (table === "trees") return { tags: [], active: true, is_public: false, liked_by: 0, quick_memo: "" };
   if (table === "nodes") return { board_hidden: false };
+  if (table === "kifus") return {
+    tags: [], memo: "", sente_name: "", gote_name: "", handicap: "",
+    result: null, my_side: null, played_at: null, features: null, meta_parsed: false,
+  };
   return {};
 }
 

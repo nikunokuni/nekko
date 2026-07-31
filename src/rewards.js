@@ -22,6 +22,7 @@ let _state = {
   customTags:   [], // { name, group }[]（戦法タグ）
   commentTags:  [], // { name, group }[]（コメントタグ）
   tsuikaVisibility: {}, // 「ついか」欄の表示設定。{ key:false } のときだけ非表示
+  kifuPlayerNames: [],  // 棋譜での自分の対局者名（先手／後手のどちらが自分かの判定に使う）
 };
 
 // 旧localStorageキー（初回ログイン時にDBへ一度だけ移行してから掃除する）
@@ -79,6 +80,8 @@ export async function initUserState(userId, profileRow) {
     commentTags:  normTags(profileRow?.custom_comment_tags),
     tsuikaVisibility: profileRow?.tsuika_visibility && typeof profileRow.tsuika_visibility === "object"
       ? { ...profileRow.tsuika_visibility } : {},
+    kifuPlayerNames: Array.isArray(profileRow?.kifu_player_names)
+      ? profileRow.kifu_player_names.filter((n) => typeof n === "string" && n.trim()) : [],
   };
   await migrateLegacyLocalStorage();
 }
@@ -86,7 +89,27 @@ export async function initUserState(userId, profileRow) {
 /** ログアウト時にキャッシュを空にする（次のユーザーへ持ち越さない） */
 export function resetUserState() {
   _userId = null;
-  _state = { loginDays: [], actions: {}, earnedBadges: [], customTags: [], commentTags: [], tsuikaVisibility: {} };
+  _state = {
+    loginDays: [], actions: {}, earnedBadges: [], customTags: [], commentTags: [],
+    tsuikaVisibility: {}, kifuPlayerNames: [],
+  };
+}
+
+// ── 棋譜での自分の対局者名 ───────────────────────────
+// 棋譜の「先手：」「後手：」と照合して、どちらが自分かを自動判定するために使う。
+// 将棋アプリごとにIDが違うので複数登録できる。
+
+/** 登録済みの対局者名（配列） */
+export function getKifuPlayerNames() {
+  return [..._state.kifuPlayerNames];
+}
+
+/** 対局者名を保存する（空文字・重複は取り除く） */
+export function setKifuPlayerNames(names) {
+  const cleaned = [...new Set((names || []).map((n) => String(n).trim()).filter(Boolean))];
+  _state.kifuPlayerNames = cleaned;
+  persist({ kifu_player_names: cleaned });
+  return cleaned;
 }
 
 // ── 「ついか」欄の表示設定 ─────────────────────────

@@ -9,10 +9,23 @@ import { useEffect, useState } from "react";
 import { T, MODAL_OVERLAY_STYLE, MODAL_SHEET_STYLE, parseTags } from "../theme";
 import { InputField, SectionLabel, ModalActionButtons, ConfirmDeleteModal, KifuPreviewBoard, TagPickerField } from "../components/uiParts";
 import { STRATEGY_GROUPS } from "../data";
-import { recordAction, getCustomTagsByGroup, addCustomTag } from "../rewards";
+import { recordAction, getCustomTagsByGroup, addCustomTag, getKifuPlayerNames } from "../rewards";
 import { importKifuText } from "../kifuParser";
 import { readKifuFile } from "../kifuFile";
+import { analyzeKifu, recomputeFeatures, outcomeFor } from "../kifuAnalyze";
 import { fetchMyKifus, fetchKifu, createKifu, updateKifu, deleteKifu, kifuRowToKifu } from "../db";
+
+// 対局結果を「自分から見た」日本語にする。
+// 自分の側が分からない棋譜は先手／後手のどちらが勝ったかだけを示す。
+export function outcomeLabel(kifu) {
+  const o = outcomeFor(kifu.result, kifu.mySide);
+  if (o === "win")  return { text: "勝ち",   color: T.green };
+  if (o === "lose") return { text: "負け",   color: T.red };
+  if (o === "draw") return { text: "引き分け", color: T.grayText };
+  if (kifu.result === "sente") return { text: "先手の勝ち", color: T.grayText };
+  if (kifu.result === "gote")  return { text: "後手の勝ち", color: T.grayText };
+  return null;
+}
 
 // 一覧カードの日付表示（例: 2026/7/18）
 function formatDate(iso) {
@@ -31,13 +44,21 @@ function ImportKifuModal({ onClose, onImport, customTags, onAddCustomTag }) {
   const [pasteText, setPasteText] = useState("");
   const [snapshots, setSnapshots] = useState(null);
   const [sourceText, setSourceText] = useState("");
+  const [analysis,  setAnalysis]  = useState(null);  // 読み取れた対局情報（確認表示用）
   const [error,     setError]     = useState("");
   const [saving,    setSaving]    = useState(false);
+  // 自分の側の自動判定に対する利用者の上書き。
+  //   null   … 上書きなし（自動判定に従う）
+  //   "none" … 明示的に「分析しない」を選んだ（自動判定に戻さない）
+  const [sideOverride, setSideOverride] = useState(null);
+  const mySide = sideOverride === "none" ? null : (sideOverride ?? analysis?.mySide ?? null);
 
   // KIF/CSAテキストをパースして読み込み結果を反映する（ファイル・貼り付け共通）
   const applyText = (text, defaultName) => {
     setError("");
     setSnapshots(null);
+    setAnalysis(null);
+    setSideOverride(null);   // 別の棋譜を読み直したら側の手動指定はリセットする
     const result = importKifuText(text);
     // 1手も読めなかった場合（形式違い・全手が解析不能・指し手なし）は保存対象にしない。
     // 初期局面だけの棋譜（0手）を登録しても意味がないため
@@ -50,6 +71,13 @@ function ImportKifuModal({ onClose, onImport, customTags, onAddCustomTag }) {
     }
     setSnapshots(result.snapshots);
     setSourceText(text);
+    // 対局者名・勝敗・戦法をこの場で判定して見せる。
+    // 自分の側の自動判定が外れていることに保存前に気づけるようにするため。
+    setAnalysis(analyzeKifu({
+      sourceText: text,
+      snapshots:  result.snapshots,
+      playerNames: getKifuPlayerNames(),
+    }));
     if (defaultName && !name.trim()) setName(defaultName);
   };
 
@@ -71,7 +99,7 @@ function ImportKifuModal({ onClose, onImport, customTags, onAddCustomTag }) {
   const handleSave = async () => {
     if (!name.trim() || !snapshots || saving) return;
     setSaving(true);
-    const ok = await onImport(name.trim(), snapshots, sourceText, parseTags(tags));
+    const ok = await onImport(name.trim(), snapshots, sourceText, parseTags(tags), { ...analysis, mySide });
     setSaving(false);
     if (ok) onClose();
   };
@@ -144,6 +172,52 @@ function ImportKifuModal({ onClose, onImport, customTags, onAddCustomTag }) {
         {snapshots && (
           <div style={{ marginBottom: 14, fontSize: T.fontSize.sm, color: T.green, fontFamily: T.fontSerif }}>
             <i className="ti ti-check" style={{ fontSize: "0.75rem" }} /> {snapshots.length - 1}手の棋譜を読み込みました
+          </div>
+        )}
+
+        {/* 読み取れた対局情報。傾向分析はここが埋まっている棋譜だけを対象にする */}
+        {analysis && (
+          <div style={{
+            marginBottom: 14, padding: "10px 12px", borderRadius: T.radius.md,
+            background: T.goldLight, fontSize: T.fontSize.sm, color: T.ink,
+            fontFamily: T.fontSerif, lineHeight: 1.7,
+          }}>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <span>先手：{analysis.senteName || "（記載なし）"}</span>
+              <span>後手：{analysis.goteName || "（記載なし）"}</span>
+            </div>
+            <div>
+              結果：{analysis.result === "draw" ? "引き分け"
+                : analysis.result === "sente" ? "先手の勝ち"
+                : analysis.result === "gote"  ? "後手の勝ち"
+                : "読み取れませんでした（中断など）"}
+            </div>
+            {/* 自分がどちら側かは対局者名から自動判定する。
+                設定に名前を登録していない・表記ゆれで外れた場合はここで直せる */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
+              <span>自分は</span>
+              {[["sente", "先手"], ["gote", "後手"], ["none", "分析しない"]].map(([v, label]) => {
+                const selected = v === "none" ? mySide === null : mySide === v;
+                return (
+                  <button
+                    key={v}
+                    onClick={() => setSideOverride(v)}
+                    style={{
+                      padding: "3px 10px", borderRadius: T.radius.sm, cursor: "pointer",
+                      fontFamily: T.fontSerif, fontSize: T.fontSize.sm,
+                      border: `0.5px solid ${selected ? T.gold : T.inkLine}`,
+                      background: selected ? T.gold : "transparent",
+                      color: selected ? T.cream : T.grayText,
+                    }}
+                  >{label}</button>
+                );
+              })}
+            </div>
+            {!analysis.mySide && sideOverride === null && (
+              <div style={{ color: T.grayText, fontSize: T.fontSize.xs, marginTop: 2 }}>
+                設定に「棋譜での自分の名前」を登録すると、次回から自動で判定します
+              </div>
+            )}
           </div>
         )}
         {error && (
@@ -292,14 +366,29 @@ function KifuCard({ kifu, onOpen, onRename, onDelete }) {
           </div>
         )}
 
-        {/* 3行目: 手数 / 保存日 */}
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        {/* 3行目: 勝敗 / 戦法 / 手数 / 保存日 */}
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          {(() => {
+            const o = outcomeLabel(kifu);
+            return o && (
+              <span style={{
+                fontSize: T.fontSize.sm, fontFamily: T.fontSerif, color: o.color,
+                border: `0.5px solid ${o.color}`, borderRadius: T.radius.sm, padding: "1px 7px",
+              }}>{o.text}</span>
+            );
+          })()}
+          {/* 自動で読み取れた戦型。ここが埋まっている棋譜だけが傾向分析に載る */}
+          {kifu.features && (
+            <span style={{ fontSize: T.fontSize.sm, color: T.brown, fontFamily: T.fontSerif }}>
+              {kifu.features.myStrategy} 対 {kifu.features.oppStrategy}
+            </span>
+          )}
           <span style={{ fontSize: T.fontSize.sm, color: T.inkMid, fontFamily: T.fontSerif }}>
             <i className="ti ti-chess" style={{ fontSize: "0.625rem", marginRight: 3 }} />
             {kifu.moveCount}手
           </span>
           <span style={{ fontSize: T.fontSize.sm, color: T.inkFaint, marginLeft: "auto", fontFamily: T.fontSerif }}>
-            {formatDate(kifu.createdAt)}
+            {formatDate(kifu.playedAt || kifu.createdAt)}
           </span>
         </div>
       </div>
@@ -342,7 +431,7 @@ function KifuCard({ kifu, onOpen, onRename, onDelete }) {
 // ══════════════════════════════════════════════════════════════════
 // KifuList: 棋譜ライブラリ画面
 // ══════════════════════════════════════════════════════════════════
-export function KifuList({ userId, onBack }) {
+export function KifuList({ userId, onBack, onInsight }) {
   const [kifus,   setKifus]   = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -371,8 +460,25 @@ export function KifuList({ userId, onBack }) {
     return () => { cancelled = true; };
   }, [userId]);
 
-  const handleImport = async (name, snapshots, sourceText, tags) => {
-    const { data, error } = await createKifu({ userId, name, tags, snapshots, sourceText });
+  const handleImport = async (name, snapshots, sourceText, tags, analysis) => {
+    const { data, error } = await createKifu({
+      userId, name, tags, snapshots, sourceText,
+      // 取り込み時に解析済みの対局情報を一緒に保存する。
+      // 特徴（features）は自分の側が決まって初めて計算できるので、
+      // 側を手で選び直した場合はここで計算し直す。
+      senteName: analysis?.senteName,
+      goteName:  analysis?.goteName,
+      handicap:  analysis?.handicap,
+      result:    analysis?.result ?? null,
+      mySide:    analysis?.mySide ?? null,
+      playedAt:  analysis?.playedAt ?? null,
+      features:  recomputeFeatures({
+        snapshots,
+        mySide:   analysis?.mySide ?? null,
+        handicap: analysis?.handicap,
+      }),
+      metaParsed: true,
+    });
     if (error || !data) {
       alert("棋譜の保存に失敗しました。もう一度お試しください。");
       return false;
@@ -416,6 +522,17 @@ export function KifuList({ userId, onBack }) {
         <div style={{ flex: 1, fontFamily: T.fontTitle, fontSize: "1.125rem", color: T.ink, letterSpacing: "0.1em" }}>
           棋譜ライブラリ
         </div>
+        {/* ためた棋譜の傾向を見る画面へ。読み取り専用で、ツリーには手を加えない */}
+        <button
+          onClick={onInsight}
+          title="棋譜の傾向"
+          style={{
+            background: "none", border: "none", cursor: "pointer", color: T.gold,
+            fontSize: "1.125rem", padding: 2, lineHeight: 1, marginRight: 4,
+          }}
+        >
+          <i className="ti ti-chart-histogram" />
+        </button>
         <button
           data-onboard="kifu-save"
           onClick={() => setShowImportModal(true)}

@@ -4,7 +4,7 @@
 import { useState, useEffect } from "react";
 import { T } from "../theme";
 import { TSUIKA_ITEMS } from "../data";
-import { isTsuikaVisible, setTsuikaVisible } from "../rewards";
+import { isTsuikaVisible, setTsuikaVisible, getKifuPlayerNames, setKifuPlayerNames } from "../rewards";
 import { APP_VERSION, BUILD_TIME } from "../version";
 
 // ビルド時刻を「YYYY.MM.DD」表記に整形（未設定の開発環境では空文字）
@@ -95,6 +95,13 @@ const TOS_SECTIONS = [
 export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOnboard, onRegenerateRecovery, username, devStats }) {
   // 開発者向けの3項目はアコーディオンで隠す（デフォルトは閉じた状態）
   const [devOpen, setDevOpen] = useState(false);
+  // 棋譜での自分の対局者名。入力中は「、」区切りの文字列で持ち、確定時に配列へ直す
+  const [playerNames, setPlayerNames] = useState(() => getKifuPlayerNames().join("、"));
+  const handlePlayerNamesSave = () => {
+    const saved = setKifuPlayerNames(playerNames.split(/[、,]/));
+    setPlayerNames(saved.join("、"));
+  };
+
   // 表示項目カスタマイズも普段は触らないため、アコーディオンで隠す（デフォルト閉じる）
   const [tsuikaOpen, setTsuikaOpen] = useState(false);
   // 「ついか」項目の表示設定（rewards のキャッシュを初期値に、切替時は両方更新）
@@ -205,6 +212,33 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOn
             </div>
           </div>
         )}
+
+        {/* 棋譜での自分の対局者名。棋譜の傾向分析で「どちらが自分か」の判定に使う */}
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ fontSize: T.fontSize.md, color: T.inkMid, marginBottom: 10, letterSpacing: "0.08em" }}>
+            棋譜での自分の名前
+          </div>
+          <input
+            value={playerNames}
+            onChange={(e) => setPlayerNames(e.target.value)}
+            onBlur={handlePlayerNamesSave}
+            placeholder="例：にく、niku2000"
+            style={{
+              width: "100%", boxSizing: "border-box",
+              border: `0.5px solid ${T.inkLine}`, borderRadius: T.radius.md,
+              padding: "10px 12px", fontSize: T.fontSize.base, color: T.ink,
+              background: T.cream, fontFamily: T.fontSerif, outline: "none",
+            }}
+            onFocus={(e) => (e.target.style.borderColor = T.gold)}
+          />
+          <div style={{ display: "flex", gap: 6, marginTop: 8, fontSize: T.fontSize.base, color: T.inkFaint, lineHeight: 1.7 }}>
+            <i className="ti ti-info-circle" style={{ marginTop: 3, flexShrink: 0 }} />
+            <span>
+              棋譜の「先手：」「後手：」と照らし合わせて、どちらが自分かを自動で判定します。
+              将棋アプリごとに名前が違う場合は「、」で区切っていくつでも登録できます。
+            </span>
+          </div>
+        </div>
 
         {/* ノード詳細の表示項目カスタマイズ。普段は触らないためアコーディオンで隠す */}
         <div style={{ marginBottom: 28 }}>

@@ -288,15 +288,54 @@ export async function countUserNodes(userId) {
 // ノードへの取り込みは参照ではなくコピー（nodes.kifu へ複製）なので、
 // ライブラリ側の削除・編集がノードに影響することはない。
 
+// 一覧・分析で使う軽い列（snapshots と source_text を除いたすべて）
+const KIFU_META_COLUMNS =
+  "id, name, memo, tags, move_count, created_at, " +
+  "sente_name, gote_name, handicap, result, my_side, played_at, meta_parsed, features";
+
 /** 棋譜一覧をメタデータのみで取得する（snapshots は重いので含めない） */
 export async function fetchMyKifus(userId) {
   const result = await supabase
     .from("kifus")
-    .select("id, name, memo, tags, move_count, created_at")
+    .select(KIFU_META_COLUMNS)
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
   if (result.error) console.error("fetchMyKifus error:", result.error);
   return result;
+}
+
+/** 傾向分析用。集計に必要な列だけを読む（snapshots は読まない） */
+export async function fetchKifusForAnalysis(userId) {
+  const result = await supabase
+    .from("kifus")
+    .select("id, name, tags, result, my_side, handicap, played_at, features, move_count")
+    .eq("user_id", userId)
+    .order("played_at", { ascending: false });
+  if (result.error) console.error("fetchKifusForAnalysis error:", result.error);
+  return result;
+}
+
+/** 対局情報が未解析の棋譜を、原文つきで少しずつ取得する（取り込み済み棋譜の後追い解析用）。
+ *  source_text と snapshots は重いため、一度に全件は取らずバッチで回す。 */
+export async function fetchKifusNeedingMeta(userId, limit = 20) {
+  const result = await supabase
+    .from("kifus")
+    .select("id, name, source_text, snapshots")
+    .eq("user_id", userId)
+    .eq("meta_parsed", false)
+    .limit(limit);
+  if (result.error) console.error("fetchKifusNeedingMeta error:", result.error);
+  return result;
+}
+
+/** 未解析の棋譜が何件あるか（後追い解析の案内を出すかどうかの判定に使う） */
+export async function countKifusNeedingMeta(userId) {
+  const { count } = await supabase
+    .from("kifus")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("meta_parsed", false);
+  return count ?? 0;
 }
 
 /** 棋譜1件を snapshots 込みで取得する（プレビュー・取り込み時に呼ぶ）。
@@ -305,14 +344,31 @@ export async function fetchMyKifus(userId) {
 export async function fetchKifu(kifuId) {
   const result = await supabase
     .from("kifus")
-    .select("id, name, memo, tags, snapshots, move_count, created_at")
+    .select(`${KIFU_META_COLUMNS}, snapshots`)
     .eq("id", kifuId)
     .single();
   if (result.error) console.error("fetchKifu error:", result.error);
   return result;
 }
 
-export async function createKifu({ userId, name, memo = "", tags = [], snapshots, sourceText = "" }) {
+/** 自分の側を選び直したときの特徴の再計算に、snapshots だけを取り直す */
+export async function fetchKifuSnapshots(kifuId) {
+  const result = await supabase
+    .from("kifus")
+    .select("id, snapshots")
+    .eq("id", kifuId)
+    .single();
+  if (result.error) console.error("fetchKifuSnapshots error:", result.error);
+  return result;
+}
+
+export async function createKifu({
+  userId, name, memo = "", tags = [], snapshots, sourceText = "",
+  // 取り込み時に解析済みの対局情報（analyzeKifu の結果）
+  senteName = "", goteName = "", handicap = "",
+  result: gameResult = null, mySide = null, playedAt = null,
+  features = null, metaParsed = false,
+}) {
   const result = await supabase
     .from("kifus")
     .insert({
@@ -324,8 +380,16 @@ export async function createKifu({ userId, name, memo = "", tags = [], snapshots
       source_text: sourceText,
       // 手数 = スナップ数 - 1（先頭は初期局面）
       move_count:  Math.max(0, (snapshots?.length ?? 0) - 1),
+      sente_name:  senteName || "",
+      gote_name:   goteName  || "",
+      handicap:    handicap  || "",
+      result:      gameResult,
+      my_side:     mySide,
+      played_at:   playedAt,
+      features,
+      meta_parsed: metaParsed,
     })
-    .select("id, name, memo, tags, move_count, created_at")
+    .select(KIFU_META_COLUMNS)
     .single();
   if (result.error) console.error("createKifu error:", result.error);
   return result;
@@ -333,12 +397,18 @@ export async function createKifu({ userId, name, memo = "", tags = [], snapshots
 
 export async function updateKifu(kifuId, patch) {
   // フロント側キー名 → DB カラム名へ変換（updateNode と同じ方式）
-  const map = { name: "name", memo: "memo", tags: "tags" };
+  const map = {
+    name: "name", memo: "memo", tags: "tags",
+    senteName: "sente_name", goteName: "gote_name", handicap: "handicap",
+    result: "result", mySide: "my_side", playedAt: "played_at",
+    features: "features", metaParsed: "meta_parsed",
+  };
   const dbPatch = {};
   for (const [k, v] of Object.entries(patch)) {
     if (map[k] !== undefined) dbPatch[map[k]] = v;
   }
-  const result = await supabase.from("kifus").update(dbPatch).eq("id", kifuId).select().single();
+  // snapshots / source_text は重いので返させない
+  const result = await supabase.from("kifus").update(dbPatch).eq("id", kifuId).select(KIFU_META_COLUMNS).single();
   if (result.error) console.error("updateKifu error:", result.error);
   return result;
 }
@@ -361,6 +431,15 @@ export function kifuRowToKifu(k) {
     sourceText: k.source_text || "",
     moveCount: k.move_count ?? 0,
     createdAt: k.created_at,
+    // ── 対局情報（傾向分析用）──
+    senteName:  k.sente_name || "",
+    goteName:   k.gote_name  || "",
+    handicap:   k.handicap   || "",
+    result:     k.result  ?? null,   // 'sente' | 'gote' | 'draw' | null
+    mySide:     k.my_side ?? null,   // 'sente' | 'gote' | null
+    playedAt:   k.played_at ?? null,
+    features:   k.features  ?? null,
+    metaParsed: !!k.meta_parsed,
   };
 }
 

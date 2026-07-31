@@ -2,7 +2,9 @@
 // kifuParser.js  ―  KIF / CSA 棋譜ファイルのパーサー
 //   棋譜テキスト → 盤面スナップショット配列（ShogiBoard の kifu 形式）
 // ══════════════════════════════════════════════════
-import { INITIAL_BOARD } from "./data";
+// 拡張子まで書くのは、test-harness の Node 直実行（ローダ無し）で解決できるようにするため。
+// Vite は拡張子の有無どちらでも解決するため、アプリ側の挙動は変わらない。
+import { INITIAL_BOARD } from "./data.js";
 
 const emptyHand = () => ({ p:0, l:0, n:0, s:0, g:0, b:0, r:0 });
 
@@ -259,6 +261,128 @@ function parseKIF(text) {
 }
 
 // ══════════════════════════════════════════════════
+// 対局情報（メタ）のパース
+//   対局者名・対局日・勝敗を棋譜テキストから読み取る。
+//
+//   指し手のパース（parseKIF / parseCSA）とは独立に生テキストを走査する。
+//   指し手側は読めない手が出た時点で打ち切る仕様のため、そこに相乗りすると
+//   途中で壊れた棋譜から勝敗を取り出せなくなるため。
+//
+//   勝敗の判定は「まで◯手で先手の勝ち」行を最優先し、無い場合のみ
+//   終局マーク（投了・詰み等）と、その時点の手番から導出する。
+// ══════════════════════════════════════════════════
+
+// 終局マークと、それを「指す番だった側」から見た結果の対応。
+//   lose … その手番の側が負け（投了・詰み＝詰まされた側が手番）
+//   win  … その手番の側が勝ち
+//   draw … 引き分け扱い
+const KIF_END_RESULT = {
+  '投了': 'lose', '詰み': 'lose', '切れ負け': 'lose', '反則負け': 'lose', '時間切れ': 'lose',
+  '反則勝ち': 'win', '入玉勝ち': 'win',
+  '千日手': 'draw', '持将棋': 'draw', '引き分け': 'draw',
+};
+
+const CSA_END_RESULT = {
+  TORYO: 'lose', TSUMI: 'lose', TIME_UP: 'lose', ILLEGAL_MOVE: 'lose', ILLEGAL_ACTION: 'lose',
+  KACHI: 'win',
+  SENNICHITE: 'draw', JISHOGI: 'draw', HIKIWAKE: 'draw',
+};
+
+// 「その手番の側から見た結果」を「先手から見た勝敗」へ変換する。
+//   ply … 終局マークの手数（1始まり。奇数=先手の手番）
+function resultFromMover(kind, ply) {
+  if (kind === 'draw') return 'draw';
+  const moverIsSente = ply % 2 === 1;
+  if (kind === 'lose') return moverIsSente ? 'gote' : 'sente';
+  if (kind === 'win')  return moverIsSente ? 'sente' : 'gote';
+  return null;
+}
+
+// 「2026/07/20 10:00:00」形式を ISO 文字列へ。読めなければ null
+function parseKifuDate(raw) {
+  const m = String(raw).trim().match(/(\d{4})[/\-年](\d{1,2})[/\-月](\d{1,2})/);
+  if (!m) return null;
+  const t = String(raw).match(/(\d{1,2}):(\d{2})/);
+  const d = new Date(+m[1], +m[2] - 1, +m[3], t ? +t[1] : 0, t ? +t[2] : 0);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+function parseKifMeta(text) {
+  const meta = { senteName: "", goteName: "", playedAt: null, result: null, handicap: "" };
+  let lastMovePly = 0;
+
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+
+    // ── ヘッダー（全角・半角どちらのコロンも許容）──
+    const h = line.match(/^(先手|後手|下手|上手|開始日時|対局日|手合割)\s*[：:]\s*(.*)$/);
+    if (h) {
+      const value = h[2].trim();
+      // 駒落ちの下手／上手も、指し手の先後と同じ扱いで記録する
+      if (h[1] === '先手' || h[1] === '下手') meta.senteName = value;
+      else if (h[1] === '後手' || h[1] === '上手') meta.goteName = value;
+      else if (h[1] === '手合割') meta.handicap = value;
+      else meta.playedAt = parseKifuDate(value) ?? meta.playedAt;
+      continue;
+    }
+
+    // ── 「まで112手で先手の勝ち」（最も信頼できるので最優先）──
+    const fin = line.match(/まで\s*(\d+)\s*手で(先手|後手|下手|上手)の(勝ち|反則勝ち)/);
+    if (fin) {
+      meta.result = (fin[2] === '先手' || fin[2] === '下手') ? 'sente' : 'gote';
+      continue;
+    }
+    if (/まで\s*\d+\s*手で(千日手|持将棋|引き分け)/.test(line)) { meta.result = 'draw'; continue; }
+
+    // ── 手数付きの行（指し手 or 終局マーク）──
+    const m = line.match(/^(\d+)\s+(\S+)/);
+    if (!m) continue;
+    const ply  = +m[1];
+    const body = m[2];
+    const kind = Object.keys(KIF_END_RESULT).find((w) => body.startsWith(w));
+    if (kind) {
+      // 「まで◯手で〜」行が既にあればそちらを優先する
+      if (!meta.result) meta.result = resultFromMover(KIF_END_RESULT[kind], ply);
+    } else {
+      lastMovePly = Math.max(lastMovePly, ply);
+    }
+  }
+
+  meta.moveCount = lastMovePly;
+  return meta;
+}
+
+function parseCsaMeta(text) {
+  const meta = { senteName: "", goteName: "", playedAt: null, result: null, handicap: "" };
+  let moveCount = 0;
+
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+
+    if (line.startsWith('N+')) { meta.senteName = line.slice(2).trim(); continue; }
+    if (line.startsWith('N-')) { meta.goteName  = line.slice(2).trim(); continue; }
+    const st = line.match(/^\$(?:START_TIME|END_TIME)\s*:\s*(.+)$/);
+    if (st) { meta.playedAt = meta.playedAt ?? parseKifuDate(st[1]); continue; }
+
+    // 指し手（+7776FU 形式）。手数から終局時の手番を割り出す
+    if (/^[+-]\d{4}[A-Z]{2}/.test(line)) { moveCount++; continue; }
+
+    // 終局コマンド（%TORYO 等。手番記号が前置される場合もある）
+    const end = line.match(/^[+-]?%([A-Z_]+)/);
+    if (end) {
+      const kind = CSA_END_RESULT[end[1]];
+      // 終局マークは「次に指す番だった側」の行為なので手数は moveCount + 1
+      if (kind && !meta.result) meta.result = resultFromMover(kind, moveCount + 1);
+    }
+  }
+
+  meta.moveCount = moveCount;
+  return meta;
+}
+
+// ══════════════════════════════════════════════════
 // 形式自動判定 + エクスポート
 // ══════════════════════════════════════════════════
 function detectFormat(text) {
@@ -268,12 +392,36 @@ function detectFormat(text) {
 }
 
 /**
+ * 棋譜テキストから対局情報（対局者名・対局日・勝敗）だけを取り出す。
+ * 既に取り込み済みの棋譜も source_text から後追いで解析できるよう、
+ * 指し手のパースとは独立して呼べるようにしてある。
+ * @returns {{senteName, goteName, playedAt, result, handicap, moveCount}}
+ *   result … 'sente' | 'gote' | 'draw' | null（null = 中断・判定不能）
+ */
+export function parseKifuMeta(text) {
+  return detectFormat(text) === 'csa' ? parseCsaMeta(text) : parseKifMeta(text);
+}
+
+/**
+ * 平手の対局かどうか。駒落ちは初期配置も先後の扱いも異なるため、
+ * 傾向分析の集計からは除外する。
+ */
+export function isEvenGame(handicap) {
+  const h = (handicap || "").trim();
+  return h === "" || h === "平手";
+}
+
+/**
  * 棋譜テキスト（KIF or CSA）を盤面スナップショット配列に変換する。
- * @returns {{snapshots: Array<{board, handSente, handGote}>, skipped: number} | null}
+ * @returns {{snapshots, skipped: number, meta} | null}
  */
 export function importKifuText(text) {
   const format = detectFormat(text);
   const { initialState, moves, skipped = 0 } = format === 'csa' ? parseCSA(text) : parseKIF(text);
   if (moves.length === 0) return null;
-  return { snapshots: buildKifuSnapshots(moves, initialState), skipped };
+  return {
+    snapshots: buildKifuSnapshots(moves, initialState),
+    skipped,
+    meta: parseKifuMeta(text),
+  };
 }
