@@ -426,7 +426,7 @@ export function TreeList({ trees, profile, onOpen, onPublic, onSearch, onKifus, 
           <button data-onboard="public" onClick={onPublic} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
             <i className="ti ti-world" />
           </button>
-          <button title="棋譜ライブラリ" onClick={onKifus} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
+          <button data-onboard="kifus" title="棋譜ライブラリ" onClick={onKifus} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
             <i className="ti ti-chess" />
           </button>
           <button data-onboard="trophy" onClick={onTrophy} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>

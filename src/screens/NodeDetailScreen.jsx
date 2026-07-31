@@ -1044,6 +1044,7 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
         {userId && (
           <div style={{ padding: "0 16px 12px" }}>
             <div
+              data-onboard="kifu-import"
               onClick={() => setKifuPickerOpen(true)}
               style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: T.radius.sm, border: `0.5px dashed ${T.brown}`, cursor: "pointer", color: T.brown, fontSize: T.fontSize.base }}
               onMouseEnter={(e) => (e.currentTarget.style.background = T.goldLight)}

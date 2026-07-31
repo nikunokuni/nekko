@@ -12,9 +12,16 @@ export const ONBOARD_MESSAGES = {
   list: [
     <span><i className="ti ti-search" />ノード検索　全ツリーのノードをまとめて探せます</span>,
     <span><i className="ti ti-world" />みんなのツリー　公開されているツリーを見れます</span>,
+    <span><i className="ti ti-chess" />棋譜ライブラリ　実戦の棋譜を保存して研究に取り込めます</span>,
     <span><i className="ti ti-trophy" />トロフィー　獲得したトロフィーを見れます</span>,
     <span><i className="ti ti-settings" />設定　文字サイズ変更、使い方はこちら</span>,
     <span>「<i className="ti ti-plus" />新規」から自分のツリーを作っていきましょう</span>,
+  ],
+  // 棋譜ライブラリに初めて来たとき、保存方法・タグ・ノードへの取り込みを案内する
+  kifus: [
+    <span><b>棋譜を保存</b>　実戦の棋譜（KIF/CSA）をファイル選択か貼り付けで保存できます</span>,
+    <span><b>戦法タグ</b>　棋譜にも戦法タグを付けられます。タグはノード編集画面と共通です</span>,
+    <span>保存した棋譜は、ノード編集画面の「保存済み棋譜から取り込む」で研究に取り込めます</span>,
   ],
   // ノード検索画面に初めて来たとき、絞り込み・並び替え・盤面サムネイルを案内する
   search: [
@@ -28,6 +35,7 @@ export const ONBOARD_MESSAGES = {
   map: [
     <span>ノードを<b>タップ</b>で編集</span>,
     <span><b>ドラッグ</b>で分岐のつなぎ替え</span>,
+    <span>つなぎ替えを間違えたら、左下に出る<b>「元に戻す」</b>で戻せます</span>,
     <span>
       <span style={{ display: "inline-flex", flexDirection: "column", gap: 2.5, verticalAlign: "middle", margin: "0 4px" }}>
         {[0, 1, 2].map((i) => (
@@ -39,6 +47,7 @@ export const ONBOARD_MESSAGES = {
   ],
   node: [
     <span><b>きほん</b>　相手の戦法と自分の戦法を入力</span>,
+    <span><b>保存済み棋譜から取り込む</b>　棋譜ライブラリの棋譜をこのノードに取り込めます。戦法タグが同じ棋譜が上に出ます</span>,
     <span><b>ついか</b>　さらに詳細を入力</span>,
     <span><b>子ノード</b>　「ここから分岐を追加」で次の分岐を作成できます</span>,
   ],
@@ -57,10 +66,13 @@ export const ONBOARD_MESSAGES = {
 
 // 各トーストが指さす対象（data-onboard 属性値）。null は指さし対象なし（トーストのみ）
 export const ONBOARD_TARGETS = {
-  list: ["search", "public", "trophy", "settings", "new"],
+  list: ["search", "public", "kifus", "trophy", "settings", "new"],
   // search / settings は指さし対象なし（中央にトーストのみ表示）
-  map:  ["map-node", "map-node", "map-menu"],
-  node: ["kihon", "tsuika", "children"],
+  // 棋譜ライブラリは「棋譜を保存」ボタンのみ指さし、タグ・取り込みの説明は中央に出す
+  kifus: ["kifu-save", null, null],
+  // つなぎ替えの「元に戻す」は付け替え後にしか出ないボタンなので指さし対象なし
+  map:  ["map-node", "map-node", null, "map-menu"],
+  node: ["kihon", "kifu-import", "tsuika", "children"],
   board: ["board-tmpl", "board-hide", "board-undo", "board-delete", "board-move", "board-stamp", "board-erase", "board-kifu"],
 };
 

@@ -417,6 +417,7 @@ export function KifuList({ userId, onBack }) {
           棋譜ライブラリ
         </div>
         <button
+          data-onboard="kifu-save"
           onClick={() => setShowImportModal(true)}
           style={{ background: T.gold, border: "none", cursor: "pointer", color: T.cream, fontSize: T.fontSize.lg, padding: "6px 14px", borderRadius: T.radius.md, fontFamily: T.fontSerif, display: "flex", alignItems: "center", gap: 4 }}
         >
