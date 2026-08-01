@@ -2,7 +2,7 @@
 //   実行: node test-harness/kifuAnalysis.test.mjs
 
 import { importKifuText, parseKifuMeta, isEvenGame } from "../src/kifuParser.js";
-import { extractGameFeatures } from "../src/kifuFeatures.js";
+import { extractGameFeatures, detectCastle } from "../src/kifuFeatures.js";
 import { analyzeGames, analyzeSwingTiming, wilson } from "../src/kifuStats.js";
 import { resolveMySide, outcomeFor, analyzeKifu, toAnalysisGame } from "../src/kifuAnalyze.js";
 
@@ -179,6 +179,49 @@ const KIF_YOKOFU = `手合割：平手
   const f = extractGameFeatures(r.snapshots, "sente");
   check("金2枚揃えば美濃囲い", f.myCastle.name, "美濃囲い");
   check("美濃囲いは完成", f.myCastle.completeness, 1);
+}
+
+// ── 囲いの判定（盤面を直接組んで確かめる）──
+// 実戦譜を1局ずつ用意するより、構成駒だけを置いたほうが
+// 「どの升にどの駒があればその囲いなのか」が読んで分かる。
+console.log("\n── 囲いの判定 ──");
+{
+  const emptyBoard = () => Array.from({ length: 9 }, () => Array(9).fill(" "));
+  // 先手視点の (筋, 段) に駒を置く。board[段-1][9-筋]
+  const build = (pieces) => {
+    const b = emptyBoard();
+    for (const [file, rank, piece] of pieces) b[rank - 1][9 - file] = piece;
+    return b;
+  };
+  const nameOf = (pieces) => {
+    const c = detectCastle(build(pieces), "sente");
+    return `${c.name}${c.completeness === 1 ? "" : "(組みかけ)"}`;
+  };
+
+  check("中住まい（5八玉・4八金・6八金）",
+    nameOf([[5, 8, "k"], [4, 8, "g"], [6, 8, "g"]]), "中住まい");
+  check("ミレニアム囲い（8九玉・8八銀・7八金・7七桂）",
+    nameOf([[8, 9, "k"], [8, 8, "s"], [7, 8, "g"], [7, 7, "n"]]), "ミレニアム囲い");
+  check("elmo囲い（6八玉・7八銀・7九金・5八金）",
+    nameOf([[6, 8, "k"], [7, 8, "s"], [7, 9, "g"], [5, 8, "g"]]), "elmo囲い");
+  check("舟囲い（6八玉・7八銀・5八金・4九金）",
+    nameOf([[6, 8, "k"], [7, 8, "s"], [5, 8, "g"], [4, 9, "g"]]), "舟囲い");
+  check("雁木囲い（6八玉・6七銀・7七銀・7八金）",
+    nameOf([[6, 8, "k"], [6, 7, "s"], [7, 7, "s"], [7, 8, "g"]]), "雁木囲い");
+  check("雁木は7九玉でも判定できる",
+    nameOf([[7, 9, "k"], [6, 7, "s"], [7, 7, "s"], [7, 8, "g"]]), "雁木囲い");
+  check("ボナンザ囲い（6八玉・5八金・7八金・7七銀）",
+    nameOf([[6, 8, "k"], [5, 8, "g"], [7, 8, "g"], [7, 7, "s"]]), "ボナンザ囲い");
+
+  // 玉の位置が同じ囲い同士が取り違えられないこと
+  check("玉6八・7八銀・5八金だけなら舟囲いの組みかけ",
+    nameOf([[6, 8, "k"], [7, 8, "s"], [5, 8, "g"]]), "舟囲い(組みかけ)");
+  check("居玉は囲いにしない",
+    nameOf([[5, 9, "k"], [4, 8, "g"], [6, 8, "g"]]), "居玉(組みかけ)");
+
+  // 後手は盤面を180度回して同じ表で判定する（5八玉 → 5二玉）
+  const gote = build([[5, 2, "K"], [6, 2, "G"], [4, 2, "G"]]);
+  check("後手の中住まいも判定できる", detectCastle(gote, "gote").name, "中住まい");
 }
 
 console.log("\n── 自分の側の判定 ──");
