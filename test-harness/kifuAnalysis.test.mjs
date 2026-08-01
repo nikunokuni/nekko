@@ -161,6 +161,22 @@ const a3 = analyzeKifu({
 });
 check("駒落ちは特徴を持たない", a3.features, null);
 
+// 大量取り込みの中核：1件で名前を答えると、同じ名前の他の棋譜もまとめて解決する。
+// （取り込み画面はこの resolveMySide の再適用で一括判定している）
+{
+  const batch = [
+    { senteName: "にく", goteName: "たろう" },
+    { senteName: "はなこ", goteName: "にく" },
+    { senteName: "にく", goteName: "じろう" },
+    { senteName: "よそ", goteName: "ひと" },
+  ];
+  check("答える前は誰も判定できない", batch.map((m) => resolveMySide(m, [])), [null, null, null, null]);
+  // 1件目で「先手のにくが自分」と答えた ＝ 名前「にく」を覚えた
+  const learned = ["にく"];
+  check("1回答えると同じ名前が全部解決する",
+    batch.map((m) => resolveMySide(m, learned)), ["sente", "gote", "sente", null]);
+}
+
 console.log("\n── 統計 ──");
 check("ウィルソン下限（2局2勝は上位に来ない）", wilson(2, 0, 2).lower < wilson(18, 0, 20).lower, true);
 

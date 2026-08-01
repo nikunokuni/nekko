@@ -112,6 +112,15 @@ export function setKifuPlayerNames(names) {
   return cleaned;
 }
 
+/** 対局者名を1つ追加する（既に登録済みなら何もしない）。
+ *  取り込み時に「この名前はあなたですか？」と確認した答えを覚えるために使う。
+ *  一度覚えれば、以降その名前の棋譜は先後を自動判定できる。 */
+export function addKifuPlayerName(name) {
+  const trimmed = String(name || "").trim();
+  if (!trimmed || _state.kifuPlayerNames.includes(trimmed)) return _state.kifuPlayerNames;
+  return setKifuPlayerNames([..._state.kifuPlayerNames, trimmed]);
+}
+
 // ── 「ついか」欄の表示設定 ─────────────────────────
 // { key:false } のときだけ非表示（既定＝全項目表示）。
 // OFFにしても入力済みのデータは消えず、ONに戻せばそのまま再表示される。

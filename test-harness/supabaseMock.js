@@ -66,12 +66,20 @@ class Query {
   delete() { this.op = "delete"; return this; }
   eq(col, val) { this.filters.push((r) => r[col] === val); return this; }
   in(col, vals) { const s = new Set(vals); this.filters.push((r) => s.has(r[col])); return this; }
+  // .is(col, null) 相当。未設定（undefined）も NULL とみなす
+  is(col, val) {
+    if (val === null) this.filters.push((r) => r[col] === null || r[col] === undefined);
+    else this.filters.push((r) => r[col] === val);
+    return this;
+  }
+  limit(n) { this.limitN = n; return this; }
   order(col, { ascending = true } = {}) { this.orders.push({ col, ascending }); return this; }
   single() { this.wantSingle = true; return this; }
 
   _rows(db) {
     let rows = db[this.table] || [];
     for (const f of this.filters) rows = rows.filter(f);
+    if (this.limitN != null) rows = rows.slice(0, this.limitN);
     return rows;
   }
 

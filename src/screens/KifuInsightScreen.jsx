@@ -10,9 +10,10 @@ import { useEffect, useMemo, useState } from "react";
 import { T } from "../theme";
 import { SectionLabel } from "../components/uiParts";
 import {
-  fetchKifusForAnalysis, fetchKifusNeedingMeta, updateKifu, kifuRowToKifu,
+  fetchKifusForAnalysis, fetchKifusNeedingMeta, fetchKifusMissingSide,
+  fetchKifuSnapshots, updateKifu, kifuRowToKifu,
 } from "../db";
-import { analyzeKifu, toAnalysisGame } from "../kifuAnalyze";
+import { analyzeKifu, recomputeFeatures, resolveMySide, toAnalysisGame } from "../kifuAnalyze";
 import { analyzeGames, analyzeSwingTiming } from "../kifuStats";
 import { getKifuPlayerNames } from "../rewards";
 
@@ -144,6 +145,40 @@ export function KifuInsight({ userId, onBack, onGoSettings }) {
     }
   };
 
+  // ── 対局者名を覚えたあと、過去の棋譜の先後をまとめて判定し直す ──
+  // 名前の照合だけなら盤面は要らないので、まず軽い列だけで一致を調べ、
+  // 一致したものだけ盤面を取りに行って特徴を計算する。
+  const runResolveSides = async () => {
+    if (backfilling) return;
+    setBackfilling(true);
+    setBackfillMsg("");
+    let resolved = 0;
+    try {
+      const { data } = await fetchKifusMissingSide(userId);
+      const targets = (data || [])
+        .map((row) => ({ row, side: resolveMySide({ senteName: row.sente_name, goteName: row.gote_name }, playerNames) }))
+        .filter((t) => t.side);
+      for (const { row, side } of targets) {
+        const { data: snap } = await fetchKifuSnapshots(row.id);
+        await updateKifu(row.id, {
+          mySide: side,
+          features: recomputeFeatures({ snapshots: snap?.snapshots || [], mySide: side, handicap: row.handicap }),
+        });
+        resolved++;
+        setBackfillMsg(`${resolved}件を判定しました…`);
+      }
+      setBackfillMsg(resolved === 0
+        ? "登録済みの名前と一致する棋譜はありませんでした"
+        : `${resolved}件の先後を判定しました`);
+      load();
+    } catch (e) {
+      console.error("resolve sides error:", e);
+      setBackfillMsg("判定中にエラーが起きました。もう一度お試しください");
+    } finally {
+      setBackfilling(false);
+    }
+  };
+
   // ── 集計 ──
   const { analysis, timing, excluded, needMeta } = useMemo(() => {
     const games = [];
@@ -270,6 +305,17 @@ export function KifuInsight({ userId, onBack, onGoSettings }) {
                   {excluded.noSide  > 0 && ` 自分の側が不明 ${excluded.noSide}件`}
                   {excluded.noResult > 0 && ` 勝敗が不明 ${excluded.noResult}件`}
                   {excluded.handicapped > 0 && ` 駒落ち ${excluded.handicapped}件`}
+                </div>
+              )}
+              {/* 名前を新しく登録したあとに押すと、過去の棋譜の先後がまとめて埋まる */}
+              {excluded.noSide > 0 && playerNames.length > 0 && (
+                <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <button onClick={runResolveSides} disabled={backfilling} style={{
+                    padding: "5px 12px", borderRadius: T.radius.md,
+                    cursor: backfilling ? "default" : "pointer",
+                    border: `0.5px solid ${T.gold}`, background: "transparent", color: T.gold,
+                    fontFamily: T.fontSerif, fontSize: T.fontSize.sm,
+                  }}>登録済みの名前で先後を判定し直す</button>
                 </div>
               )}
             </div>

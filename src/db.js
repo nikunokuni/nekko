@@ -328,6 +328,20 @@ export async function fetchKifusNeedingMeta(userId, limit = 20) {
   return result;
 }
 
+/** 解析は済んでいるが「自分がどちら側か」だけ決まっていない棋譜を、名前つきで取得する。
+ *  対局者名を新しく覚えたあと、過去の棋譜をまとめて判定し直すために使う。
+ *  ここでは snapshots を読まない（名前の照合だけなら不要なため）。 */
+export async function fetchKifusMissingSide(userId) {
+  const result = await supabase
+    .from("kifus")
+    .select("id, name, sente_name, gote_name, handicap")
+    .eq("user_id", userId)
+    .eq("meta_parsed", true)
+    .is("my_side", null);
+  if (result.error) console.error("fetchKifusMissingSide error:", result.error);
+  return result;
+}
+
 /** 未解析の棋譜が何件あるか（後追い解析の案内を出すかどうかの判定に使う） */
 export async function countKifusNeedingMeta(userId) {
   const { count } = await supabase
