@@ -396,7 +396,14 @@ function KifuFactsTable({ kifu, onSetSide }) {
   const f = kifu.features;
   const side = kifu.mySide === "sente" ? "先手" : kifu.mySide === "gote" ? "後手" : null;
   const outcome = outcomeLabel(kifu);
-  const castle = (c) => (c ? `${c.name}${c.completeness > 0 ? `（完成度 ${Math.round(c.completeness * 100)}%）` : ""}` : "―");
+  // 完成度は数字で出すと「67%＝組めていない」と読めてしまう。
+  // 片美濃のように金1枚でも完成形の囲いがあるため、型として成立していれば
+  // 名前だけを出し、崩れている場合だけ「組みかけ」と添える。
+  const castle = (c) => {
+    if (!c) return "―";
+    if (c.completeness > 0 && c.completeness < 1) return `${c.name}（組みかけ）`;
+    return c.name;
+  };
 
   // 先後が決まっていない棋譜は、ここで名前を選んで直せるようにする。
   // 対局者名の表記ゆれで自動判定が外れると、他に直す手段が無くなるため。

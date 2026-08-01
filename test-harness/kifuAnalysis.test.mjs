@@ -128,7 +128,58 @@ check("後手視点：相手の戦法", f1g.oppStrategy, "四間飛車");
 const r2 = importKifuText(KIF_NAKABISHA);
 const f2 = extractGameFeatures(r2.snapshots, "sente");
 check("中飛車の判定", f2.myStrategy, "中飛車");
-check("中飛車＋美濃", f2.myCastle.name, "美濃囲い");
+// 5八に飛車がいるため5八金は指せず、金1枚＝片美濃になるのが正しい
+check("中飛車の囲いは片美濃", f2.myCastle.name, "片美濃囲い");
+
+// 飛車が前線へ出ても戦法を取り違えないこと。
+// 居飛車のまま飛車を3四まで進めた形（横歩取りの筋）。
+// 盤上のどこでも筋を読むと「その他/三間飛車」と誤判定してしまう。
+const KIF_YOKOFU = `手合割：平手
+先手：にく
+後手：たろう
+手数----指手---------消費時間--
+   1 ２六歩(27)   ( 0:01/00:00:01)
+   2 ３四歩(33)   ( 0:01/00:00:01)
+   3 ２五歩(26)   ( 0:01/00:00:02)
+   4 ８四歩(83)   ( 0:01/00:00:02)
+   5 ７六歩(77)   ( 0:01/00:00:03)
+   6 ８五歩(84)   ( 0:01/00:00:03)
+   7 ７八金(69)   ( 0:01/00:00:04)
+   8 ３二金(41)   ( 0:01/00:00:04)
+   9 ２四歩(25)   ( 0:01/00:00:05)
+  10 同　歩(23)   ( 0:01/00:00:05)
+  11 同　飛(28)   ( 0:01/00:00:06)
+  12 ８六歩(85)   ( 0:01/00:00:06)
+  13 同　歩(87)   ( 0:01/00:00:07)
+  14 同　飛(82)   ( 0:01/00:00:07)
+  15 ３四飛(24)   ( 0:01/00:00:08)
+  16 ３三角(22)   ( 0:01/00:00:08)
+  17 投了         ( 0:01/00:00:09)
+`;
+
+{
+  const r = importKifuText(KIF_YOKOFU);
+  const f = extractGameFeatures(r.snapshots, "sente");
+  check("飛車が3四まで出ても居飛車と判定する", f.myStrategy, "居飛車");
+  check("後手も居飛車のまま", f.oppStrategy, "居飛車");
+  check("前へ出ただけの手は「振った」と数えない", f.swingPly, null);
+}
+
+// 片美濃（金1枚）は「美濃囲いの67%」ではなく片美濃として名前が付くこと
+{
+  const r = importKifuText(KIF_NAKABISHA);
+  const f = extractGameFeatures(r.snapshots, "sente");
+  check("片美濃は独立した囲いとして判定", f.myCastle.name, "片美濃囲い");
+  check("片美濃は完成扱い（組みかけにしない）", f.myCastle.completeness, 1);
+}
+
+// 本美濃（金2枚）が揃っていれば、片美濃ではなく美濃囲いと呼ぶ
+{
+  const r = importKifuText(KIF_SHIKENBISHA);
+  const f = extractGameFeatures(r.snapshots, "sente");
+  check("金2枚揃えば美濃囲い", f.myCastle.name, "美濃囲い");
+  check("美濃囲いは完成", f.myCastle.completeness, 1);
+}
 
 console.log("\n── 自分の側の判定 ──");
 check("先手が自分", resolveMySide(m1, ["にく"]), "sente");

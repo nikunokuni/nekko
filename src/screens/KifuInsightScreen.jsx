@@ -14,7 +14,7 @@ import {
   fetchKifuSnapshots, updateKifu, kifuRowToKifu,
 } from "../db";
 import { analyzeKifu, recomputeFeatures, resolveMySide, toAnalysisGame } from "../kifuAnalyze";
-import { analyzeGames, analyzeSwingTiming } from "../kifuStats";
+import { analyzeGames, analyzeSwingTiming, groupBy } from "../kifuStats";
 import { getKifuPlayerNames } from "../rewards";
 
 // 最低局数の選択肢。少ないほど細かい傾向が出るが、偶然の偏りも拾いやすくなる
@@ -61,6 +61,34 @@ function GroupRow({ group, note }) {
         {group.castleCompleteness != null && ` ・ 囲いの完成度 ${pct(group.castleCompleteness)}`}
         {note && ` ・ ${note}`}
       </div>
+    </div>
+  );
+}
+
+// ── 戦型べつ一覧の1行 ─────────────────────────────
+// 数局しかない段階で勝率バーを出すと、偶然の偏りを傾向のように見せてしまう。
+// ここでは勝敗をそのまま並べるだけにとどめる。
+function MatchupRow({ group }) {
+  const castle = group.castleCompleteness;
+  return (
+    <div style={{
+      display: "flex", alignItems: "baseline", gap: 8,
+      padding: "9px 0", borderBottom: `0.5px solid ${T.inkLineFaint}`,
+    }}>
+      <span style={{ flex: 1, fontSize: T.fontSize.lg, color: T.ink, fontFamily: T.fontSerif }}>
+        {group.label}
+      </span>
+      {castle != null && castle < 1 && (
+        <span style={{ fontSize: T.fontSize.xs, color: T.inkFaint, fontFamily: T.fontSerif }}>
+          囲いが組みかけ
+        </span>
+      )}
+      <span style={{ fontSize: T.fontSize.base, color: T.ink, fontFamily: T.fontSerif }}>
+        {group.wins}勝{group.losses}敗{group.draws ? `${group.draws}分` : ""}
+      </span>
+      <span style={{ fontSize: T.fontSize.xs, color: T.inkFaint, fontFamily: T.fontSerif, minWidth: 30, textAlign: "right" }}>
+        {group.games}局
+      </span>
     </div>
   );
 }
@@ -182,7 +210,7 @@ export function KifuInsight({ userId, onBack, onGoSettings }) {
   };
 
   // ── 集計 ──
-  const { analysis, timing, excluded, needMeta } = useMemo(() => {
+  const { analysis, timing, byMatchup, excluded, needMeta } = useMemo(() => {
     const games = [];
     let noResult = 0, noSide = 0, handicapped = 0;
     let needMeta = 0;
@@ -200,12 +228,15 @@ export function KifuInsight({ userId, onBack, onGoSettings }) {
     return {
       analysis: analyzeGames(filtered, { minGames }),
       timing:   analyzeSwingTiming(filtered),
+      // 足切りなしの戦型べつ一覧。統計として有意かどうかとは別に、
+      // 「どの戦型を何局指したか」は1局からでも読む価値があるため常に出す。
+      byMatchup: groupBy(filtered, ["oppStrategy", "myStrategy"]).sort((a, b) => b.games - a.games),
       excluded: { noResult, noSide, handicapped },
       needMeta,
     };
   }, [kifus, minGames, sideFilter]);
 
-  const { overall, frequent, strong, weak, total } = analysis;
+  const { overall, strong, weak, total } = analysis;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: T.cream }}>
@@ -319,17 +350,18 @@ export function KifuInsight({ userId, onBack, onGoSettings }) {
                 marginBottom: 18, fontSize: T.fontSize.sm, color: T.grayText,
                 fontFamily: T.fontSerif, lineHeight: 1.7,
               }}>
-                まだ棋譜が少ないため、傾向は参考程度です。50局あたりから戦型ごとの差がはっきりしてきます。
+                「よく勝てる／よく負ける」は、まぐれと本当の傾向を区別できる局数がたまってから出ます。
+                それまでは上の「戦型べつの成績」を見てください。
               </div>
             )}
 
             <Section
-              title="よく出てくる"
-              description="実際に多く指している戦型。研究する価値がもっとも高い順番でもあります。"
+              title="戦型べつの成績"
+              description="指した戦型を局数の多い順に並べています。局数が少ないうちは勝率より、どの戦型を何局指したかを見るほうが役に立ちます。"
             >
-              {frequent.length === 0
-                ? EMPTY(total === 0 ? "集計できる棋譜がまだありません" : `${minGames}局以上ためた戦型がまだありません`)
-                : frequent.map((g) => <GroupRow key={g.key} group={g} note={g.level} />)}
+              {byMatchup.length === 0
+                ? EMPTY("集計できる棋譜がまだありません")
+                : byMatchup.map((g) => <MatchupRow key={g.key} group={g} />)}
             </Section>
 
             <Section
@@ -337,7 +369,7 @@ export function KifuInsight({ userId, onBack, onGoSettings }) {
               description="全体の勝率より確実に高い戦型だけを出しています（少ない局数のまぐれを除くため、勝率ではなく信頼区間で判定）。"
             >
               {strong.length === 0
-                ? EMPTY("全体より確実に勝てていると言える戦型は、まだありません")
+                ? EMPTY(`${minGames}局以上ためた戦型のうち、全体より確実に勝てていると言えるものはまだありません`)
                 : strong.map((g) => <GroupRow key={g.key} group={g} note={g.level} />)}
             </Section>
 
@@ -346,7 +378,7 @@ export function KifuInsight({ userId, onBack, onGoSettings }) {
               description="全体の勝率より確実に低い戦型を、取りこぼしている局数の多い順に並べています。上から直すのが効率的です。"
             >
               {weak.length === 0
-                ? EMPTY("全体より確実に負けていると言える戦型は、まだありません")
+                ? EMPTY(`${minGames}局以上ためた戦型のうち、全体より確実に負けていると言えるものはまだありません`)
                 : weak.map((g) => (
                     <GroupRow key={g.key} group={g} note={`${g.level}・約${g.lostGames.toFixed(1)}局分の取りこぼし`} />
                   ))}

@@ -63,6 +63,27 @@ export function rookFile(board, side) {
   return null;
 }
 
+/**
+ * 自陣（先手なら7〜9段／後手なら1〜3段）にいるときだけ飛車の筋を返す。
+ *
+ * 戦法は「自陣で飛車をどの筋に据えたか」で決まる。序盤を過ぎると飛車は
+ * 戦いのために前へ出たり横へ動いたりするので、盤上のどこにいても筋を読むと
+ * 横歩取りの3四飛を「三間飛車」と取り違えるなど、判定を誤る。
+ * 成り駒（龍）はもう序盤ではないので数えない。
+ */
+export function rookFileInCamp(board, side) {
+  const target = side === "sente" ? "r" : "R";
+  for (let rank = 1; rank <= 9; rank++) {
+    for (let file = 1; file <= 9; file++) {
+      if (at(board, file, rank) !== target) continue;
+      const inCamp = side === "sente" ? rank >= 7 : rank <= 3;
+      if (!inCamp) return null;
+      return side === "sente" ? file : mirrorFile(file);
+    }
+  }
+  return null;
+}
+
 /** 正規化した飛車の筋 → 戦法名。表に無い筋は「その他」 */
 export function strategyFromRookFile(file) {
   if (file == null) return "不明";
@@ -86,13 +107,17 @@ const CASTLE_TEMPLATES = [
   { name: "銀冠",       king: [2, 8], parts: [[2, 7, "s"], [3, 8, "g"], [5, 8, "g"]] },
   { name: "高美濃",     king: [2, 8], parts: [[3, 8, "s"], [4, 7, "g"], [5, 8, "g"]] },
   { name: "美濃囲い",   king: [2, 8], parts: [[3, 8, "s"], [4, 9, "g"], [5, 8, "g"]] },
+  // 片美濃（金1枚）は本美濃の作りかけではなく、それ自体が完成形の囲い。
+  // 独立させないと「美濃囲い（完成度67%）」と出て、組めていないように見えてしまう。
+  { name: "片美濃囲い", king: [2, 8], parts: [[3, 8, "s"], [4, 9, "g"]] },
   { name: "金無双",     king: [3, 8], parts: [[4, 8, "g"], [5, 8, "g"], [2, 8, "s"]] },
   { name: "舟囲い",     king: [6, 8], parts: [[7, 8, "s"], [5, 8, "g"], [4, 9, "g"]] },
 ];
 
 /**
  * 盤面から囲いを判定する。
- * @returns {{name: string, completeness: number}} completeness は 0〜1
+ * @returns {{name, completeness, parts}} completeness は 0〜1、
+ *   parts はその囲いの構成駒数（同じ完成度でどちらを採るかの比較に使う）。
  *   玉が定位置(5九)のままなら「居玉」、どの型にも当てはまらなければ「その他」
  */
 export function detectCastle(board, side) {
@@ -107,18 +132,20 @@ export function detectCastle(board, side) {
       }
     }
   }
-  if (!kingSq) return { name: "不明", completeness: 0 };
-  if (kingSq[0] === 5 && kingSq[1] === 9) return { name: "居玉", completeness: 0 };
+  if (!kingSq) return { name: "不明", completeness: 0, parts: 0 };
+  if (kingSq[0] === 5 && kingSq[1] === 9) return { name: "居玉", completeness: 0, parts: 0 };
 
-  let best = { name: "その他", completeness: 0 };
+  let best = { name: "その他", completeness: 0, parts: 0 };
   for (const tpl of CASTLE_TEMPLATES) {
     if (tpl.king[0] !== kingSq[0] || tpl.king[1] !== kingSq[1]) continue;
     const hit = tpl.parts.filter(([f, r, t]) => isPiece(board, side, f, r, t)).length;
     const completeness = hit / tpl.parts.length;
-    // 玉の位置は合っているので、構成駒が半分以上そろっていればその囲いとみなす
-    if (completeness >= 0.5 && completeness > best.completeness) {
-      best = { name: tpl.name, completeness };
-    }
+    if (completeness < 0.5) continue;   // 玉の位置が合っていても半分未満なら別の囲い
+    // 完成度が同じなら構成駒の多いほう（＝より発展した囲い）を採る。
+    // 本美濃と片美濃はどちらも成立しうるので、揃っているなら本美濃と呼ぶ。
+    const better = completeness > best.completeness
+      || (completeness === best.completeness && tpl.parts.length > best.parts);
+    if (better) best = { name: tpl.name, completeness, parts: tpl.parts.length };
   }
   // 玉は動いているが型に当てはまらない場合は「その他」（完成度0）
   return best;
@@ -162,10 +189,24 @@ const CASTLE_OBSERVE_PLY  = 80;
 // この手数までに飛車を振っていれば「早い」（自分から戦型を決めにいった目安）
 const EARLY_SWING_PLY     = 20;
 
-// 飛車が定位置の筋を離れた最初の手数を返す（振らなければ null）
+// 序盤のあいだに飛車が自陣で最後に据えられた筋を返す。
+// 途中で前線へ出ても、出る前の筋がその対局の戦法を表す。
+// 一度も自陣を離れなければ定位置のまま＝居飛車。
+function settledRookFile(snapshots, side, limit) {
+  let settled = ROOK_HOME_FILE;
+  for (let i = 0; i <= limit; i++) {
+    const f = rookFileInCamp(snapshots[i]?.board, side);
+    if (f != null) settled = f;
+  }
+  return settled;
+}
+
+// 飛車が定位置の筋を離れた最初の手数を返す（振らなければ null）。
+// 前線へ出ただけの手（2六飛・3四飛など）を「振った」と数えないよう、
+// 自陣にいるあいだの筋だけを見る。
 function findSwingPly(snapshots, side, limit) {
   for (let i = 1; i <= limit; i++) {
-    const f = rookFile(snapshots[i]?.board, side);
+    const f = rookFileInCamp(snapshots[i]?.board, side);
     if (f != null && f !== ROOK_HOME_FILE) return i;
   }
   return null;
@@ -174,15 +215,20 @@ function findSwingPly(snapshots, side, limit) {
 // 観測範囲でもっとも完成度の高かった囲いを採る。
 // 終局間際は囲いが崩されているため、最終局面だけを見ると判定を誤る。
 function bestCastle(snapshots, side, limit) {
-  let best = { name: "居玉", completeness: 0 };
+  let best = { name: "居玉", completeness: 0, parts: 0 };
   let sawNonIgyoku = false;
   for (let i = 0; i <= limit; i++) {
     const c = detectCastle(snapshots[i]?.board, side);
     if (c.name !== "居玉" && c.name !== "不明") sawNonIgyoku = true;
-    if (c.completeness > best.completeness) best = c;
+    // detectCastle と同じ優先順位（完成度 → 構成駒の多さ）で比べる。
+    // 完成度だけで比べると、片美濃のまま本美濃へ発展した対局で
+    // 先に見つかった片美濃が残り続けてしまう。
+    const better = c.completeness > best.completeness
+      || (c.completeness === best.completeness && (c.parts || 0) > (best.parts || 0));
+    if (better) best = c;
   }
   // 一度も型にはまらなかった場合、玉が動いていれば「その他」、動いていなければ「居玉」
-  if (best.completeness === 0) return { name: sawNonIgyoku ? "その他" : "居玉", completeness: 0 };
+  if (best.completeness === 0) return { name: sawNonIgyoku ? "その他" : "居玉", completeness: 0, parts: 0 };
   return best;
 }
 
@@ -198,8 +244,8 @@ export function extractGameFeatures(snapshots, mySide) {
   const settlePly = Math.min(STRATEGY_SETTLE_PLY, lastPly);
   const castlePly = Math.min(CASTLE_OBSERVE_PLY,  lastPly);
 
-  const myFile  = rookFile(snapshots[settlePly].board, mySide);
-  const oppFile = rookFile(snapshots[settlePly].board, oppSide);
+  const myFile  = settledRookFile(snapshots, mySide,  settlePly);
+  const oppFile = settledRookFile(snapshots, oppSide, settlePly);
 
   const mySwing  = findSwingPly(snapshots, mySide,  settlePly);
   const oppSwing = findSwingPly(snapshots, oppSide, settlePly);
