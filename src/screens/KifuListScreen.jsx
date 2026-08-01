@@ -392,15 +392,35 @@ function ImportKifuModal({ onClose, onImportMany, customTags, onAddCustomTag }) 
 // ──────────────────────────────────────────
 // 読み取った対局情報と特徴を並べて見せる表。
 // 戦法や囲いの自動判定が実戦の感覚と合っているかを、ここで確かめられるようにする。
-function KifuFactsTable({ kifu }) {
+function KifuFactsTable({ kifu, onSetSide }) {
   const f = kifu.features;
   const side = kifu.mySide === "sente" ? "先手" : kifu.mySide === "gote" ? "後手" : null;
   const outcome = outcomeLabel(kifu);
   const castle = (c) => (c ? `${c.name}${c.completeness > 0 ? `（完成度 ${Math.round(c.completeness * 100)}%）` : ""}` : "―");
 
+  // 先後が決まっていない棋譜は、ここで名前を選んで直せるようにする。
+  // 対局者名の表記ゆれで自動判定が外れると、他に直す手段が無くなるため。
+  const sideCell = side ? `${side}番` : (
+    <span style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+      {[["sente", kifu.senteName || "先手"], ["gote", kifu.goteName || "後手"]].map(([v, label]) => (
+        <button
+          key={v}
+          onClick={() => onSetSide?.(v)}
+          style={{
+            padding: "2px 10px", borderRadius: T.radius.sm, cursor: "pointer",
+            border: `0.5px solid ${T.gold}`, background: "transparent", color: T.gold,
+            fontFamily: T.fontSerif, fontSize: T.fontSize.sm,
+            maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}
+        >{label}</button>
+      ))}
+      <span style={{ color: T.inkFaint, fontSize: T.fontSize.sm }}>← あなたはどちら？</span>
+    </span>
+  );
+
   const rows = [
     ["対局者", `先手 ${kifu.senteName || "―"} ／ 後手 ${kifu.goteName || "―"}`],
-    ["あなた", side ? `${side}番` : "判定できていません"],
+    ["あなた", sideCell],
     ["結果",   outcome ? outcome.text : "読み取れていません"],
     ...(kifu.handicap && kifu.handicap !== "平手" ? [["手合割", `${kifu.handicap}（駒落ちは集計対象外）`]] : []),
     ...(f ? [
@@ -431,14 +451,14 @@ function KifuFactsTable({ kifu }) {
       {!f && (
         <div style={{ marginTop: 6, fontSize: T.fontSize.sm, color: T.grayText, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
           あなたがどちら側か決まっていないため、戦法・囲いは判定していません。
-          設定に「棋譜での自分の名前」を登録してから、傾向画面の「まとめて解析する」を実行すると埋まります。
+          上の「あなた」であなたの名前を選ぶと、その名前を覚えて他の棋譜にも適用されます。
         </div>
       )}
     </div>
   );
 }
 
-function KifuPreviewModal({ kifu, onClose }) {
+function KifuPreviewModal({ kifu, onClose, onSetSide }) {
   return (
     <div style={MODAL_OVERLAY_STYLE} onClick={onClose}>
       <div style={{ ...MODAL_SHEET_STYLE, maxHeight: "90%", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
@@ -450,7 +470,7 @@ function KifuPreviewModal({ kifu, onClose }) {
             <i className="ti ti-x" />
           </button>
         </div>
-        <KifuFactsTable kifu={kifu} />
+        <KifuFactsTable kifu={kifu} onSetSide={onSetSide} />
         <KifuPreviewBoard snapshots={kifu.snapshots} />
       </div>
     </div>
@@ -678,6 +698,21 @@ export function KifuList({ userId, onBack, onInsight }) {
     }
     if (saved.length > 0) setKifus((prev) => [...saved, ...prev]);
     return saved.length;
+  };
+
+  // 保存済み棋譜の先後を手で決める。
+  // 選んだ名前を覚えるので、以降の取り込みと「まとめて解析する」でも同じ判定になる。
+  const handleSetSide = async (kifu, side) => {
+    const name = side === "sente" ? kifu.senteName : kifu.goteName;
+    if (name) addKifuPlayerName(name);
+    const features = recomputeFeatures({
+      snapshots: kifu.snapshots, mySide: side, handicap: kifu.handicap,
+    });
+    const { error } = await updateKifu(kifu.id, { mySide: side, features });
+    if (error) { alert("保存に失敗しました。もう一度お試しください。"); return; }
+    const patch = { mySide: side, features };
+    setKifus((prev) => prev.map((k) => (k.id === kifu.id ? { ...k, ...patch } : k)));
+    setPreviewTarget((t) => (t && t.id === kifu.id ? { ...t, ...patch } : t));
   };
 
   // カードタップ → snapshots込みで取得して再生プレビューを開く

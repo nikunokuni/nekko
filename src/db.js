@@ -304,11 +304,15 @@ export async function fetchMyKifus(userId) {
   return result;
 }
 
-/** 傾向分析用。集計に必要な列だけを読む（snapshots は読まない） */
+/** 傾向分析用。snapshots と source_text 以外の軽い列をまとめて読む。
+ *  列を絞り込まず KIFU_META_COLUMNS を使い回すのは、必要な列を1つ書き漏らすと
+ *  kifuRowToKifu が undefined を返して集計が静かに壊れるため
+ *  （meta_parsed の記載漏れで全棋譜が「未解析」と誤判定される不具合があった）。
+ *  除いた2列に比べれば残りはすべて小さく、まとめて読んでも通信量は変わらない。 */
 export async function fetchKifusForAnalysis(userId) {
   const result = await supabase
     .from("kifus")
-    .select("id, name, tags, result, my_side, handicap, played_at, features, move_count")
+    .select(KIFU_META_COLUMNS)
     .eq("user_id", userId)
     .order("played_at", { ascending: false });
   if (result.error) console.error("fetchKifusForAnalysis error:", result.error);
