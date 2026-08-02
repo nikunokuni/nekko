@@ -6,7 +6,7 @@
 //   （入力した勝率・好き度・タグを“見返す場所”でもある）
 // ══════════════════════════════════════════════════════════════════
 import { useState, useEffect, useMemo } from "react";
-import { T } from "../theme";
+import { T, focusBorder, blurBorder } from "../theme";
 import { BackBtn, StatusChip, MiniBoard } from "../components";
 import { USAGE_META, LIKE_LEVELS } from "../data";
 import { fetchAllMyNodes } from "../db";
@@ -130,8 +130,8 @@ export function NodeSearch({ userId, trees, onBack, onOpenNode }) {
               padding: "9px 12px 9px 30px", fontSize: T.fontSize.base,
               color: T.ink, background: T.cream, fontFamily: T.fontSerif, outline: "none",
             }}
-            onFocus={(e) => (e.target.style.borderColor = T.gold)}
-            onBlur={(e)  => (e.target.style.borderColor = T.inkLine)}
+            onFocus={focusBorder}
+            onBlur={blurBorder}
           />
         </div>
 

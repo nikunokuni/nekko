@@ -6,7 +6,7 @@
 //   ノードへの取り込みはノード編集画面側（KifuPickerModal）から行う。
 // ══════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
-import { T, MODAL_OVERLAY_STYLE, MODAL_SHEET_STYLE, parseTags } from "../theme";
+import { T, MODAL_OVERLAY_STYLE, MODAL_SHEET_STYLE, parseTags, focusBorder, blurBorder } from "../theme";
 import { InputField, SectionLabel, ModalActionButtons, ConfirmDeleteModal, KifuPreviewBoard, TagPickerField } from "../components/uiParts";
 import { STRATEGY_GROUPS } from "../data";
 import { recordAction, getCustomTagsByGroup, addCustomTag, getKifuPlayerNames, addKifuPlayerName } from "../rewards";
@@ -280,8 +280,8 @@ function ImportKifuModal({ onClose, onImportMany, customTags, onAddCustomTag }) 
               padding: "10px 12px", fontSize: T.fontSize.base, color: T.ink,
               background: T.cream, fontFamily: T.fontSerif, resize: "vertical", outline: "none",
             }}
-            onFocus={(e) => (e.target.style.borderColor = T.gold)}
-            onBlur={(e)  => (e.target.style.borderColor = T.inkLine)}
+            onFocus={focusBorder}
+            onBlur={blurBorder}
           />
           {pasteText.trim() && (
             <button

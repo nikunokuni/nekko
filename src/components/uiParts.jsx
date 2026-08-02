@@ -6,7 +6,7 @@
 import { useState } from "react";
 import ShogiBoard from "../ShogiBoard";
 import { BOARD_TEMPLATES } from "../data";
-import { T, INPUT_STYLE, BTN_CANCEL_STYLE, parseTags } from "../theme";
+import { T, INPUT_STYLE, BTN_CANCEL_STYLE, parseTags, focusBorder, blurBorder } from "../theme";
 
 // ──────────────────────────────────────────
 // InputField: ラベル付きテキスト入力フィールド
@@ -22,8 +22,8 @@ export function InputField({ label, value, onChange, placeholder }) {
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         style={INPUT_STYLE}
-        onFocus={(e) => (e.target.style.borderColor = T.gold)}
-        onBlur={(e)  => (e.target.style.borderColor = T.inkLine)}
+        onFocus={focusBorder}
+        onBlur={blurBorder}
       />
     </div>
   );

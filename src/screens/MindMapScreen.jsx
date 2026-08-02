@@ -5,7 +5,7 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { Accordion } from "../components";
 import { STATUS_META, USAGE_META, ORIENTATION_META } from "../data";
-import { T } from "../theme";
+import { T, TEXTAREA_STYLE, focusBorder } from "../theme";
 
 /** ノードの矩形サイズ */
 const NODE_W = 110;
@@ -763,19 +763,13 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
               placeholder="メモをさっと入力..."
               rows={3}
               style={{
-                width: "100%", boxSizing: "border-box",
-                border: `0.5px solid ${T.inkLine}`,
+                ...TEXTAREA_STYLE,
                 borderRadius: T.radius.md,
-                background: T.goldLight,
-                padding: "8px 10px",
-                fontSize: T.fontSize.base,
-                color: T.ink,
-                fontFamily: T.fontSerif,
-                resize: "none",
-                outline: "none",
-                lineHeight: 1.6,
+                background:   T.goldLight,
+                padding:      "8px 10px",
+                lineHeight:   1.6,
               }}
-              onFocus={(e) => (e.target.style.borderColor = T.gold)}
+              onFocus={focusBorder}
             />
           </div>
           )}

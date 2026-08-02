@@ -11,9 +11,17 @@ UI 文言・コメント・コミットメッセージはすべて日本語。
 npm install                # 依存インストール
 npm run dev                # 開発サーバ（実 Supabase に接続。.env が必要）
 npm run dev:mock           # 開発サーバ（Supabase をローカルモックに差し替え／.env 不要）
-npm test                   # test-harness/*.test.mjs を全部実行
+
+npm run lint               # 静的チェック（バグになりうる書き方だけを見る）
+npm test                   # ロジックのユニットテスト（数秒）
+npm run test:e2e           # UI自動テスト（ブラウザで実際に操作。15秒ほど）
+npm run test:all           # lint → test → test:e2e を通しで
+
 npm run build              # 本番ビルド
 ```
+
+E2E は初回だけブラウザの用意がいる：`npx playwright install chromium`。
+ブラウザが別の場所にすでにある環境では `PLAYWRIGHT_CHROMIUM_PATH` で指定できる。
 
 **バックエンド無しで動かしたいときは `npm run dev:mock`。** 任意の ID/パスワードで新規登録すれば
 localStorage 上で全機能が触れる（`test-harness/supabaseMock.js`）。手動 QA はこれが基本。
@@ -40,8 +48,10 @@ src/
   screens/          画面ごとに1ファイル
     TreeListScreen / MindMapScreen / NodeDetailScreen / NodeSearchScreen
     KifuListScreen / KifuInsightScreen / TrophyScreen / SettingsScreen
+    node/           ノード詳細画面のセクション（Parent / TurnEval / Tsuika /
+                    Children / KifuPickerModal / sectionParts）
   screensPublic.jsx 認証画面・公開ツリー画面
-  components.jsx    共通 UI パーツ（MiniBoard / StatusChip / Accordion ほか）
+  components.jsx    共通 UI パーツ（MiniBoard / IconButton / StatusChip / Accordion ほか）
   components/       やや大きめの UI パーツ（uiParts.jsx / 各種モーダル・バナー）
   hooks/            useAuth / useTreeData / useFontScale / useRecoveryCode / usePwaUpdate
 
@@ -55,6 +65,7 @@ src/
 
 supabase/migrations/  スキーマ変更（YYYYMMDD_内容.sql）
 test-harness/         モック Supabase・ユニットテスト・QA レポート
+e2e/                  UI自動テスト（Playwright）
 docs/                 設計メモ（「なぜそう決めたか」の記録）
 ```
 
@@ -74,18 +85,33 @@ docs/                 設計メモ（「なぜそう決めたか」の記録）
 5. **統計は必ずコードで計算する。** LLM に盤面の形勢判断はさせない（設計判断の詳細は
    `docs/kifu-analysis.md`）。
 6. **バージョンは `package.json` の version が一次情報。** 画面表示はそこから埋め込む。
+7. **色・余白・共通スタイルは `theme.js` から取る。** その場で書いた色や
+   `resize:"none"` 一式をコピーしない（`T` / `INPUT_STYLE` / `TEXTAREA_STYLE` /
+   `focusBorder` / `blurBorder`）。
+8. **アイコンだけのボタンには名前を付ける。** `IconButton` の `label` は必須。
+   読み上げソフトに何のボタンか伝わらず、自動テストからも掴めなくなるため。
 
 ---
 
 ## テスト
 
-`test-harness/*.test.mjs` に置けば `npm test` が自動で拾う（依存ゼロ・Node 直実行）。
-現状のカバー範囲：
+**ロジック** — `test-harness/*.test.mjs` に置けば `npm test` が自動で拾う
+（依存ゼロ・Node 直実行）。treeOps と棋譜解析をカバーしている。
 
-- `treeOps.test.mjs` — ツリー変更ロジック
-- `kifuAnalysis.test.mjs` — 棋譜のパース・特徴抽出・傾向集計
+**UI** — `e2e/*.spec.mjs`（Playwright）。モック構成をビルドしてブラウザで実際に
+操作する。実バックエンドも `.env` も要らない。主要動線（登録・ツリー作成・
+ノード編集・ついか・分岐追加・棋譜の保存とツリーへの送り込み）を押さえてある。
 
-UI を含む変更は自動テストで拾えないので、`npm run dev:mock` で手を動かして確認する。
+E2Eを書くときの約束：
+
+- `e2e/fixtures.mjs` から `test` を import する（外部フォントの読み込みを遮断
+  する。これを外すと1テスト40秒級まで遅くなる）。
+- 共通操作は `e2e/helpers.mjs` に置く。使い方トーストは `skipOnboarding` で
+  既読にしてから操作する（画面を覆ってクリックを吸うため）。
+- 保存の確認は「画面のstate」ではなく、リロードして**保存された内容**を見る。
+
+見た目そのもの（配置・色）は自動テストの対象外なので、`npm run dev:mock` で
+実際に触って確認する。
 
 ---
 
@@ -99,6 +125,7 @@ UI を含む変更は自動テストで拾えないので、`npm run dev:mock` �
 
 ## 変更を出すまで
 
-`npm test` と `npm run build` が通ることを確認してからコミットする（CI でも同じことを見る）。
+`npm run test:all`（lint → ユニット → E2E）と `npm run build` が通ることを
+確認してからコミットする（CI でも同じことを見る）。
 コミットメッセージは日本語で「何ができるようになったか」を書く（例：
 `棋譜から勝敗・戦型を読み取り、傾向を集計できるようにした`）。

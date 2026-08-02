@@ -17,7 +17,7 @@ import {
 } from "../components";
 import { STRATEGY_GROUPS, COMMENT_GROUPS } from "../data";
 import { recordAction, getCustomTagsByGroup, addCustomTag, getCommentCustomTags, addCommentCustomTag, isTsuikaVisible } from "../rewards";
-import { T, INPUT_STYLE, cloneBoard, parseTags } from "../theme";
+import { T, TEXTAREA_STYLE, INPUT_STYLE, cloneBoard, parseTags, focusBorder, blurBorder } from "../theme";
 import { SectionLabel, BoardSection, TagPickerField } from "../components/uiParts";
 import { fetchKifusForAnalysis, kifuRowToKifu } from "../db";
 import { toAnalysisGame } from "../kifuAnalyze";
@@ -652,7 +652,7 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
               }}
               placeholder="例：▲４六銀型"
               style={node.isRoot ? { ...INPUT_STYLE, color: T.inkMid, background: T.goldLight } : INPUT_STYLE}
-              onFocus={(e) => (e.target.style.borderColor = T.gold)}
+              onFocus={focusBorder}
             />
             {node.isRoot && (
               <div style={{ fontSize: T.fontSize.sm, color: T.inkFaint, marginTop: 4, fontFamily: T.fontSerif }}>
@@ -708,9 +708,9 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
             onChange={(e) => { setMemo(e.target.value); scheduleSave({ memo: e.target.value }); }}
             placeholder="この局面の気づき・方針を自由に（迷ったらまずここに）"
             rows={4}
-            style={{ width: "100%", border: `0.5px solid ${T.inkLine}`, borderRadius: T.radius.sm, padding: "10px 12px", fontSize: T.fontSize.base, color: T.ink, background: T.cream, resize: "none", fontFamily: T.fontSerif, lineHeight: 1.7, outline: "none" }}
-            onFocus={(e) => (e.target.style.borderColor = T.gold)}
-            onBlur={(e)  => { e.target.style.borderColor = T.inkLine; flushSave(); }}
+            style={{ ...TEXTAREA_STYLE, padding: "10px 12px" }}
+            onFocus={focusBorder}
+            onBlur={(e) => { blurBorder(e); flushSave(); }}
           />
         </div>
 
@@ -721,8 +721,8 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
           <input
             value={whenToUse}
             onChange={(e) => { setWhenToUse(e.target.value); scheduleSave({ whenToUse: e.target.value }); }}
-            onBlur={(e)  => { e.target.style.borderColor = T.inkLine; flushSave(); }}
-            onFocus={(e) => (e.target.style.borderColor = T.gold)}
+            onBlur={(e) => { blurBorder(e); flushSave(); }}
+            onFocus={focusBorder}
             placeholder="例：相手が急戦できたとき／早く固めたいとき"
             style={INPUT_STYLE}
           />

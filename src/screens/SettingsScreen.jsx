@@ -2,7 +2,7 @@
 // SettingsScreen.jsx  ―  設定画面
 // ══════════════════════════════════════════════════════════════════
 import { useState, useEffect } from "react";
-import { T } from "../theme";
+import { T, focusBorder } from "../theme";
 import { TSUIKA_ITEMS } from "../data";
 import { isTsuikaVisible, setTsuikaVisible, getKifuPlayerNames, setKifuPlayerNames } from "../rewards";
 import { APP_VERSION, BUILD_TIME } from "../version";
@@ -229,7 +229,7 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOn
               padding: "10px 12px", fontSize: T.fontSize.base, color: T.ink,
               background: T.cream, fontFamily: T.fontSerif, outline: "none",
             }}
-            onFocus={(e) => (e.target.style.borderColor = T.gold)}
+            onFocus={focusBorder}
           />
           <div style={{ display: "flex", gap: 6, marginTop: 8, fontSize: T.fontSize.base, color: T.inkFaint, lineHeight: 1.7 }}>
             <i className="ti ti-info-circle" style={{ marginTop: 3, flexShrink: 0 }} />

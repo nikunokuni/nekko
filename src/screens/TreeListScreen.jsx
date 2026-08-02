@@ -3,7 +3,7 @@
 //   TreeCard / TreeList / CreateTreeModal / EditTreeModal / DeleteTreeModal
 // ══════════════════════════════════════════════════════════════════
 import { useState } from "react";
-import { T, MODAL_OVERLAY_STYLE, MODAL_SHEET_STYLE } from "../theme";
+import { T, TEXTAREA_STYLE, MODAL_OVERLAY_STYLE, MODAL_SHEET_STYLE } from "../theme";
 import { InputField, SectionLabel, ModalActionButtons, ConfirmDeleteModal } from "../components/uiParts";
 import { IconButton } from "../components";
 
@@ -310,16 +310,14 @@ function TreeCard({ tree, onOpen, onEdit, onDelete, onMemoSave }) {
               placeholder="時間がないときは、とりあえずここへ（あとで整理すればOK）"
               rows={2}
               style={{
-                width: "100%", boxSizing: "border-box",
-                border: "0.5px solid rgba(200,169,110,0.6)",
+                ...TEXTAREA_STYLE,
+                // 一言メモは他の入力欄と区別するため、枠と背景だけ変える
+                border:       "0.5px solid rgba(200,169,110,0.6)",
                 borderRadius: T.radius.md,
-                background: "rgba(255,252,240,0.9)",
-                padding: "8px 10px",
-                fontSize: T.fontSize.md,
-                color: T.ink,
-                fontFamily: T.fontSerif,
-                resize: "none",
-                outline: "none",
+                background:   "rgba(255,252,240,0.9)",
+                padding:      "8px 10px",
+                fontSize:     T.fontSize.md,
+                lineHeight:   1.6,
               }}
             />
           </div>
