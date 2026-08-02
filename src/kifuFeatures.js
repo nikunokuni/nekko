@@ -298,3 +298,64 @@ export function extractGameFeatures(snapshots, mySide) {
     swingSpeed:  mySwing == null ? null : (mySwing <= EARLY_SWING_PLY ? "早い" : "遅い"),
   };
 }
+
+// ══════════════════════════════════════════════════
+// 棋譜の節目
+// ══════════════════════════════════════════════════
+//   「どこで分岐を作るか」を探すときの手がかり。
+//   序盤の駒組みと、戦いが始まってからでは研究したいことが違うので、
+//   その境目を機械で拾って印を出す。
+//   ここはエンジンなしで盤面だけから決まるものに限る。
+
+// 持ち駒の合計。増えた手＝駒を取った手
+function handTotal(snapshot) {
+  const sum = (h) => Object.values(h || {}).reduce((a, b) => a + (b || 0), 0);
+  return sum(snapshot?.handSente) + sum(snapshot?.handGote);
+}
+
+/**
+ * 棋譜から節目の手数を拾う。
+ * @returns {Array<{ply, label}>} 手数の昇順。同じ手数に重なったものはまとめない
+ */
+export function detectMilestones(snapshots) {
+  if (!Array.isArray(snapshots) || snapshots.length < 2) return [];
+  const last = snapshots.length - 1;
+  const out = [];
+
+  // ── 仕掛け（最初に駒を取った手）──
+  // 序盤の駒組みと戦いの境目。範囲切り出しの区切りとして一番使いやすい
+  for (let i = 1; i <= last; i++) {
+    if (handTotal(snapshots[i]) > handTotal(snapshots[i - 1])) {
+      out.push({ ply: i, label: "仕掛け" });
+      break;
+    }
+  }
+
+  // ── 角交換が成立した手 ──
+  for (let i = 1; i <= last; i++) {
+    if (isBishopExchanged(snapshots[i].board) && !isBishopExchanged(snapshots[i - 1].board)) {
+      out.push({ ply: i, label: "角交換" });
+      break;
+    }
+  }
+
+  // ── 戦型が決まった手（後から飛車を振ったほうに合わせる）──
+  // どちらも振らなければ相居飛車なので節目にしない
+  const swings = ["sente", "gote"]
+    .map((side) => findSwingPly(snapshots, side, Math.min(STRATEGY_SETTLE_PLY, last)))
+    .filter((p) => p != null);
+  if (swings.length) out.push({ ply: Math.max(...swings), label: "戦型が決まる" });
+
+  // ── 囲いが完成した手（先後それぞれ最初に組み上がった手）──
+  for (const side of ["sente", "gote"]) {
+    for (let i = 1; i <= Math.min(CASTLE_OBSERVE_PLY, last); i++) {
+      const c = detectCastle(snapshots[i].board, side);
+      if (c.completeness === 1) {
+        out.push({ ply: i, label: `${side === "sente" ? "先手" : "後手"}の囲い完成` });
+        break;
+      }
+    }
+  }
+
+  return out.sort((a, b) => a.ply - b.ply);
+}

@@ -50,6 +50,12 @@ export const ONBOARD_MESSAGES = {
     <span><b>保存済み棋譜から取り込む</b>　棋譜ライブラリの棋譜をこのノードに取り込めます。戦法タグが同じ棋譜が上に出ます</span>,
     <span><b>ついか</b>　さらに詳細を入力</span>,
     <span><b>子ノード</b>　「ここから分岐を追加」で次の分岐を作成できます</span>,
+    // 分岐で手が止まるのは、自分の指し手を並べようとしたとき。
+    // 「相手の選択で分ける」という一点を最初に伝えると迷いにくい
+    <span><b>分岐のコツ</b>　分岐は<b>相手がどう来たか</b>で分けます。自分の指し手は、その枝の中身になります</span>,
+    <span>相手の選択肢が4つ以上に割れたら、まだ<b>ひとつ上でまとめられる</b>かもしれません</span>,
+    <span>上から順に埋めるより、<b>実戦で困ったところ</b>から作るほうが続きます</span>,
+    <span><b>実戦で当たった相手から選ぶ</b>　棋譜をためると、子ノードの下に実際に当たった相手が候補として出ます</span>,
   ],
   // 盤面を初めて追加したとき、各ボタンの使い方を1つずつ指さしで案内する
   board: [
@@ -72,7 +78,8 @@ export const ONBOARD_TARGETS = {
   kifus: ["kifu-save", null, null],
   // つなぎ替えの「元に戻す」は付け替え後にしか出ないボタンなので指さし対象なし
   map:  ["map-node", "map-node", null, "map-menu"],
-  node: ["kihon", "kifu-import", "tsuika", "children"],
+  // 分岐のコツ4枚は特定のボタンの説明ではないので指さしせず、中央に出す
+  node: ["kihon", "kifu-import", "tsuika", "children", null, null, null, null],
   board: ["board-tmpl", "board-hide", "board-undo", "board-delete", "board-move", "board-stamp", "board-erase", "board-kifu"],
 };
 

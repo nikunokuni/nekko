@@ -12,7 +12,9 @@ import {
 import { recordAction, getCustomTagsByGroup, addCustomTag, getCommentCustomTags, addCommentCustomTag, isTsuikaVisible } from "../rewards";
 import { T, INPUT_STYLE, MODAL_OVERLAY_STYLE, MODAL_SHEET_STYLE, cloneBoard, parseTags } from "../theme";
 import { SectionLabel, BoardSection, MergeLinkList, LinkPicker, TagPickerField, KifuPreviewBoard, IconRating } from "../components/uiParts";
-import { fetchMyKifus, fetchKifu, kifuRowToKifu } from "../db";
+import { fetchMyKifus, fetchKifu, fetchKifusForAnalysis, kifuRowToKifu } from "../db";
+import { toAnalysisGame } from "../kifuAnalyze";
+import { branchCandidates, candidateToNodeFields } from "../kifuBranching";
 
 // ──────────────────────────────────────────
 // KifuPickerModal: 棋譜ライブラリから1件選んでノードに取り込む
@@ -221,6 +223,10 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
   const [nextStudy,   setNextStudy]   = useState("");
   const [whenToUse,   setWhenToUse]   = useState(""); // きほん：いつ使う（短文）
   const [openingFocus, setOpeningFocus] = useState(""); // ついか：序盤の意識
+  // 分岐の候補（実戦で当たった相手）。開いたときだけ棋譜を読む
+  const [branchOpen,     setBranchOpen]     = useState(false);
+  const [branchGames,    setBranchGames]    = useState(null);  // null = 未取得
+  const [branchLoading,  setBranchLoading]  = useState(false);
   const [mergePickerOpen,        setMergePickerOpen]        = useState(false);
   const [mergeChildPickerOpen,   setMergeChildPickerOpen]   = useState(false);
   const [parentDetailsOpen,      setParentDetailsOpen]      = useState(false);
@@ -430,6 +436,32 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
 
   const parent   = node.parentId ? tree.nodes[node.parentId] : null;
   const children = (node.childIds || []).map((id) => tree.nodes[id]).filter(Boolean);
+
+  // ── 分岐の候補 ────────────────────────────────────
+  // 実戦で当たった相手を候補として出す。アプリが出すのは「相手が選ぶ分岐」だけで、
+  // 自分がどう指すかは枝の中身なので候補にしない。
+  // 当たったことのない戦法も出さない（その人にとっては対策不要とも言えるため）。
+  const toggleBranchCandidates = async () => {
+    const next = !branchOpen;
+    setBranchOpen(next);
+    // 開いたときに一度だけ読む。棋譜は軽い列だけ（盤面は読まない）
+    if (!next || branchGames !== null || !userId) return;
+    setBranchLoading(true);
+    const { data } = await fetchKifusForAnalysis(userId);
+    setBranchGames((data || []).map(kifuRowToKifu).map(toAnalysisGame).filter(Boolean));
+    setBranchLoading(false);
+  };
+
+  const branch = useMemo(() => branchCandidates({
+    myApproach: parseTags(myApproach),
+    situation:  parseTags(situation),
+    games:      branchGames || [],
+    // 既に枝がある相手は候補から外す。ノード名と「相手の戦法」タグの両方で照合する
+    existingNames: children.flatMap((c) => [c.label, ...(c.situation || [])]),
+  }), [myApproach, situation, branchGames, children]);
+
+  const hasStrategyTag = parseTags(myApproach).length > 0 || parseTags(situation).length > 0;
+
 
   // 「ついか」内の各項目の表示可否（設定でON/OFF可能。OFFでもデータは残る）。
   // 全項目OFFなら「ついか」セクション自体を出さない
@@ -1264,6 +1296,65 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
             >
               <i className="ti ti-git-branch" style={{ fontSize: "0.875rem" }} />ここから分岐を追加
             </div>
+
+            {/* ── 分岐のコツ（子ノードがまだ無いときだけ）──
+                分岐で手が止まるのは「自分の指し手」を並べようとしたときなので、
+                その一点だけをここで伝える。詳しい説明は使い方トーストに置く */}
+            {children.length === 0 && (
+              <div style={{ display: "flex", gap: 6, padding: "2px 4px", fontSize: T.fontSize.sm, color: T.inkFaint, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
+                <i className="ti ti-bulb" style={{ marginTop: 3, flexShrink: 0 }} />
+                <span>分岐は「相手がどう来たか」で分けると迷いません。自分の指し手はこの枝の中身になります。</span>
+              </div>
+            )}
+
+            {/* ── 実戦で当たった相手から選ぶ ──
+                ここが「補助」の本体。押さなければ何も起きず、棋譜も読まない */}
+            {hasStrategyTag && (
+              <>
+                <div
+                  onClick={toggleBranchCandidates}
+                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 4px", marginTop: 2, cursor: "pointer", color: T.inkFaint, fontSize: T.fontSize.sm, fontFamily: T.fontSerif }}
+                >
+                  <i className="ti ti-chevron-right" style={{ fontSize: "0.6875rem", transition: "transform 0.15s", transform: branchOpen ? "rotate(90deg)" : "none" }} />
+                  実戦で当たった相手から選ぶ
+                </div>
+
+                {branchOpen && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingLeft: 4 }}>
+                    {branchLoading ? (
+                      <div style={{ fontSize: T.fontSize.sm, color: T.inkFaint, fontFamily: T.fontSerif, padding: "4px 0" }}>棋譜を読み込み中…</div>
+                    ) : branch.candidates.length === 0 ? (
+                      <div style={{ fontSize: T.fontSize.sm, color: T.inkFaint, fontFamily: T.fontSerif, padding: "4px 0", lineHeight: 1.7 }}>
+                        {branch.matchedGames === 0
+                          ? "このノードのタグに一致する棋譜がまだありません。"
+                          : "当たった相手はすべて枝になっています。"}
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{ fontSize: T.fontSize.xs, color: T.inkFaint, fontFamily: T.fontSerif }}>
+                          {branch.matchedGames}局から、{branch.axisLabel}べつに数えました
+                        </div>
+                        {branch.candidates.map((c) => (
+                          <div
+                            key={c.name}
+                            onClick={() => saveAndNavigate(() => onNewNode(nodeId, candidateToNodeFields(c, branch.axis)))}
+                            style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: T.radius.sm, border: `0.5px dashed ${T.gold}`, cursor: "pointer" }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = T.goldLight)}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                          >
+                            <i className="ti ti-plus" style={{ fontSize: "0.75rem", color: T.gold, flexShrink: 0 }} />
+                            <span style={{ flex: 1, minWidth: 0, fontSize: T.fontSize.base, color: T.ink }}>{c.name}</span>
+                            <span style={{ fontSize: T.fontSize.sm, color: T.inkMid, fontFamily: T.fontSerif, whiteSpace: "nowrap" }}>
+                              {c.games}局 {c.wins}勝{c.losses}敗{c.draws ? `${c.draws}分` : ""}
+                            </span>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
 
             {/* その他の操作（合流・子の変更）── デフォルト非表示 */}
             {(onSetMergeParents || onReparentNode) && (

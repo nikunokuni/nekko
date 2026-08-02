@@ -3,8 +3,9 @@
 //   Canvas描画 / 駒移動 / 持ち駒 / 成り / スタンプ
 //   棋譜記録（録画） / 棋譜再生（←→ナビ）
 // ══════════════════════════════════════════════════
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import { PIECE_LABEL, PROMOTED_LABEL, PROMOTABLE } from "./data";
+import { detectMilestones } from "./kifuFeatures";
 
 const CELL = 38;
 const COLS = 9, ROWS = 9;
@@ -534,6 +535,10 @@ export default function ShogiBoard({
 
   if (!board) return null;
   const W = COLS * CELL, H = ROWS * CELL;
+  // ── 棋譜の節目 ──
+  // 分岐を作る場所を探すときの手がかり。序盤の駒組みと戦いが始まってからでは
+  // 研究したいことが違うので、その境目へ一発で飛べるようにする。
+  const milestones = useMemo(() => detectMilestones(kifuProp), [kifuProp]);
   const kifuLen = kifuProp.length;  // 保存済みスナップショット数（0 = 棋譜なし）
   const moveCount = Math.max(0, kifuLen - 1); // 手数 = スナップ数 - 1（初期局面分を引く）
   // 棋譜ナビ上の現在位置。通常表示(null)は最終手と同じ局面なので moveCount とみなす
@@ -708,6 +713,30 @@ export default function ShogiBoard({
               <i className={`ti ${readOnly ? "ti-x" : "ti-pencil"}`} style={{fontSize:"0.8125rem"}}/>
               {readOnly ? "再生を終了" : "編集にもどる"}
             </button>
+          )}
+
+          {/* ── 節目へ飛ぶ ──
+              「どこで分岐を作るか」を探す作業を、印を選ぶ作業に変える。
+              エンジンは使わず、盤面だけで決まるものに限っている */}
+          {milestones.length > 0 && (
+            <div style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'center', gap:6, flexWrap:'wrap' }}>
+              {milestones.map((ms) => (
+                <button
+                  key={`${ms.ply}-${ms.label}`}
+                  onClick={() => setPlaybackIdx(ms.ply)}
+                  title={`第${ms.ply}手へ`}
+                  style={{
+                    padding:'3px 9px', borderRadius:8, cursor:'pointer',
+                    border:`0.5px solid ${cur === ms.ply ? '#a07840' : 'rgba(26,15,0,0.18)'}`,
+                    background: cur === ms.ply ? '#a07840' : 'transparent',
+                    color: cur === ms.ply ? '#fff' : '#5F5E5A',
+                    fontSize:"0.625rem", fontFamily:"'Noto Serif JP',serif", whiteSpace:'nowrap',
+                  }}
+                >
+                  {ms.label} <span style={{ opacity: 0.7 }}>{ms.ply}手</span>
+                </button>
+              ))}
+            </div>
           )}
 
           {/* 現在の盤面が棋譜の最終局面と食い違っているときだけ明示する（Cの割り切り：別データとして共存） */}

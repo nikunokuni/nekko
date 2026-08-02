@@ -2,7 +2,8 @@
 //   実行: node test-harness/kifuAnalysis.test.mjs
 
 import { importKifuText, parseKifuMeta, isEvenGame } from "../src/kifuParser.js";
-import { extractGameFeatures, detectCastle } from "../src/kifuFeatures.js";
+import { extractGameFeatures, detectCastle, detectMilestones } from "../src/kifuFeatures.js";
+import { branchCandidates, candidateToNodeFields } from "../src/kifuBranching.js";
 import { analyzeGames, analyzeSwingTiming, wilson } from "../src/kifuStats.js";
 import { resolveMySide, outcomeFor, analyzeKifu, toAnalysisGame } from "../src/kifuAnalyze.js";
 
@@ -318,6 +319,67 @@ check("対応の勝率", t["対応"].rate, 0.3);
 // 母数が足りないときは粗い粒度のまま
 const aCoarse = analyzeGames(games, { minGames: 15 });
 check("母数不足なら粗い粒度に落ちる", aCoarse.groups.map((g) => g.label), ["居飛車"]);
+
+console.log("\n── 棋譜の節目 ──");
+{
+  // 横歩取りの棋譜は9手目(2四歩)で歩を取り合い、そのあと角交換はしない
+  const r = importKifuText(KIF_YOKOFU);
+  const ms = detectMilestones(r.snapshots);
+  const shikake = ms.find((m) => m.label === "仕掛け");
+  check("最初に駒を取った手を仕掛けとする", shikake?.ply, 10);
+  check("相居飛車では戦型が決まる印を出さない",
+    ms.some((m) => m.label === "戦型が決まる"), false);
+
+  // 四間飛車の棋譜は5手目に振っているので戦型の印が出る
+  const r2 = importKifuText(KIF_SHIKENBISHA);
+  const ms2 = detectMilestones(r2.snapshots);
+  check("飛車を振った手で戦型が決まる", ms2.find((m) => m.label === "戦型が決まる")?.ply, 5);
+  check("先手の囲い完成を拾う", ms2.find((m) => m.label === "先手の囲い完成")?.ply, 17);
+  check("節目は手数の昇順", ms2.map((m) => m.ply).every((p, i, a) => i === 0 || a[i - 1] <= p), true);
+}
+
+console.log("\n── 分岐の候補 ──");
+{
+  const game = (myStrategy, oppStrategy, oppCastleName, outcome) => ({
+    id: `${myStrategy}-${oppStrategy}-${oppCastleName}-${outcome}-${Math.random()}`,
+    outcome, side: "sente",
+    features: {
+      myStrategy, oppStrategy, moveCount: 100,
+      myCastle:  { name: "美濃囲い", completeness: 1 },
+      oppCastle: { name: oppCastleName, completeness: 1 },
+    },
+  });
+  const games = [
+    game("四間飛車", "居飛車", "居飛車穴熊", "lose"),
+    game("四間飛車", "居飛車", "居飛車穴熊", "lose"),
+    game("四間飛車", "居飛車", "舟囲い",     "win"),
+    game("四間飛車", "中飛車", "美濃囲い",   "win"),
+    game("中飛車",   "居飛車", "舟囲い",     "win"),
+  ];
+
+  // 自分の戦法だけ決まっているノード → 分かれ目は相手の戦法
+  const a = branchCandidates({ myApproach: ["四間飛車"], games, existingNames: [] });
+  check("軸は相手の戦法", a.axisLabel, "相手の戦法");
+  check("自分の戦法で絞り込む", a.matchedGames, 4);
+  check("候補は局数の多い順", a.candidates.map((c) => c.name), ["居飛車", "中飛車"]);
+  check("勝敗も数える", [a.candidates[0].wins, a.candidates[0].losses], [1, 2]);
+
+  // 既に枝がある相手は候補から消える
+  const b = branchCandidates({ myApproach: ["四間飛車"], games, existingNames: ["居飛車"] });
+  check("既存の子は候補から外す", b.candidates.map((c) => c.name), ["中飛車"]);
+
+  // 相手の戦法まで決まっているノード → 分かれ目は相手の囲いへ1段深くなる
+  const c = branchCandidates({ myApproach: ["四間飛車"], situation: ["居飛車"], games, existingNames: [] });
+  check("軸が相手の囲いに深まる", c.axisLabel, "相手の囲い");
+  check("囲いべつの候補", c.candidates.map((x) => x.name), ["居飛車穴熊", "舟囲い"]);
+
+  // 「美濃囲い」と「美濃」のような表記ゆれでも既存の子として認識する
+  const d = branchCandidates({ myApproach: ["四間飛車"], situation: ["居飛車"], games, existingNames: ["舟"] });
+  check("囲い名の表記ゆれを吸収して除外", d.candidates.map((x) => x.name), ["居飛車穴熊"]);
+
+  const fields = candidateToNodeFields({ name: "居飛車穴熊" }, "oppCastle");
+  check("候補からノードの初期値を作る", [fields.label, fields.situation], ["居飛車穴熊", ["居飛車穴熊"]]);
+}
 
 console.log(failures === 0 ? "\n全テスト成功" : `\n${failures}件 失敗`);
 process.exit(failures === 0 ? 0 : 1);

@@ -294,7 +294,9 @@ export default function App() {
     setActiveTree((prev) => setMergeParentsTree(prev, nodeId, mergeParentIds));
   };
 
-  const handleNewNode = async (parentId) => {
+  // extraFields は「分岐の候補」から作るときに、ノード名・相手の戦法・
+  // いつ使う を最初から埋めるために渡す（白紙のノードを作る動線と共用）
+  const handleNewNode = async (parentId, extraFields = {}) => {
     if (!activeTree || !session) return;
     const { data: newNode } = await createNode({
       treeId:   activeTree.id,
@@ -303,6 +305,7 @@ export default function App() {
       label:    "新しいノード",
       status:   "wip",
       sortOrder: nextSortOrder(activeTree, parentId),
+      ...extraFields,
     });
     if (!newNode) { alert("ノードの追加に失敗しました。もう一度お試しください。"); return; }
     // 全件再フェッチせず、作成ノードをローカルツリーへマージ（ネットワーク往復を削減）
