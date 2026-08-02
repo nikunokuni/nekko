@@ -3,8 +3,14 @@ node_modules/
 
 # ビルド成果物
 dist/
+dist-mock/
 dist-ssr/
 *.local
+
+# テスト成果物（E2E）
+test-results/
+playwright-report/
+blob-report/
 
 # 環境変数（秘密情報）
 .env

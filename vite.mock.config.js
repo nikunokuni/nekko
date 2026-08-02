@@ -12,4 +12,9 @@ export default defineConfig({
       "@supabase/supabase-js": fileURLToPath(new URL("./test-harness/supabaseMock.js", import.meta.url)),
     },
   },
+  // E2Eテスト（npm run test:e2e）はこの構成をビルドして配信する。
+  // 開発サーバのままだと画面遷移のたびに変換が走って遅いため。
+  build: { outDir: "dist-mock" },
+  // ビルド版でも直URL（/tree/xxx）が index.html に落ちるようにする
+  preview: { port: 5174, strictPort: true },
 });

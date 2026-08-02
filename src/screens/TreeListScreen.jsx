@@ -5,6 +5,7 @@
 import { useState } from "react";
 import { T, MODAL_OVERLAY_STYLE, MODAL_SHEET_STYLE } from "../theme";
 import { InputField, SectionLabel, ModalActionButtons, ConfirmDeleteModal } from "../components/uiParts";
+import { IconButton } from "../components";
 
 // ──────────────────────────────────────────
 // CreateTreeModal: 新規ツリー作成
@@ -420,21 +421,11 @@ export function TreeList({ trees, profile, onOpen, onPublic, onSearch, onKifus, 
         </div>
 
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <button data-onboard="search" title="ノード検索" onClick={onSearch} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
-            <i className="ti ti-search" />
-          </button>
-          <button data-onboard="public" onClick={onPublic} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
-            <i className="ti ti-world" />
-          </button>
-          <button data-onboard="kifus" title="棋譜ライブラリ" onClick={onKifus} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
-            <i className="ti ti-chess" />
-          </button>
-          <button data-onboard="trophy" onClick={onTrophy} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
-            <i className="ti ti-trophy" />
-          </button>
-          <button data-onboard="settings" onClick={onSettings} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.125rem", padding: 2 }}>
-            <i className="ti ti-settings" />
-          </button>
+          <IconButton dataOnboard="search"   icon="ti-search"   label="ノード検索"     onClick={onSearch} />
+          <IconButton dataOnboard="public"   icon="ti-world"    label="みんなのツリー" onClick={onPublic} />
+          <IconButton dataOnboard="kifus"    icon="ti-chess"    label="棋譜ライブラリ" onClick={onKifus} />
+          <IconButton dataOnboard="trophy"   icon="ti-trophy"   label="トロフィー"     onClick={onTrophy} />
+          <IconButton dataOnboard="settings" icon="ti-settings" label="設定" size="1.125rem" onClick={onSettings} />
           <button
             data-onboard="new"
             onClick={() => setShowCreateModal(true)}
@@ -442,9 +433,7 @@ export function TreeList({ trees, profile, onOpen, onPublic, onSearch, onKifus, 
           >
             <i className="ti ti-plus" style={{ fontSize: "0.8125rem" }} /> 新規
           </button>
-          <button onClick={() => setSignOutConfirm(true)} style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: "1.125rem", padding: 2 }}>
-            <i className="ti ti-logout" />
-          </button>
+          <IconButton icon="ti-logout" label="ログアウト" color={T.inkFaint} size="1.125rem" onClick={() => setSignOutConfirm(true)} />
         </div>
       </div>
 

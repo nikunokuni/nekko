@@ -1,11 +1,29 @@
 // ══════════════════════════════════════════════════
 // components.jsx  ―  共通 UI パーツ
-//   StatusChip / MergeTag /
+//   MiniBoard / IconButton / StatusChip / MergeTag /
 //   Divider / BackBtn / Accordion
 // ══════════════════════════════════════════════════
 import { useState, useMemo } from "react";
 import { STATUS_META, PIECE_LABEL, PROMOTED_LABEL } from "./data";
 import { T } from "./theme";
+
+// ── IconButton ────────────────────────────────────
+// アイコンだけのボタン（画面上部のメニューなど）。
+//   label は必須。読み上げソフトに何のボタンか伝わらないと使えないため、
+//   aria-label と title の両方に入れる（title はマウス時のツールチップ）。
+export function IconButton({ icon, label, onClick, color = T.gold, size = "1.25rem", dataOnboard, style = {} }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      data-onboard={dataOnboard}
+      style={{ background: "none", border: "none", cursor: "pointer", color, fontSize: size, padding: 2, ...style }}
+    >
+      <i className={`ti ${icon}`} />
+    </button>
+  );
+}
 
 // ── MiniBoard ─────────────────────────────────────
 // 読み取り専用のミニ盤面サムネイル（目次・検索結果で「盤面から探す」ために使う）。
@@ -101,7 +119,9 @@ export function Divider({ style = {} }) {
 // ── BackBtn ───────────────────────────────────────
 export function BackBtn({ onClick }) {
   return (
-    <button onClick={onClick} style={{
+    // アイコンだけのボタンは読み上げソフトに何のボタンか伝わらないので、
+    // aria-label で名前を付ける（自動テストからも名前で押せるようになる）
+    <button onClick={onClick} aria-label="戻る" style={{
       background:'none', border:'none', cursor:'pointer',
       color:T.gold, fontSize:"1.125rem", padding:'2px', lineHeight:1,
     }}>
