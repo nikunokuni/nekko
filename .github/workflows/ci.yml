@@ -1,0 +1,32 @@
+name: CI
+
+# push / PR のたびに「テストが通る・ビルドが通る」を自動で確認する。
+# 壊れたまま気づかずに進むのを防ぐのが目的。
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 依存インストール
+        run: npm ci --no-audit --no-fund
+
+      - name: ユニットテスト
+        run: npm test
+
+      - name: 本番ビルド
+        # ビルド時に Supabase の値は不要（実行時に読む）ので、この2つはダミーで良い。
+        env:
+          VITE_SUPABASE_URL: https://example.supabase.co
+          VITE_SUPABASE_ANON_KEY: dummy-anon-key
+        run: npm run build
