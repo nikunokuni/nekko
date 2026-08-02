@@ -54,7 +54,7 @@ const ORIENTATION_LINE_COLOR = {
  * @param {string} rootId - ルートノードのID
  * @returns {{ positions: Object, edges: Array }}
  */
-// 「未整理」（とりあえずの置き場）は本体の枝の並びから外し、
+// 「とりあえず」（置き場）は本体の枝の並びから外し、
 // ツリー全体の下に離して置く。置き場が枝の途中に混ざると、
 // 整理済みの分岐と見分けがつかなくなるため。
 export function findInboxId(nodes, rootId) {
@@ -67,7 +67,7 @@ function layoutTree(nodes, rootId, inboxId = null) {
   const positions = {};
   const edges     = [];
   let xCounter    = 0;
-  // 「未整理」の枝を本体のレイアウトから外すための基準。
+  // 「とりあえず」の枝を本体のレイアウトから外すための基準。
   // 本体を組んでから、その下に別の島として置き直す。
   let yBase = 0;
 
@@ -125,7 +125,7 @@ function layoutTree(nodes, rootId, inboxId = null) {
   assignPositions(rootId, 0);
   buildEdges(rootId);
 
-  // ── 「未整理」の島を本体の下に置く ──
+  // ── 「とりあえず」の島を本体の下に置く ──
   // 親（ルート）との線は引かない。ツリーの上から下まで貫く長い線になって
   // 本体の枝と交差し、かえって読みにくくなるため。位置で所属を示す。
   if (inboxId && nodes[inboxId]) {
@@ -203,7 +203,7 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
   // 大きくなりすぎるとルート周辺を覆ってしまうため上限を設ける
   const growthIconSize = Math.min(90, totalNodeCount * 3);
 
-  // 「未整理」（とりあえずの置き場）は本体の下へ離して置く
+  // 「とりあえず」（置き場）は本体の下へ離して置く
   const inboxId = useMemo(() => findInboxId(nodes, rootId), [nodes, rootId]);
   const { positions, edges } = useMemo(
     () => rootId ? layoutTree(nodes, rootId, inboxId) : { positions: {}, edges: [] },

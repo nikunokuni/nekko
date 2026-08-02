@@ -492,7 +492,7 @@ function KifuPreviewModal({ kifu, onClose, onSetSide, trees = [], onSendToInbox 
 
         {/* ── ツリーへ送る ──
             どこに置くか決めずにツリーへ入れられるようにする。
-            置き場所を決めるのは後で良い、という前提で「未整理」へ入れる */}
+            置き場所を決めるのは後で良い、という前提で「とりあえず」へ入れる */}
         {onSendToInbox && trees.length > 0 && (
           <div style={{ marginBottom: 14 }}>
             {!pickerOpen ? (
@@ -506,7 +506,7 @@ function KifuPreviewModal({ kifu, onClose, onSetSide, trees = [], onSendToInbox 
                 }}
               >
                 <i className="ti ti-git-branch" style={{ fontSize: "0.875rem" }} />
-                ツリーの「未整理」に入れる
+                ツリーの「とりあえず」に入れる
               </button>
             ) : (
               <div>
@@ -531,7 +531,7 @@ function KifuPreviewModal({ kifu, onClose, onSetSide, trees = [], onSendToInbox 
                   ))}
                 </div>
                 <div style={{ marginTop: 6, fontSize: T.fontSize.sm, color: T.inkFaint, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
-                  この棋譜からノードを作り、選んだツリーの「未整理」に入れます。置き場所は後から動かせます。
+                  この棋譜からノードを作り、選んだツリーの「とりあえず」に入れます。置き場所は後から動かせます。
                 </div>
               </div>
             )}

@@ -528,7 +528,7 @@ export function buildTreeFromNodes(treeRow, flatNodes) {
   };
 }
 
-/** ツリーの「未整理」ノードを返す。無ければ作る。
+/** ツリーの「とりあえず」ノードを返す。無ければ作る。
  *  ツリー作成時に自動で作られるが、この機能より前に作ったツリーには無いので、
  *  棋譜からノードを作るときなど、必要になった時点で用意する。 */
 export async function ensureInboxNode(treeId, userId) {
@@ -542,7 +542,7 @@ export async function ensureInboxNode(treeId, userId) {
 
   const { data, error } = await createNode({
     treeId, userId, parentId: root.id,
-    label: "未整理", status: "todo", isInbox: true,
+    label: "とりあえず", status: "todo", isInbox: true,
     whenToUse: "どこに置くか決まっていないもの",
     // 本体の枝の並びに割り込まないよう、兄弟の末尾へ置く
     sortOrder: 9999,

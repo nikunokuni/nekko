@@ -1,5 +1,5 @@
 -- ══════════════════════════════════════════════════════════════════
--- ツリーに「未整理」ノード（とりあえずの置き場）を持たせる
+-- ツリーに「とりあえず」ノード（置き場）を持たせる
 --
 --   どこに置けばいいか決まっていないものを、とりあえず入れておく場所。
 --   棋譜から作ったノードの受け皿にもなる。
@@ -18,7 +18,7 @@
 alter table public.nodes
   add column if not exists is_inbox boolean not null default false;
 
--- 1ツリーに「未整理」は1つだけ。重複して作られると置き場が分散してしまう
+-- 1ツリーに「とりあえず」は1つだけ。重複して作られると置き場が分散してしまう
 create unique index if not exists nodes_one_inbox_per_tree
   on public.nodes (tree_id)
   where is_inbox;

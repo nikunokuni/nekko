@@ -152,12 +152,12 @@ export default function App() {
     }
 
     // 相手の戦法（居飛車 / 振り飛車）の子ノードを2つ自動作成する（並行実行で往復を短縮）。
-    // あわせて「未整理」（どこに置くか決まっていないものの置き場）も用意する。
+    // あわせて「とりあえず」（どこに置くか決まっていないものの置き場）も用意する。
     if (rootNode) {
       const [{ error: e0 }, { error: e1 }, { error: e2 }] = await Promise.all([
         createNode({
           treeId: data.id, userId: session.user.id,
-          parentId: rootNode.id, label: "未整理", status: "todo",
+          parentId: rootNode.id, label: "とりあえず", status: "todo",
           isInbox: true, whenToUse: "どこに置くか決まっていないもの",
           sortOrder: 9999,
         }),
@@ -172,7 +172,7 @@ export default function App() {
           situation: ["振り飛車"], sortOrder: 1,
         }),
       ]);
-      if (e0) console.error("createNode error(未整理):", e0);
+      if (e0) console.error("createNode error(とりあえず):", e0);
       if (e1) console.error("createNode error:", e1);
       if (e2) console.error("createNode error:", e2);
     }
@@ -183,13 +183,13 @@ export default function App() {
     await handleOpenTree(data.id);
   };
 
-  // ── 棋譜からノードを作って「未整理」に入れる ──
+  // ── 棋譜からノードを作って「とりあえず」に入れる ──
   // 棋譜を見ていて「これは残しておきたい」と思ったときに、置き場所を決めずに
   // ツリーへ送れるようにする。整理は後から通常のつなぎ替えで行う。
   const handleSendKifuToInbox = async (treeId, kifu) => {
     if (!session) return false;
     const inbox = await ensureInboxNode(treeId, session.user.id);
-    if (!inbox) { alert("未整理ノードを用意できませんでした。もう一度お試しください。"); return false; }
+    if (!inbox) { alert("「とりあえず」を用意できませんでした。もう一度お試しください。"); return false; }
 
     const snaps = kifu.snapshots || [];
     const last  = snaps[snaps.length - 1];

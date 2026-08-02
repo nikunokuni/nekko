@@ -462,6 +462,14 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
 
   const hasStrategyTag = parseTags(myApproach).length > 0 || parseTags(situation).length > 0;
 
+  // ── 「とりあえず」の作り直し ────────────────────────
+  // 置き場は普通のノードなので削除できてしまう。消したあと戻す道が
+  // どこにも無いと詰むため、ルートの子ノード欄から作り直せるようにする。
+  const treeHasInbox = useMemo(
+    () => Object.values(tree.nodes).some((n) => n.isInbox),
+    [tree.nodes],
+  );
+
 
   // 「ついか」内の各項目の表示可否（設定でON/OFF可能。OFFでもデータは残る）。
   // 全項目OFFなら「ついか」セクション自体を出さない
@@ -1296,6 +1304,24 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
             >
               <i className="ti ti-git-branch" style={{ fontSize: "0.875rem" }} />ここから分岐を追加
             </div>
+
+            {/* ── 「とりあえず」を作り直す ──
+                ルートにだけ出す。置き場を消してしまったときの復活手段 */}
+            {node.isRoot && !treeHasInbox && (
+              <div
+                onClick={() => saveAndNavigate(() => onNewNode(nodeId, {
+                  label: "とりあえず", status: "todo", isInbox: true,
+                  whenToUse: "どこに置くか決まっていないもの",
+                  sortOrder: 9999,
+                }))}
+                style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: T.radius.sm, border: `0.5px dashed ${T.inkLine}`, cursor: "pointer", color: T.grayText, fontSize: T.fontSize.base }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = T.goldLight)}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              >
+                <i className="ti ti-inbox" style={{ fontSize: "0.875rem" }} />
+                「とりあえず」を作る（置き場）
+              </div>
+            )}
 
             {/* ── 分岐のコツ（子ノードがまだ無いときだけ）──
                 分岐で手が止まるのは「自分の指し手」を並べようとしたときなので、
