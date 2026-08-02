@@ -54,21 +54,35 @@ const ORIENTATION_LINE_COLOR = {
  * @param {string} rootId - ルートノードのID
  * @returns {{ positions: Object, edges: Array }}
  */
-function layoutTree(nodes, rootId) {
+// 「未整理」（とりあえずの置き場）は本体の枝の並びから外し、
+// ツリー全体の下に離して置く。置き場が枝の途中に混ざると、
+// 整理済みの分岐と見分けがつかなくなるため。
+export function findInboxId(nodes, rootId) {
+  const root = nodes[rootId];
+  if (!root) return null;
+  return (root.childIds || []).find((cid) => nodes[cid]?.isInbox) ?? null;
+}
+
+function layoutTree(nodes, rootId, inboxId = null) {
   const positions = {};
   const edges     = [];
   let xCounter    = 0;
+  // 「未整理」の枝を本体のレイアウトから外すための基準。
+  // 本体を組んでから、その下に別の島として置き直す。
+  let yBase = 0;
 
   /** 再帰的に各ノードの x/y 座標を割り当てる */
   function assignPositions(id, depth) {
     const node = nodes[id];
     if (!node) return;
 
-    const children = (node.childIds || []).filter((cid) => nodes[cid]);
+    const children = (node.childIds || [])
+      .filter((cid) => nodes[cid])
+      .filter((cid) => cid !== inboxId);   // 置き場は本体に混ぜない
 
     if (children.length === 0) {
       // 葉ノード: 左から順に配置
-      positions[id] = { x: xCounter * (NODE_W + 16), y: depth * (NODE_H + 40) };
+      positions[id] = { x: xCounter * (NODE_W + 16), y: yBase + depth * (NODE_H + 40) };
       xCounter++;
       return;
     }
@@ -78,7 +92,7 @@ function layoutTree(nodes, rootId) {
     children.forEach((cid) => assignPositions(cid, depth + 1));
     const endX  = xCounter - 1;
     const midX  = ((startX + endX) / 2) * (NODE_W + 16);
-    positions[id] = { x: midX, y: depth * (NODE_H + 40) };
+    positions[id] = { x: midX, y: yBase + depth * (NODE_H + 40) };
   }
 
   /** 再帰的にエッジ情報を構築する */
@@ -86,7 +100,7 @@ function layoutTree(nodes, rootId) {
     const node = nodes[id];
     if (!node) return;
 
-    (node.childIds || []).forEach((cid) => {
+    (node.childIds || []).filter((cid) => cid !== inboxId).forEach((cid) => {
       const child   = nodes[cid];
       const fromPos = positions[id];
       const toPos   = positions[cid];
@@ -110,6 +124,17 @@ function layoutTree(nodes, rootId) {
 
   assignPositions(rootId, 0);
   buildEdges(rootId);
+
+  // ── 「未整理」の島を本体の下に置く ──
+  // 親（ルート）との線は引かない。ツリーの上から下まで貫く長い線になって
+  // 本体の枝と交差し、かえって読みにくくなるため。位置で所属を示す。
+  if (inboxId && nodes[inboxId]) {
+    const ys = Object.values(positions).map((p) => p.y);
+    yBase = (ys.length ? Math.max(...ys) : 0) + NODE_H + 72;
+    xCounter = 0;
+    assignPositions(inboxId, 0);
+    buildEdges(inboxId);
+  }
 
   return { positions, edges };
 }
@@ -178,9 +203,11 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
   // 大きくなりすぎるとルート周辺を覆ってしまうため上限を設ける
   const growthIconSize = Math.min(90, totalNodeCount * 3);
 
+  // 「未整理」（とりあえずの置き場）は本体の下へ離して置く
+  const inboxId = useMemo(() => findInboxId(nodes, rootId), [nodes, rootId]);
   const { positions, edges } = useMemo(
-    () => rootId ? layoutTree(nodes, rootId) : { positions: {}, edges: [] },
-    [nodes, rootId]
+    () => rootId ? layoutTree(nodes, rootId, inboxId) : { positions: {}, edges: [] },
+    [nodes, rootId, inboxId]
   );
 
   // 合流エッジ（追加の親 → 子）。紫の点線で、ノードを避けて描画する

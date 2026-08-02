@@ -18,7 +18,7 @@ import { SettingsScreen } from "./screens/SettingsScreen";
 import {
   createTree, createNode, updateNode, updateTree, deleteTree, copyTree,
   nodeRowToNode, publishTree, deleteNodes, unpublishTree,
-  likeTree, unlikeTree,
+  likeTree, unlikeTree, ensureInboxNode,
 } from "./db";
 // ツリー変更ロジック（childIds / merge_parent_ids / tags の整合）を一本化した純粋関数群。
 // 各ハンドラは DB 更新後にこれらでローカルツリーを組み替える（手作業の整合を排除）。
@@ -151,9 +151,16 @@ export default function App() {
       alert("ツリーの作成に失敗しました。もう一度お試しください。");
     }
 
-    // 相手の戦法（居飛車 / 振り飛車）の子ノードを2つ自動作成する（並行実行で往復を短縮）
+    // 相手の戦法（居飛車 / 振り飛車）の子ノードを2つ自動作成する（並行実行で往復を短縮）。
+    // あわせて「未整理」（どこに置くか決まっていないものの置き場）も用意する。
     if (rootNode) {
-      const [{ error: e1 }, { error: e2 }] = await Promise.all([
+      const [{ error: e0 }, { error: e1 }, { error: e2 }] = await Promise.all([
+        createNode({
+          treeId: data.id, userId: session.user.id,
+          parentId: rootNode.id, label: "未整理", status: "todo",
+          isInbox: true, whenToUse: "どこに置くか決まっていないもの",
+          sortOrder: 9999,
+        }),
         createNode({
           treeId: data.id, userId: session.user.id,
           parentId: rootNode.id, label: "居飛車", status: "todo",
@@ -165,6 +172,7 @@ export default function App() {
           situation: ["振り飛車"], sortOrder: 1,
         }),
       ]);
+      if (e0) console.error("createNode error(未整理):", e0);
       if (e1) console.error("createNode error:", e1);
       if (e2) console.error("createNode error:", e2);
     }
@@ -173,6 +181,35 @@ export default function App() {
     refreshNodeCount(); // 自動生成した子ノード分をトロフィーの数値に反映する
     // 作成したツリーをそのまま開く（手動で探してタップする手間を省く）
     await handleOpenTree(data.id);
+  };
+
+  // ── 棋譜からノードを作って「未整理」に入れる ──
+  // 棋譜を見ていて「これは残しておきたい」と思ったときに、置き場所を決めずに
+  // ツリーへ送れるようにする。整理は後から通常のつなぎ替えで行う。
+  const handleSendKifuToInbox = async (treeId, kifu) => {
+    if (!session) return false;
+    const inbox = await ensureInboxNode(treeId, session.user.id);
+    if (!inbox) { alert("未整理ノードを用意できませんでした。もう一度お試しください。"); return false; }
+
+    const snaps = kifu.snapshots || [];
+    const last  = snaps[snaps.length - 1];
+    const { data: newNode, error } = await createNode({
+      treeId, userId: session.user.id, parentId: inbox.id,
+      label: kifu.name || "棋譜から作成", status: "todo",
+      board:     last?.board ?? null,
+      handSente: last?.handSente,
+      handGote:  last?.handGote,
+      kifu: snaps, kifuImported: snaps.length > 1,
+      // 棋譜から読み取った戦法をそのままタグに入れておく（分岐の候補の照合にも効く）
+      situation:  kifu.features?.oppStrategy ? [kifu.features.oppStrategy] : [],
+      myApproach: kifu.features?.myStrategy  ? [kifu.features.myStrategy]  : [],
+    });
+    if (error || !newNode) { alert("ノードの作成に失敗しました。もう一度お試しください。"); return false; }
+
+    refreshNodeCount();
+    await loadMyTrees();
+    navigate(`/tree/${treeId}/node/${newNode.id}`);
+    return true;
   };
 
   const handleDeleteTree = async (treeId) => {
@@ -516,8 +553,10 @@ export default function App() {
         {screen==="kifus" && (
           <KifuList
             userId={session.user.id}
+            trees={myTrees}
             onBack={() => navigate("/")}
-            onInsight={() => navigate("/kifus/insight")} />
+            onInsight={() => navigate("/kifus/insight")}
+            onSendToInbox={handleSendKifuToInbox} />
         )}
         {screen==="kifuInsight" && (
           <KifuInsight

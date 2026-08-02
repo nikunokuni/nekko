@@ -465,7 +465,18 @@ function KifuFactsTable({ kifu, onSetSide }) {
   );
 }
 
-function KifuPreviewModal({ kifu, onClose, onSetSide }) {
+function KifuPreviewModal({ kifu, onClose, onSetSide, trees = [], onSendToInbox }) {
+  // 送り先のツリーを選ぶ状態。ツリーが1つでも選ばせる（誤爆を避ける）
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [sending,    setSending]    = useState(false);
+
+  const send = async (treeId) => {
+    if (sending) return;
+    setSending(true);
+    await onSendToInbox?.(treeId, kifu);
+    setSending(false);
+  };
+
   return (
     <div style={MODAL_OVERLAY_STYLE} onClick={onClose}>
       <div style={{ ...MODAL_SHEET_STYLE, maxHeight: "90%", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
@@ -478,6 +489,55 @@ function KifuPreviewModal({ kifu, onClose, onSetSide }) {
           </button>
         </div>
         <KifuFactsTable kifu={kifu} onSetSide={onSetSide} />
+
+        {/* ── ツリーへ送る ──
+            どこに置くか決めずにツリーへ入れられるようにする。
+            置き場所を決めるのは後で良い、という前提で「未整理」へ入れる */}
+        {onSendToInbox && trees.length > 0 && (
+          <div style={{ marginBottom: 14 }}>
+            {!pickerOpen ? (
+              <button
+                onClick={() => setPickerOpen(true)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6, width: "100%",
+                  padding: "9px 12px", borderRadius: T.radius.md,
+                  border: `0.5px dashed ${T.gold}`, background: "transparent",
+                  color: T.gold, cursor: "pointer", fontSize: T.fontSize.base, fontFamily: T.fontSerif,
+                }}
+              >
+                <i className="ti ti-git-branch" style={{ fontSize: "0.875rem" }} />
+                ツリーの「未整理」に入れる
+              </button>
+            ) : (
+              <div>
+                <SectionLabel style={{ marginBottom: 6 }}>どのツリーに入れますか</SectionLabel>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {trees.map((t) => (
+                    <div
+                      key={t.id}
+                      onClick={() => send(t.id)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 8,
+                        padding: "9px 12px", borderRadius: T.radius.sm,
+                        border: `0.5px solid ${T.inkLine}`, background: T.cream,
+                        cursor: sending ? "default" : "pointer", opacity: sending ? 0.6 : 1,
+                        fontSize: T.fontSize.base, color: T.ink,
+                      }}
+                    >
+                      <i className="ti ti-plant-2" style={{ fontSize: "0.875rem", color: T.gold, flexShrink: 0 }} />
+                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</span>
+                      <i className="ti ti-chevron-right" style={{ fontSize: "0.8125rem", color: T.gray }} />
+                    </div>
+                  ))}
+                </div>
+                <div style={{ marginTop: 6, fontSize: T.fontSize.sm, color: T.inkFaint, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
+                  この棋譜からノードを作り、選んだツリーの「未整理」に入れます。置き場所は後から動かせます。
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <KifuPreviewBoard snapshots={kifu.snapshots} />
       </div>
     </div>
@@ -643,7 +703,7 @@ function KifuCard({ kifu, onOpen, onRename, onDelete }) {
 // ══════════════════════════════════════════════════════════════════
 // KifuList: 棋譜ライブラリ画面
 // ══════════════════════════════════════════════════════════════════
-export function KifuList({ userId, onBack, onInsight }) {
+export function KifuList({ userId, trees = [], onBack, onInsight, onSendToInbox }) {
   const [kifus,   setKifus]   = useState([]);
   const [loading, setLoading] = useState(true);
 

@@ -163,6 +163,7 @@ export async function createNode({
   handGote  = {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
   kifu = [],
   kifuImported = false,
+  isInbox = false,
   branchFromMoveIndex = null,
   usageLevel = 2,
   winRate = null,
@@ -185,6 +186,7 @@ export async function createNode({
       tree_id: treeId, user_id: userId, parent_id: parentId ?? null,
       label, status,
       board, stamps, memo, is_root: isRoot, sort_order: sortOrder,
+      is_inbox: isInbox,
       board_hidden: false,
       hand_sente: handSente ?? {"p":0,"l":0,"n":0,"s":0,"g":0,"b":0,"r":0},
       hand_gote:  handGote  ?? {"p":0,"l":0,"n":0,"s":0,"g":0,"b":0,"r":0},
@@ -475,6 +477,7 @@ export function nodeRowToNode(n) {
     stamps:        n.stamps  || [],
     memo:          n.memo    || "",
     isRoot:        n.is_root,
+    isInbox:       !!n.is_inbox,
     isMergeTarget:  n.is_merge_target,
     mergeParentIds: n.merge_parent_ids || [],
     handSente:      n.hand_sente || {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
@@ -523,6 +526,29 @@ export function buildTreeFromNodes(treeRow, flatNodes) {
     nodes:   nodeMap,
     rootId:  rootNode?.id || null,
   };
+}
+
+/** ツリーの「未整理」ノードを返す。無ければ作る。
+ *  ツリー作成時に自動で作られるが、この機能より前に作ったツリーには無いので、
+ *  棋譜からノードを作るときなど、必要になった時点で用意する。 */
+export async function ensureInboxNode(treeId, userId) {
+  const { data: existing } = await supabase
+    .from("nodes").select("*").eq("tree_id", treeId).eq("is_inbox", true).limit(1);
+  if (existing && existing.length) return existing[0];
+
+  const { data: root } = await supabase
+    .from("nodes").select("id").eq("tree_id", treeId).eq("is_root", true).limit(1).single();
+  if (!root) return null;
+
+  const { data, error } = await createNode({
+    treeId, userId, parentId: root.id,
+    label: "未整理", status: "todo", isInbox: true,
+    whenToUse: "どこに置くか決まっていないもの",
+    // 本体の枝の並びに割り込まないよう、兄弟の末尾へ置く
+    sortOrder: 9999,
+  });
+  if (error) { console.error("ensureInboxNode error:", error); return null; }
+  return data;
 }
 
 // collectTreeTags は src/treeOps.js（ツリーの純粋変更ロジック）へ移動した。
