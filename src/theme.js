@@ -66,6 +66,29 @@ export const INPUT_STYLE = {
   outline:     "none",
 };
 
+/** 複数行入力（textarea）の共通スタイル。行数は rows で、余白は padding で個別に上書きする */
+export const TEXTAREA_STYLE = {
+  width:        "100%",
+  border:       `0.5px solid ${T.inkLine}`,
+  borderRadius: T.radius.sm,
+  padding:      "8px 12px",
+  fontSize:     T.fontSize.base,
+  color:        T.ink,
+  background:   T.cream,
+  resize:       "none",
+  fontFamily:   T.fontSerif,
+  lineHeight:   1.7,
+  outline:      "none",
+  boxSizing:    "border-box",
+};
+
+/**
+ * 入力欄のフォーカス枠の付け外し。
+ * textarea/input の onFocus / onBlur にそのまま渡して使う。
+ */
+export const focusBorder = (e) => { e.target.style.borderColor = T.gold; };
+export const blurBorder  = (e) => { e.target.style.borderColor = T.inkLine; };
+
 /** モーダル背景オーバーレイ（下揃え） */
 export const MODAL_OVERLAY_STYLE = {
   position:   "absolute",
