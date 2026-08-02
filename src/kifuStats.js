@@ -49,9 +49,40 @@ function dimValue(game, dim) {
     case "myStrategy":  return f.myStrategy;
     case "myCastle":    return f.myCastle?.name || "不明";
     case "oppCastle":   return f.oppCastle?.name || "不明";
+    // 飛車を振っていない対局は「先発／対応」の区別が無いので居飛車としてまとめる
+    case "swingTiming": return f.swingTiming === "先発" ? "自分から決めた"
+                             : f.swingTiming === "対応" ? "相手を見てから決めた"
+                             : "居飛車のまま";
+    case "bishopExchange": return f.bishopExchanged ? "角交換あり" : "角交換なし";
+    // 囲いが組み上がる前に戦いになったかどうか。級位者の負け筋を切り分ける軸
+    case "castleDone": return f.myCastle?.completeness === 1 ? "囲いが間に合った" : "囲いが間に合わなかった";
     default:            return "不明";
   }
 }
+
+// ── 分岐を探すための観点 ────────────────────────────
+//   傾向画面を見る目的は「どこで分岐を作るか」を見つけること。
+//   そこで、軸をいくつか用意して選べるようにする。文章でコツを説明するより、
+//   選んだ軸で実際に並べ替わったほうが分かれ目を見つけやすい。
+//
+//   軸は基本的に1つだけにする。2つ以上かけ合わせると、少ない棋譜では
+//   すべてのグループが1局ずつになって、かえって分かれ目が見えなくなる。
+export const BRANCH_VIEWS = [
+  { key: "oppStrategy", label: "相手の戦法",
+    hint: "いちばん基本の分かれ目。まずはここから枝を分ける", dims: ["oppStrategy"] },
+  { key: "oppCastle", label: "相手の囲い",
+    hint: "同じ戦法でも、囲いが違えば攻め方が変わる", dims: ["oppCastle"] },
+  { key: "myCastle", label: "自分の囲い",
+    hint: "自分がどう囲ったか。囲いを選び分けているなら分かれ目になる", dims: ["myCastle"] },
+  { key: "castleDone", label: "囲いが間に合ったか",
+    hint: "囲い切る前に戦いになった将棋を切り出す", dims: ["castleDone"] },
+  { key: "swingTiming", label: "自分から決めたか",
+    hint: "自分から戦型を決めた将棋と、相手を見てから合わせた将棋", dims: ["swingTiming"] },
+  { key: "bishopExchange", label: "角交換になったか",
+    hint: "角交換の有無で、狙いも囲いの選び方も変わる", dims: ["bishopExchange"] },
+  { key: "matchup", label: "相手の戦法 × 自分の戦法",
+    hint: "自分の作戦も変えているなら、組み合わせで見る", dims: ["oppStrategy", "myStrategy"] },
+];
 
 // 1グループ分の成績をまとめる
 function summarize(games) {

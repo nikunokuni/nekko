@@ -14,7 +14,7 @@ import {
   fetchKifuSnapshots, updateKifu, kifuRowToKifu,
 } from "../db";
 import { analyzeKifu, recomputeFeatures, resolveMySide, toAnalysisGame } from "../kifuAnalyze";
-import { analyzeGames, analyzeSwingTiming, groupBy } from "../kifuStats";
+import { analyzeGames, analyzeSwingTiming, groupBy, BRANCH_VIEWS } from "../kifuStats";
 import { getKifuPlayerNames } from "../rewards";
 
 // 最低局数の選択肢。少ないほど細かい傾向が出るが、偶然の偏りも拾いやすくなる
@@ -119,6 +119,8 @@ export function KifuInsight({ userId, onBack, onGoSettings }) {
   const [loading,  setLoading]  = useState(true);
   const [minGames, setMinGames] = useState(3);
   const [sideFilter, setSideFilter] = useState("all"); // all | sente | gote
+  // 分岐を探すための観点。選ぶと下の一覧がその軸で組み直される
+  const [viewKey, setViewKey] = useState(BRANCH_VIEWS[0].key);
   const [backfilling, setBackfilling] = useState(false);
   const [backfillMsg, setBackfillMsg] = useState("");
 
@@ -210,7 +212,8 @@ export function KifuInsight({ userId, onBack, onGoSettings }) {
   };
 
   // ── 集計 ──
-  const { analysis, timing, byMatchup, excluded, needMeta } = useMemo(() => {
+  const view = BRANCH_VIEWS.find((v) => v.key === viewKey) || BRANCH_VIEWS[0];
+  const { analysis, timing, byView, excluded, needMeta } = useMemo(() => {
     const games = [];
     let noResult = 0, noSide = 0, handicapped = 0;
     let needMeta = 0;
@@ -228,13 +231,13 @@ export function KifuInsight({ userId, onBack, onGoSettings }) {
     return {
       analysis: analyzeGames(filtered, { minGames }),
       timing:   analyzeSwingTiming(filtered),
-      // 足切りなしの戦型べつ一覧。統計として有意かどうかとは別に、
-      // 「どの戦型を何局指したか」は1局からでも読む価値があるため常に出す。
-      byMatchup: groupBy(filtered, ["oppStrategy", "myStrategy"]).sort((a, b) => b.games - a.games),
+      // 足切りなしの一覧。統計として有意かどうかとは別に、
+      // 「どの分かれ方で何局あったか」は1局からでも読む価値があるため常に出す。
+      byView: groupBy(filtered, view.dims).sort((a, b) => b.games - a.games),
       excluded: { noResult, noSide, handicapped },
       needMeta,
     };
-  }, [kifus, minGames, sideFilter]);
+  }, [kifus, minGames, sideFilter, view]);
 
   const { overall, strong, weak, total } = analysis;
 
@@ -356,12 +359,32 @@ export function KifuInsight({ userId, onBack, onGoSettings }) {
             )}
 
             <Section
-              title="戦型べつの成績"
-              description="指した戦型を局数の多い順に並べています。局数が少ないうちは勝率より、どの戦型を何局指したかを見るほうが役に立ちます。"
+              title="分岐を探す"
+              description="どの観点で分けるかを選ぶと、その分かれ方で並べ替わります。差が出ている観点が、そのまま分岐を作る場所の候補になります。"
             >
-              {byMatchup.length === 0
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                {BRANCH_VIEWS.map((v) => (
+                  <button key={v.key} onClick={() => setViewKey(v.key)} style={{
+                    padding: "4px 11px", borderRadius: T.radius.sm, cursor: "pointer",
+                    fontFamily: T.fontSerif, fontSize: T.fontSize.sm,
+                    border: `0.5px solid ${viewKey === v.key ? T.gold : T.inkLine}`,
+                    background: viewKey === v.key ? T.gold : "transparent",
+                    color: viewKey === v.key ? T.cream : T.grayText,
+                  }}>{v.label}</button>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: 6, marginBottom: 6, fontSize: T.fontSize.sm, color: T.brown, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
+                <i className="ti ti-bulb" style={{ marginTop: 3, flexShrink: 0 }} />
+                <span>{view.hint}</span>
+              </div>
+              {byView.length === 0
                 ? EMPTY("集計できる棋譜がまだありません")
-                : byMatchup.map((g) => <MatchupRow key={g.key} group={g} />)}
+                : byView.map((g) => <MatchupRow key={g.key} group={g} />)}
+              {byView.length === 1 && (
+                <div style={{ marginTop: 6, fontSize: T.fontSize.xs, color: T.inkFaint, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
+                  この観点では分かれていません。別の観点を選ぶと分かれ目が見つかるかもしれません。
+                </div>
+              )}
             </Section>
 
             <Section

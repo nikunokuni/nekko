@@ -4,7 +4,7 @@
 import { importKifuText, parseKifuMeta, isEvenGame } from "../src/kifuParser.js";
 import { extractGameFeatures, detectCastle, detectMilestones } from "../src/kifuFeatures.js";
 import { branchCandidates, candidateToNodeFields } from "../src/kifuBranching.js";
-import { analyzeGames, analyzeSwingTiming, wilson } from "../src/kifuStats.js";
+import { analyzeGames, analyzeSwingTiming, wilson, groupBy, BRANCH_VIEWS } from "../src/kifuStats.js";
 import { resolveMySide, outcomeFor, analyzeKifu, toAnalysisGame } from "../src/kifuAnalyze.js";
 
 // 先手＝四間飛車＋美濃 / 後手＝居飛車。21手目に先手投了（後手の勝ち）
@@ -336,6 +336,37 @@ console.log("\n── 棋譜の節目 ──");
   check("飛車を振った手で戦型が決まる", ms2.find((m) => m.label === "戦型が決まる")?.ply, 5);
   check("先手の囲い完成を拾う", ms2.find((m) => m.label === "先手の囲い完成")?.ply, 17);
   check("節目は手数の昇順", ms2.map((m) => m.ply).every((p, i, a) => i === 0 || a[i - 1] <= p), true);
+}
+
+console.log("\n── 分岐を探す観点 ──");
+{
+  const g = (over) => ({
+    id: String(Math.random()), outcome: "win", side: "sente",
+    features: {
+      myStrategy: "四間飛車", oppStrategy: "居飛車", moveCount: 100,
+      myCastle: { name: "美濃囲い", completeness: 1 },
+      oppCastle: { name: "舟囲い", completeness: 1 },
+      swingTiming: "先発", bishopExchanged: false,
+      ...over,
+    },
+  });
+  const games = [
+    g({}),
+    g({ bishopExchanged: true }),
+    g({ myCastle: { name: "美濃囲い", completeness: 0.5 } }),
+    g({ swingTiming: "対応" }),
+    g({ swingTiming: null }),
+  ];
+  const by = (key) => {
+    const v = BRANCH_VIEWS.find((x) => x.key === key);
+    return groupBy(games, v.dims).map((x) => x.label).sort();
+  };
+  check("角交換の有無で分かれる", by("bishopExchange"), ["角交換あり", "角交換なし"]);
+  check("囲いが間に合ったかで分かれる", by("castleDone"), ["囲いが間に合った", "囲いが間に合わなかった"]);
+  check("自分から決めたかで分かれる", by("swingTiming"),
+    ["居飛車のまま", "相手を見てから決めた", "自分から決めた"].sort());
+  check("相手の戦法では分かれない（全部同じ）", by("oppStrategy"), ["居飛車"]);
+  check("観点はすべて集計できる", BRANCH_VIEWS.every((v) => groupBy(games, v.dims).length > 0), true);
 }
 
 console.log("\n── 分岐の候補 ──");
