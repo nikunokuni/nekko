@@ -8,6 +8,12 @@ import { shouldShowOnboard, markOnboardSeen } from "./rewards";
 
 // 画面ごとの初回オンボーディング文面（その画面に初めて来たとき1度だけ表示する）
 // 各画面は配列で、複数枚を順番に（連続で）表示する
+//
+// 下で jsx-key を切っている理由：この配列は msgs[index] で1枚ずつ取り出して
+// 表示するもので、リストとしてまとめて描画しない。よって key は不要
+// （React も key を要求しない）。ESLint はその区別ができないため、この
+// ファイルに限って無効化する。
+/* eslint-disable react/jsx-key */
 export const ONBOARD_MESSAGES = {
   list: [
     <span><i className="ti ti-search" />ノード検索　全ツリーのノードをまとめて探せます</span>,
@@ -107,7 +113,6 @@ export function useOnboarding({ screen, session, activeTree }) {
 
     // 「表示済み」は全枚数を見終えた時点で記録する（途中で閉じても次回また出す）
     setOnboard({ screen, index: 0 });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen, session, activeTree]);
 
   // 盤面を初めて追加したときに、盤面ボタンの使い方トースト（8枚）を開始する

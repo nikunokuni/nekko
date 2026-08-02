@@ -184,7 +184,6 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
       y: py - ((py - off.y) / s0) * s1,
     });
     setScale(s1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /** 2点間の距離を返す（ピンチ判定用） */

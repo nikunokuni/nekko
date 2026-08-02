@@ -866,7 +866,13 @@ export function KifuList({ userId, trees = [], onBack, onInsight, onSendToInbox 
         />
       )}
       {previewTarget && (
-        <KifuPreviewModal kifu={previewTarget} onClose={() => setPreviewTarget(null)} />
+        <KifuPreviewModal
+          kifu={previewTarget}
+          onClose={() => setPreviewTarget(null)}
+          onSetSide={handleSetSide}
+          trees={trees}
+          onSendToInbox={onSendToInbox}
+        />
       )}
       {editTarget && (
         <EditKifuModal

@@ -323,7 +323,11 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
       pendingPatch.current = {};
       if (Object.keys(patch).length > 0) onUpdate(nodeId, patch);
     };
-  }, [nodeId]); // node を外す：保存のたびに node 参照が変わり全 state がリセットされスクロール位置がトップに戻るため
+    // node / onUpdate を依存から意図的に外す：保存のたびに node 参照が変わり、
+    // 全 state がリセットされてスクロール位置がトップに戻ってしまうため。
+    // 最新値が要る箇所は nodeIdRef / onUpdateRef を通して読む。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodeId]);
 
   // 編集開始時点の盤面状態を記録する（盤面の「元に戻す」用スナップショット）
   useEffect(() => {
@@ -432,15 +436,40 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
     JSON.stringify(node?.kifu || [])  !== JSON.stringify(boardSnapshot.kifu)
   ), [boardSnapshot, boardVisible, boardData, stamps, handSente, handGote, node]);
 
-  if (!node) return null;
-
-  const parent   = node.parentId ? tree.nodes[node.parentId] : null;
-  const children = (node.childIds || []).map((id) => tree.nodes[id]).filter(Boolean);
+  // ── フックは早期 return より前にまとめる ──────────────────
+  //   React のフックは毎レンダーで同じ順序・同じ回数だけ呼ぶ必要がある。
+  //   `if (!node) return null` の後ろに useMemo を置くと、ノード削除直後など
+  //   node が一瞬 undefined になったレンダーでフックの数が変わり、React が
+  //   「Rendered fewer hooks than expected」で落ちる。
+  const children = useMemo(
+    () => (node?.childIds || []).map((id) => tree.nodes[id]).filter(Boolean),
+    [node, tree.nodes],
+  );
 
   // ── 分岐の候補 ────────────────────────────────────
   // 実戦で当たった相手を候補として出す。アプリが出すのは「相手が選ぶ分岐」だけで、
   // 自分がどう指すかは枝の中身なので候補にしない。
   // 当たったことのない戦法も出さない（その人にとっては対策不要とも言えるため）。
+  const branch = useMemo(() => branchCandidates({
+    myApproach: parseTags(myApproach),
+    situation:  parseTags(situation),
+    games:      branchGames || [],
+    // 既に枝がある相手は候補から外す。ノード名と「相手の戦法」タグの両方で照合する
+    existingNames: children.flatMap((c) => [c.label, ...(c.situation || [])]),
+  }), [myApproach, situation, branchGames, children]);
+
+  // ── 「とりあえず」の作り直し ────────────────────────
+  // 置き場は普通のノードなので削除できてしまう。消したあと戻す道が
+  // どこにも無いと詰むため、ルートの子ノード欄から作り直せるようにする。
+  const treeHasInbox = useMemo(
+    () => Object.values(tree.nodes).some((n) => n.isInbox),
+    [tree.nodes],
+  );
+
+  if (!node) return null;
+
+  const parent = node.parentId ? tree.nodes[node.parentId] : null;
+
   const toggleBranchCandidates = async () => {
     const next = !branchOpen;
     setBranchOpen(next);
@@ -452,24 +481,7 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
     setBranchLoading(false);
   };
 
-  const branch = useMemo(() => branchCandidates({
-    myApproach: parseTags(myApproach),
-    situation:  parseTags(situation),
-    games:      branchGames || [],
-    // 既に枝がある相手は候補から外す。ノード名と「相手の戦法」タグの両方で照合する
-    existingNames: children.flatMap((c) => [c.label, ...(c.situation || [])]),
-  }), [myApproach, situation, branchGames, children]);
-
   const hasStrategyTag = parseTags(myApproach).length > 0 || parseTags(situation).length > 0;
-
-  // ── 「とりあえず」の作り直し ────────────────────────
-  // 置き場は普通のノードなので削除できてしまう。消したあと戻す道が
-  // どこにも無いと詰むため、ルートの子ノード欄から作り直せるようにする。
-  const treeHasInbox = useMemo(
-    () => Object.values(tree.nodes).some((n) => n.isInbox),
-    [tree.nodes],
-  );
-
 
   // 「ついか」内の各項目の表示可否（設定でON/OFF可能。OFFでもデータは残る）。
   // 全項目OFFなら「ついか」セクション自体を出さない

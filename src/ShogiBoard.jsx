@@ -533,12 +533,15 @@ export default function ShogiBoard({
     handleClick({ clientX: t.clientX, clientY: t.clientY });
   }, [handleClick, readOnly, board]);
 
-  if (!board) return null;
-  const W = COLS * CELL, H = ROWS * CELL;
   // ── 棋譜の節目 ──
   // 分岐を作る場所を探すときの手がかり。序盤の駒組みと戦いが始まってからでは
   // 研究したいことが違うので、その境目へ一発で飛べるようにする。
+  //   フックなので早期 return より前に置く。`if (!board) return null` の後ろに
+  //   あると、盤面を削除した瞬間のレンダーでフック数が変わって React が落ちる。
   const milestones = useMemo(() => detectMilestones(kifuProp), [kifuProp]);
+
+  if (!board) return null;
+  const W = COLS * CELL, H = ROWS * CELL;
   const kifuLen = kifuProp.length;  // 保存済みスナップショット数（0 = 棋譜なし）
   const moveCount = Math.max(0, kifuLen - 1); // 手数 = スナップ数 - 1（初期局面分を引く）
   // 棋譜ナビ上の現在位置。通常表示(null)は最終手と同じ局面なので moveCount とみなす
