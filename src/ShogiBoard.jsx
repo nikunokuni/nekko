@@ -215,6 +215,67 @@ const HAND_ORDER = ['r','b','g','s','n','l','p'];
 // グラデーション・五角形パス・影の描画はコストが高いため、組み合わせごとに一度だけ描いて使い回す。
 // dpr もキーに含める：拡大率が違えば画素数が違う別物になるため（外部モニタへ移すと変わる）
 const handPieceCache = new Map();
+
+// ── 盤の文字に使う Web フォントの到着を待つ ──────────────
+// index.html の日本語フォントは描画をブロックしない読み込みにしてある（画面を先に出すため）。
+// そのため、盤を最初に描く時点ではまだ Noto Serif JP が来ていないことがある。
+//
+// DOM の文字は、あとからフォントが届けばブラウザが勝手に描き直す。
+// **Canvas は描き直さない。** 何もしないと、盤の駒だけがフォールバックの明朝で
+// 焼き付いたまま、リロードするまで直らない。しかも持ち駒はスプライトをキャッシュ
+// しているので、キャッシュに残った古い絵が次の局面にも使い回される。
+// ここで到着を購読して、描き直しの合図とキャッシュの破棄を行う。
+const BOARD_FONT = "bold 24px 'Noto Serif JP'"; // 判定用。サイズは何でもよく、書体名と太さが要る
+// 判定に使う文字は、実際に盤へ描くもの（駒の字）にする。
+// Google Fonts の日本語は文字の範囲ごとに細かく分割して配信されるので、
+// 「どの字を描きたいか」まで伝えないと、駒の字を含まない部分だけが届いた時点で
+// 「来た」と誤判定してしまう
+const BOARD_FONT_SAMPLE = "歩";
+// document.fonts が無い環境（古いブラウザ）は待てないので、最初から「来ている」扱いにする。
+// フォールバックのまま描かれるが、待ち続けて描き直しの機会を失うよりはよい
+let boardFontReady = typeof document === "undefined" || !document.fonts;
+const boardFontWaiters = new Set();
+
+function markBoardFontReady() {
+  if (boardFontReady) return;
+  boardFontReady = true;
+  handPieceCache.clear(); // フォールバックで焼いたスプライトを捨てる
+  for (const notify of boardFontWaiters) notify();
+  boardFontWaiters.clear();
+}
+
+if (!boardFontReady) {
+  // document.fonts.check() は使えない。**未登録の書体名に対しても true を返す**ため
+  // （フォールバックで描けるかどうかを答える仕様で、目当ての書体が来たかは分からない）。
+  // document.fonts.load() は「その字を描ける、読み込み済みの書体」だけを返すので、
+  // 中身が空でないことをもって到着とみなす。
+  const tryLoad = () => {
+    if (boardFontReady) return;
+    document.fonts.load(BOARD_FONT, BOARD_FONT_SAMPLE)
+      .then((faces) => { if (faces.length > 0) markBoardFontReady(); })
+      .catch(() => {}); // 取得できない環境ではフォールバックのまま。実害は無い
+  };
+  // まだ <link> が適用されていなければ load() は空で返る。読み込みの区切り
+  // （loadingdone）ごとに聞き直す。区切りは書体が実際に使われるたびに来る
+  document.fonts.addEventListener("loadingdone", tryLoad);
+  document.fonts.ready.then(tryLoad).catch(() => {});
+  tryLoad();
+}
+
+// フォントが届いたら再描画したいコンポーネントが使う。
+// 届くまでは false を返し、届いた瞬間に true へ変わって再描画がかかる。
+// 結局届かない環境（オフライン等）では false のままだが、フォールバックで
+// 描けているので実害は無い。
+function useBoardFontReady() {
+  const [ready, setReady] = useState(boardFontReady);
+  useEffect(() => {
+    if (ready) return;
+    const notify = () => setReady(true);
+    boardFontWaiters.add(notify);
+    return () => boardFontWaiters.delete(notify);
+  }, [ready]);
+  return ready;
+}
 function getHandPieceSprite(pieceKey, isSelected, count, dpr) {
   const cacheKey = `${pieceKey}|${isSelected ? 1 : 0}|${count}|${dpr}`;
   let off = handPieceCache.get(cacheKey);
@@ -238,13 +299,15 @@ function getHandPieceSprite(pieceKey, isSelected, count, dpr) {
 function HandPiece({ k, count, isSente, isSelected, onClick, readOnly, boardSelected, size = 32 }) {
   const ref = useRef(null);
   const dpr = getDpr();
+  // フォントが届いたらスプライトを描き直す（キャッシュは markBoardFontReady が捨てている）
+  const fontReady = useBoardFontReady();
   useEffect(() => {
     const canvas = ref.current; if (!canvas) return;
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     // スプライトは 32×dpr 画素で持っているので、そのまま等倍で貼る（ここで縮めない）
     ctx.drawImage(getHandPieceSprite(isSente ? k : k.toUpperCase(), isSelected, count, dpr), 0, 0);
-  }, [k, isSente, isSelected, count, dpr]);
+  }, [k, isSente, isSelected, count, dpr, fontReady]);
   return (
     // 盤上の駒を選択中は、ここをタップしても駒選択せずエリアのクリック（=持ち駒へ移動）に委ねる
     <canvas ref={ref} width={32 * dpr} height={32 * dpr} onClick={() => { if (readOnly || boardSelected) return; onClick(); }}
@@ -281,10 +344,11 @@ function BoardPeek({ board, stamps, handSente, handGote, availWidth }) {
   const ref = useRef(null);
   const cell = peekCellSize(availWidth);
   const S = COLS * cell;
+  const fontReady = useBoardFontReady(); // フォント到着で描き直す（Canvas は自動では直らない）
   useEffect(() => {
     const canvas = ref.current; if (!canvas || !board) return;
     drawBoardTo(hiDpiContext(canvas, S, S), { board, stamps, cell });
-  }, [board, stamps, cell, S]);
+  }, [board, stamps, cell, S, fontReady]);
   if (!board) return null;
   return (
     <div style={{ display:'flex', alignItems:'stretch', gap:PEEK_GAP,
@@ -443,6 +507,8 @@ export default function ShogiBoard({
   const canvasRef = useRef(null);
   // 貼り付けを始める目印。この行（持ち駒＋盤）の上端が画面から出たら貼り付ける
   const boardRowRef = useRef(null);
+  // 盤の駒はフォントが届く前に描かれることがある。届いたら描き直すための合図
+  const fontReady = useBoardFontReady();
 
   const [board,        setBoard]        = useState(() => boardProp ? JSON.parse(JSON.stringify(boardProp)) : null);
   const [stamps,       setStamps]       = useState(stampsProp);
@@ -521,7 +587,10 @@ export default function ShogiBoard({
     });
   }, [dispBoard, stamps, selected, arrowStart, playSnap]);
 
-  useEffect(() => { draw(); }, [draw]);
+  // fontReady を依存に入れているのは、フォントが届いた時にもう一度描くため。
+  // draw の中身は変わらないので draw 自身の依存には入れない（同じ絵を作る関数のままでよい）。
+  // Canvas は DOM と違い、あとからフォントが来ても勝手に描き直らない
+  useEffect(() => { draw(); }, [draw, fontReady]);
 
   // ── onChange 通知 ─────────────────────────────────
   const notify = useCallback((nextBoard, nextHS, nextHG, nextStamps) => {

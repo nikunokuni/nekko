@@ -19,8 +19,26 @@
   <meta name="twitter:title" content="ねっこ">
   <meta name="twitter:image" content="https://nekko-weld.vercel.app/icon.png?v=3">
   <!-- 日本語フォントはオンライン時の見栄え向上（未取得でも serif フォールバックで表示可）。
-       Service Worker が初回取得後にキャッシュしてオフラインでも使えるようにする。 -->
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;600&family=Shippori+Mincho+B1:wght@400;600&display=swap" rel="stylesheet">
+       Service Worker が初回取得後にキャッシュしてオフラインでも使えるようにする。
+
+       ふつうの rel="stylesheet" で読むと、この取得が終わるまでブラウザは本文を
+       描き始めない（描画をブロックする読み込み）。フォントは「あれば嬉しい」ものなのに、
+       電波が悪い・取得に失敗する状況では、そのタイムアウトを待つあいだ画面が
+       body の背景色（黒）のまま止まる。外に出られない環境での実測で、
+       表示までが約13秒かかっていた。
+       そこで rel="preload" で先に取りに行き、届いてから onload で stylesheet に
+       切り替える。こうすると取得を待たずに画面が出て、フォントは届き次第あとから効く。
+       JSが無効なときのために noscript にも同じものを置く（そちらは従来どおりブロックする）。
+
+       注意：盤は Canvas で文字を描いており、DOM と違って**あとからフォントが来ても
+       勝手に描き直らない**。読み込み完了で描き直す仕掛けが ShogiBoard.jsx にある。 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;600&family=Shippori+Mincho+B1:wght@400;600&display=swap"
+        onload="this.onload=null;this.rel='stylesheet'">
+  <noscript>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;600&family=Shippori+Mincho+B1:wght@400;600&display=swap">
+  </noscript>
   <!-- アイコンフォントは main.jsx で自ホスト読み込み（CDN依存を排除）-->
 
   <style>
