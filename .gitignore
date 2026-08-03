@@ -7,6 +7,11 @@ dist-ssr/
 dev-dist/
 *.local
 
+# E2Eテストの出力（失敗時のスクリーンショット・トレース）
+test-results/
+playwright-report/
+blob-report/
+
 # 環境変数（秘密情報）
 .env
 .env.*

@@ -18,6 +18,11 @@
   新しいテストはこのディレクトリに `〜.test.mjs` の名前で置くだけでよい）。
   1本だけ動かしたいときは `node test-harness/treeOps.test.mjs` のように直接実行する。
 
+- `e2e/` — ブラウザで主要動線を通すテスト（Playwright）。
+  `supabaseMock.js` を使ったモック構成を自動で起動するので Supabase の準備は要らない。
+  実行: `npm run test:e2e`（画面を見ながらなら `npm run test:e2e:headed`）。
+  `helpers.js` に新規登録・ツリー作成などの共通手順と、棋譜のサンプルを置いてある。
+
 - `QA_REPORT.md` — 2026-07-13 実施の全機能QAの結果（バグ・気になる仕様の一覧）。
 
 ## 使い方

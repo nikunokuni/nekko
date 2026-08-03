@@ -1,6 +1,6 @@
-# push / Pull Request のたびに「lint → テスト → ビルド」を自動で回す。
+# push / Pull Request のたびに自動で確認する。
 #   目的は、壊れたコードが main に入ったことをブラウザで触るより先に知ること。
-#   ローカルで同じことをするには: npm run check
+#   ローカルで同じことをするには: npm run check（速い）/ npm run test:all（E2Eまで）
 name: CI
 
 on:
@@ -14,11 +14,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # 速いほうを先に出す。壊れていれば1分以内に赤くなる。
   check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -38,3 +38,33 @@ jobs:
       # 本番ビルドが通ることの確認
       - name: Build
         run: npm run build
+
+  # ブラウザで主要動線を通す。Chromium の用意に1〜2分かかるので別ジョブにして、
+  # 上の check の結果を待たせない。重ければ pull_request のときだけに絞ってよい。
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      # ブラウザ本体はキャッシュしない（展開のほうが遅いことが多い）
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E
+        run: npm run test:e2e
+
+      # 落ちたときだけ、原因を追える材料を残す
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

@@ -419,20 +419,27 @@ export function TreeList({ trees, profile, onOpen, onPublic, onSearch, onKifus, 
           )}
         </div>
 
+        {/*
+          アイコンだけのボタンには必ず aria-label を付ける。
+            見た目は絵しかないので、読み上げソフトでは「ボタン」としか読まれず何なのか分からない。
+            title だけでは不十分：アイコンフォントが ::before で文字を差し込むため、
+            名前の計算がそちらに引っ張られて title が無視されることがある。
+            aria-label は中身より強いので確実に名前が付く（テストからも指せるようになる）。
+        */}
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <button data-onboard="search" title="ノード検索" onClick={onSearch} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
+          <button data-onboard="search" aria-label="ノード検索" title="ノード検索" onClick={onSearch} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
             <i className="ti ti-search" />
           </button>
-          <button data-onboard="public" onClick={onPublic} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
+          <button data-onboard="public" aria-label="みんなのツリー" title="みんなのツリー" onClick={onPublic} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
             <i className="ti ti-world" />
           </button>
-          <button data-onboard="kifus" title="棋譜ライブラリ" onClick={onKifus} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
+          <button data-onboard="kifus" aria-label="棋譜ライブラリ" title="棋譜ライブラリ" onClick={onKifus} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
             <i className="ti ti-chess" />
           </button>
-          <button data-onboard="trophy" onClick={onTrophy} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
+          <button data-onboard="trophy" aria-label="トロフィー" title="トロフィー" onClick={onTrophy} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
             <i className="ti ti-trophy" />
           </button>
-          <button data-onboard="settings" onClick={onSettings} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.125rem", padding: 2 }}>
+          <button data-onboard="settings" aria-label="設定" title="設定" onClick={onSettings} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.125rem", padding: 2 }}>
             <i className="ti ti-settings" />
           </button>
           <button
@@ -442,7 +449,7 @@ export function TreeList({ trees, profile, onOpen, onPublic, onSearch, onKifus, 
           >
             <i className="ti ti-plus" style={{ fontSize: "0.8125rem" }} /> 新規
           </button>
-          <button onClick={() => setSignOutConfirm(true)} style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: "1.125rem", padding: 2 }}>
+          <button aria-label="ログアウト" title="ログアウト" onClick={() => setSignOutConfirm(true)} style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: "1.125rem", padding: 2 }}>
             <i className="ti ti-logout" />
           </button>
         </div>

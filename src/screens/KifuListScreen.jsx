@@ -866,7 +866,17 @@ export function KifuList({ userId, trees = [], onBack, onInsight, onSendToInbox 
         />
       )}
       {previewTarget && (
-        <KifuPreviewModal kifu={previewTarget} onClose={() => setPreviewTarget(null)} />
+        <KifuPreviewModal
+          kifu={previewTarget}
+          onClose={() => setPreviewTarget(null)}
+          // onSetSide / trees / onSendToInbox を渡し忘れると、モーダル側は
+          // 「ツリーへ送る」を丸ごと出さず（onSendToInbox && trees.length > 0 で判定）、
+          // 先後の選択ボタンも onSetSide?.() が no-op になって黙って効かなくなる。
+          // 見た目が壊れないぶん気づきにくいので、消さないこと。
+          onSetSide={(side) => handleSetSide(previewTarget, side)}
+          trees={trees}
+          onSendToInbox={onSendToInbox}
+        />
       )}
       {editTarget && (
         <EditKifuModal

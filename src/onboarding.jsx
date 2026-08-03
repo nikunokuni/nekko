@@ -112,7 +112,6 @@ export function useOnboarding({ screen, session, activeTree }) {
 
     // 「表示済み」は全枚数を見終えた時点で記録する（途中で閉じても次回また出す）
     setOnboard({ screen, index: 0 });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen, session, activeTree]);
 
   // 盤面を初めて追加したときに、盤面ボタンの使い方トースト（8枚）を開始する

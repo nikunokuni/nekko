@@ -17,8 +17,10 @@
 | **バックエンド無しで全機能を触る** | `npm run dev:mock` |
 | Lint（バグ検出） | `npm run lint` / 自動修正 `npm run lint:fix` |
 | ユニットテスト | `npm test` |
+| E2E（ブラウザで主要動線） | `npm run test:e2e` / 見ながら `npm run test:e2e:headed` |
 | 本番ビルド | `npm run build` |
 | **コミット前の一括確認** | `npm run check`（lint → test → build） |
+| **E2Eまで通す** | `npm run test:all`（lint → test → e2e） |
 
 `.env` は `.env.example` を写して `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` を入れる。
 `npm run dev:mock` なら `.env` 不要（`test-harness/supabaseMock.js` に差し替わり、localStorage で完結する）。
@@ -106,6 +108,20 @@ if (!node) return null;           // ← 早期 return はフックの後
 
 CSS-in-JS ライブラリも CSS Modules も使っていない。色と寸法は `theme.js` のトークンを引く。
 
+### アイコンだけのボタンには `aria-label` を付ける
+
+絵しか無いボタンは、読み上げソフトでは「ボタン」としか読まれない。
+`title` だけでは足りない（アイコンフォントが `::before` で文字を差し込むため、
+名前の計算がそちらに引っ張られる）。`aria-label` は中身より強いので確実に名前が付き、
+E2Eテストからも指せるようになる。
+
+### 子コンポーネントに props を渡し忘れない
+
+`onX && ...` で導線ごと出し分けている部品があるため、渡し忘れると
+**ボタンが消えるだけで画面は崩れず、静かに機能が死ぬ**。実際に棋譜プレビューで起きた
+（`test-harness/e2e/kifu-preview.spec.js` はその回帰テスト）。
+`npm run lint` の「未使用の props」警告はこの兆候なので、必ず中身を見る。
+
 ### DB スキーマの変更は migration を追記
 
 `supabase/migrations/YYYYMMDD_内容.sql` を**新規に足す**。既存ファイルは書き換えない。
@@ -121,10 +137,17 @@ CSS-in-JS ライブラリも CSS Modules も使っていない。色と寸法は
 
 - **純粋関数はユニットテストを書く**（`treeOps` / `kifu*`）。`test-harness/*.test.mjs` に置けば
   `npm test` が自動で拾う
-- **画面まわりは `npm run dev:mock` で手動確認**。任意のID/パスワードで新規登録すれば
+- **主要動線はE2Eで見張る**（`test-harness/e2e/*.spec.js`）。モック構成を自動で起動するので
+  Supabase の準備は要らない。細かい表示崩れは追わず「押したものが動くか」「落ちないか」だけ
+- **バグを直したら、まず落ちるテストを書く**。直したあとに「バグをわざと戻すと落ちるか」まで
+  確かめる（通るだけのテストは、効いているかどうか分からない）
+- **それ以外は `npm run dev:mock` で手動確認**。任意のID/パスワードで新規登録すれば
   ローカル完結で全機能を触れる
 - `src/` から import するときは**拡張子まで書く**（`./treeOps.js`）。
   test-harness が Node で直接実行するため
+
+E2Eは初回の使い方トーストを `localStorage` に「表示済み」を書いて出さないようにしている
+（`test-harness/e2e/helpers.js` の `skipOnboarding`）。トーストは画面を覆ってクリックを吸うため。
 
 ---
 
@@ -135,4 +158,5 @@ CSS-in-JS ライブラリも CSS Modules も使っていない。色と寸法は
 - ユーザー向けの文言はすべて日本語。将棋用語は正式名で（「舟囲い」「四間飛車」など）
 - 囲い・戦法の判定条件は実戦の定義に合わせてある（`kifuFeatures.js`）。
   変えるときは `test-harness/kifuAnalysis.test.mjs` のケースも一緒に直す
-- `npm run lint` の警告6件は既知（未使用変数と依存配列）。エラー0を保つ
+- `npm run lint` は**エラー0を保つ**。残る警告も「既知だから無視」とは扱わない。
+  未使用変数の警告から実際に機能が死んでいたのが見つかっている（上記の props 渡し忘れ）
