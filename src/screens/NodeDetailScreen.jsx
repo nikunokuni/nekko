@@ -834,124 +834,10 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
         {/* ════════════════ きほん ════════════════ */}
         <SectionHeader icon="ti-pencil" dataOnboard="kihon">きほん</SectionHeader>
 
-        {/* ノード名 + ステータス */}
-        <div style={{ display: "flex", gap: 8, alignItems: "flex-end", padding: "0 16px 10px" }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <SectionLabel style={{ marginBottom: 5 }}>ノード名</SectionLabel>
-            {/* ルートノード名はツリー名と連動しているため、ここでは編集できない */}
-            <input
-              ref={labelInputRef}
-              value={label}
-              disabled={node.isRoot}
-              onChange={(e) => { setLabel(e.target.value); scheduleSave({ label: e.target.value }); }}
-              onBlur={(e) => {
-                e.target.style.borderColor = T.inkLine;
-                const next = label.trim() || node.label;
-                if (next !== label) setLabel(next);
-                scheduleSave({ label: next });
-                flushSave();
-              }}
-              placeholder="例：▲４六銀型"
-              style={node.isRoot ? { ...INPUT_STYLE, color: T.inkMid, background: T.goldLight } : INPUT_STYLE}
-              onFocus={(e) => (e.target.style.borderColor = T.gold)}
-            />
-            {node.isRoot && (
-              <div style={{ fontSize: T.fontSize.sm, color: T.inkFaint, marginTop: 4, fontFamily: T.fontSerif }}>
-                ツリー名と連動しています（ツリー一覧の「編集」から変更できます）
-              </div>
-            )}
-          </div>
-          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-            {/* 未定（todo）にも戻せるよう3ステータスすべてを選択肢にする */}
-            {["done", "wip", "todo"].map((s) => (
-              <StatusChip
-                key={s}
-                status={s}
-                active={status === s}
-                onClick={() => saveField({ status: s }, () => setStatus(s), () => setStatus(node.status || "wip"))}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* 相手の戦法・局面の状況 / 自分の戦法 */}
-        {!node.isRoot && (
-          <>
-            <TagPickerField
-              label="相手の戦法"
-              text={situation}
-              onSelectTag={(next) => saveField({ situation: next },
-                () => setSituation(next.join("、")),
-                () => setSituation((node.situation || []).join("、")))}
-              groups={STRATEGY_GROUPS}
-              customTags={customTags}
-              onAddCustomTag={handleAddCustomTag}
-            />
-
-            <TagPickerField
-              label="自分の戦法"
-              text={myApproach}
-              onSelectTag={(next) => saveField({ myApproach: next },
-                () => setMyApproach(next.join("、")),
-                () => setMyApproach((node.myApproach || []).join("、")))}
-              groups={STRATEGY_GROUPS}
-              customTags={customTags}
-              onAddCustomTag={handleAddCustomTag}
-            />
-          </>
-        )}
-
-        {/* メモ */}
-        <div style={{ padding: "0 16px 10px" }}>
-          <SectionLabel style={{ marginBottom: 6 }}>メモ</SectionLabel>
-          <textarea
-            value={memo}
-            onChange={(e) => { setMemo(e.target.value); scheduleSave({ memo: e.target.value }); }}
-            placeholder="この局面の気づき・方針を自由に（迷ったらまずここに）"
-            rows={4}
-            style={{ width: "100%", border: `0.5px solid ${T.inkLine}`, borderRadius: T.radius.sm, padding: "10px 12px", fontSize: T.fontSize.base, color: T.ink, background: T.cream, resize: "none", fontFamily: T.fontSerif, lineHeight: 1.7, outline: "none" }}
-            onFocus={(e) => (e.target.style.borderColor = T.gold)}
-            onBlur={(e)  => { e.target.style.borderColor = T.inkLine; flushSave(); }}
-          />
-        </div>
-
-        {/* いつ使う（短文）。この戦法・局面をどんなときに使うかを一言で。
-            親から子ノード一覧を見たときに、入力があれば各子の下に表示される */}
-        <div style={{ padding: "0 16px 10px" }}>
-          <SectionLabel style={{ marginBottom: 5 }}>いつ使う</SectionLabel>
-          <input
-            value={whenToUse}
-            onChange={(e) => { setWhenToUse(e.target.value); scheduleSave({ whenToUse: e.target.value }); }}
-            onBlur={(e)  => { e.target.style.borderColor = T.inkLine; flushSave(); }}
-            onFocus={(e) => (e.target.style.borderColor = T.gold)}
-            placeholder="例：相手が急戦できたとき／早く固めたいとき"
-            style={INPUT_STYLE}
-          />
-        </div>
-
-        {/* 一言コメント（感触・課題タグ）
-            言葉にするのが難しいときの受け皿なので、「ついか」の奥ではなく
-            対局直後に目に入るメモの直下に置く（閉じているときは選択済みタグのみ表示） */}
-        {showCommentTags && (
-        <TagPickerField
-          label="一言コメント（タップで気軽に記録）"
-          text={commentTags}
-          onSelectTag={(next) => saveField({ commentTags: next },
-            () => setCommentTags(next.join("、")),
-            () => setCommentTags((node.commentTags || []).join("、")))}
-          groups={COMMENT_GROUPS}
-          customTags={commentCustomTags}
-          onAddCustomTag={(tag, group) => {
-            addCommentCustomTag(tag, group);
-            setCommentCustomTags(getCommentCustomTags());
-          }}
-          noToggle
-        />
-        )}
-
-        <Divider />
-
-        {/* 盤面 */}
+        {/* 盤面 ―「きほん」の先頭に置く。
+            このノードが何の話なのかは局面を見れば分かるので、文字入力欄より先に出す。
+            下にあると、ノードを開くたびに盤を探して画面を送ることになっていた。
+            手番・評価値・棋譜の取り込みは局面に紐づくので、区切り線までを一続きの塊として扱う */}
         {/* key=nodeId: ノード移動時に ShogiBoard ごと再マウントし、
             再生モード・記録中・選択ツールなどの内部 state を持ち越さない */}
         <BoardSection
@@ -1100,6 +986,123 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
               <i className="ti ti-books" style={{ fontSize: "0.875rem" }} />保存済み棋譜から取り込む
             </div>
           </div>
+        )}
+
+        <Divider />
+
+        {/* ノード名 + ステータス */}
+        <div style={{ display: "flex", gap: 8, alignItems: "flex-end", padding: "0 16px 10px" }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <SectionLabel style={{ marginBottom: 5 }}>ノード名</SectionLabel>
+            {/* ルートノード名はツリー名と連動しているため、ここでは編集できない */}
+            <input
+              ref={labelInputRef}
+              value={label}
+              disabled={node.isRoot}
+              onChange={(e) => { setLabel(e.target.value); scheduleSave({ label: e.target.value }); }}
+              onBlur={(e) => {
+                e.target.style.borderColor = T.inkLine;
+                const next = label.trim() || node.label;
+                if (next !== label) setLabel(next);
+                scheduleSave({ label: next });
+                flushSave();
+              }}
+              placeholder="例：▲４六銀型"
+              style={node.isRoot ? { ...INPUT_STYLE, color: T.inkMid, background: T.goldLight } : INPUT_STYLE}
+              onFocus={(e) => (e.target.style.borderColor = T.gold)}
+            />
+            {node.isRoot && (
+              <div style={{ fontSize: T.fontSize.sm, color: T.inkFaint, marginTop: 4, fontFamily: T.fontSerif }}>
+                ツリー名と連動しています（ツリー一覧の「編集」から変更できます）
+              </div>
+            )}
+          </div>
+          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+            {/* 未定（todo）にも戻せるよう3ステータスすべてを選択肢にする */}
+            {["done", "wip", "todo"].map((s) => (
+              <StatusChip
+                key={s}
+                status={s}
+                active={status === s}
+                onClick={() => saveField({ status: s }, () => setStatus(s), () => setStatus(node.status || "wip"))}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* 相手の戦法・局面の状況 / 自分の戦法 */}
+        {!node.isRoot && (
+          <>
+            <TagPickerField
+              label="相手の戦法"
+              text={situation}
+              onSelectTag={(next) => saveField({ situation: next },
+                () => setSituation(next.join("、")),
+                () => setSituation((node.situation || []).join("、")))}
+              groups={STRATEGY_GROUPS}
+              customTags={customTags}
+              onAddCustomTag={handleAddCustomTag}
+            />
+
+            <TagPickerField
+              label="自分の戦法"
+              text={myApproach}
+              onSelectTag={(next) => saveField({ myApproach: next },
+                () => setMyApproach(next.join("、")),
+                () => setMyApproach((node.myApproach || []).join("、")))}
+              groups={STRATEGY_GROUPS}
+              customTags={customTags}
+              onAddCustomTag={handleAddCustomTag}
+            />
+          </>
+        )}
+
+        {/* メモ */}
+        <div style={{ padding: "0 16px 10px" }}>
+          <SectionLabel style={{ marginBottom: 6 }}>メモ</SectionLabel>
+          <textarea
+            value={memo}
+            onChange={(e) => { setMemo(e.target.value); scheduleSave({ memo: e.target.value }); }}
+            placeholder="この局面の気づき・方針を自由に（迷ったらまずここに）"
+            rows={4}
+            style={{ width: "100%", border: `0.5px solid ${T.inkLine}`, borderRadius: T.radius.sm, padding: "10px 12px", fontSize: T.fontSize.base, color: T.ink, background: T.cream, resize: "none", fontFamily: T.fontSerif, lineHeight: 1.7, outline: "none" }}
+            onFocus={(e) => (e.target.style.borderColor = T.gold)}
+            onBlur={(e)  => { e.target.style.borderColor = T.inkLine; flushSave(); }}
+          />
+        </div>
+
+        {/* いつ使う（短文）。この戦法・局面をどんなときに使うかを一言で。
+            親から子ノード一覧を見たときに、入力があれば各子の下に表示される */}
+        <div style={{ padding: "0 16px 10px" }}>
+          <SectionLabel style={{ marginBottom: 5 }}>いつ使う</SectionLabel>
+          <input
+            value={whenToUse}
+            onChange={(e) => { setWhenToUse(e.target.value); scheduleSave({ whenToUse: e.target.value }); }}
+            onBlur={(e)  => { e.target.style.borderColor = T.inkLine; flushSave(); }}
+            onFocus={(e) => (e.target.style.borderColor = T.gold)}
+            placeholder="例：相手が急戦できたとき／早く固めたいとき"
+            style={INPUT_STYLE}
+          />
+        </div>
+
+        {/* 一言コメント（感触・課題タグ）
+            言葉にするのが難しいときの受け皿なので、「ついか」の奥ではなく
+            対局直後に目に入るメモの直下に置く（閉じているときは選択済みタグのみ表示） */}
+        {showCommentTags && (
+        <TagPickerField
+          label="一言コメント（タップで気軽に記録）"
+          text={commentTags}
+          onSelectTag={(next) => saveField({ commentTags: next },
+            () => setCommentTags(next.join("、")),
+            () => setCommentTags((node.commentTags || []).join("、")))}
+          groups={COMMENT_GROUPS}
+          customTags={commentCustomTags}
+          onAddCustomTag={(tag, group) => {
+            addCommentCustomTag(tag, group);
+            setCommentCustomTags(getCommentCustomTags());
+          }}
+          noToggle
+        />
         )}
 
         <SectionDivider />
