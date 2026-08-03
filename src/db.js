@@ -4,6 +4,8 @@
 import { createClient } from "@supabase/supabase-js";
 // ノードの「キー名 ↔ DB列名 ↔ 既定値」の台帳。項目を増やすときはここだけを直す
 import { nodeToInsertRow, nodePatchToRow, nodeRowToNode } from "./nodeFields";
+// 棋譜の台帳。一覧で読む列（KIFU_META_COLUMNS）もここから生成される
+import { kifuToInsertRow, kifuPatchToRow, kifuRowToKifu, KIFU_META_COLUMNS } from "./kifuFields";
 
 const SUPABASE_URL      = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -211,11 +213,6 @@ export async function countUserNodes(userId) {
 // ノードへの取り込みは参照ではなくコピー（nodes.kifu へ複製）なので、
 // ライブラリ側の削除・編集がノードに影響することはない。
 
-// 一覧・分析で使う軽い列（snapshots と source_text を除いたすべて）
-const KIFU_META_COLUMNS =
-  "id, name, memo, tags, move_count, created_at, " +
-  "sente_name, gote_name, handicap, result, my_side, played_at, meta_parsed, features";
-
 /** 棋譜一覧をメタデータのみで取得する（snapshots は重いので含めない） */
 export async function fetchMyKifus(userId) {
   const result = await supabase
@@ -303,32 +300,15 @@ export async function fetchKifuSnapshots(kifuId) {
   return result;
 }
 
-export async function createKifu({
-  userId, name, memo = "", tags = [], snapshots, sourceText = "",
-  // 取り込み時に解析済みの対局情報（analyzeKifu の結果）
-  senteName = "", goteName = "", handicap = "",
-  result: gameResult = null, mySide = null, playedAt = null,
-  features = null, metaParsed = false,
-}) {
+/** 棋譜を1件保存する。項目の既定値と列名は kifuFields.js の台帳が持つ。 */
+export async function createKifu({ userId, snapshots, ...fields }) {
   const result = await supabase
     .from("kifus")
     .insert({
-      user_id:     userId,
-      name,
-      memo,
-      tags:        tags ?? [],
-      snapshots:   snapshots ?? [],
-      source_text: sourceText,
-      // 手数 = スナップ数 - 1（先頭は初期局面）
-      move_count:  Math.max(0, (snapshots?.length ?? 0) - 1),
-      sente_name:  senteName || "",
-      gote_name:   goteName  || "",
-      handicap:    handicap  || "",
-      result:      gameResult,
-      my_side:     mySide,
-      played_at:   playedAt,
-      features,
-      meta_parsed: metaParsed,
+      user_id: userId,
+      ...kifuToInsertRow({ ...fields, snapshots }),
+      // 手数 = スナップ数 - 1（先頭は初期局面）。渡された値ではなく必ず数え直す
+      move_count: Math.max(0, (snapshots?.length ?? 0) - 1),
     })
     .select(KIFU_META_COLUMNS)
     .single();
@@ -337,19 +317,10 @@ export async function createKifu({
 }
 
 export async function updateKifu(kifuId, patch) {
-  // フロント側キー名 → DB カラム名へ変換（updateNode と同じ方式）
-  const map = {
-    name: "name", memo: "memo", tags: "tags",
-    senteName: "sente_name", goteName: "gote_name", handicap: "handicap",
-    result: "result", mySide: "my_side", playedAt: "played_at",
-    features: "features", metaParsed: "meta_parsed",
-  };
-  const dbPatch = {};
-  for (const [k, v] of Object.entries(patch)) {
-    if (map[k] !== undefined) dbPatch[map[k]] = v;
-  }
-  // snapshots / source_text は重いので返させない
-  const result = await supabase.from("kifus").update(dbPatch).eq("id", kifuId).select(KIFU_META_COLUMNS).single();
+  // キー名 → 列名の変換は台帳（kifuFields.js）が持つ。
+  // snapshots / source_text は重いので返させない（KIFU_META_COLUMNS）
+  const result = await supabase.from("kifus").update(kifuPatchToRow(patch))
+    .eq("id", kifuId).select(KIFU_META_COLUMNS).single();
   if (result.error) console.error("updateKifu error:", result.error);
   return result;
 }
@@ -362,27 +333,8 @@ export async function deleteKifu(kifuId) {
 
 // ── DBの棋譜行（snake_case）を内部形式（camelCase）へ変換する ──
 // 一覧取得（snapshots なし）と単体取得（snapshots あり）の両方に対応する
-export function kifuRowToKifu(k) {
-  return {
-    id:        k.id,
-    name:      k.name,
-    memo:      k.memo || "",
-    tags:      k.tags || [],
-    snapshots: k.snapshots || [],
-    sourceText: k.source_text || "",
-    moveCount: k.move_count ?? 0,
-    createdAt: k.created_at,
-    // ── 対局情報（傾向分析用）──
-    senteName:  k.sente_name || "",
-    goteName:   k.gote_name  || "",
-    handicap:   k.handicap   || "",
-    result:     k.result  ?? null,   // 'sente' | 'gote' | 'draw' | null
-    mySide:     k.my_side ?? null,   // 'sente' | 'gote' | null
-    playedAt:   k.played_at ?? null,
-    features:   k.features  ?? null,
-    metaParsed: !!k.meta_parsed,
-  };
-}
+// 変換規則も台帳（kifuFields.js）が持つ。既存の import 先を変えずに済ませるため再輸出する。
+export { kifuRowToKifu };
 
 // ── DBのノード行（snake_case）を内部ノード形式（camelCase）へ変換する ──
 // 変換規則も台帳（nodeFields.js）が持つ。ここからの再輸出は、既存の import 先を

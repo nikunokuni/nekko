@@ -323,7 +323,12 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
       pendingPatch.current = {};
       if (Object.keys(patch).length > 0) onUpdate(nodeId, patch);
     };
-  }, [nodeId]); // node を外す：保存のたびに node 参照が変わり全 state がリセットされスクロール位置がトップに戻るため
+    // node / onUpdate を依存から外すのは意図的。入れると保存のたびに node 参照が変わり、
+    // 全 state がリセットされてスクロール位置がトップに戻る。
+    // 機械には「書き忘れ」と区別がつかないので、意図であることを明示して警告を出さない
+    // （残った警告は本物として扱えるようにしておく）。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodeId]);
 
   // 編集開始時点の盤面状態を記録する（盤面の「元に戻す」用スナップショット）
   useEffect(() => {

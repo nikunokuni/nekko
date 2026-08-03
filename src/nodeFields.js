@@ -14,6 +14,8 @@
 //   （db.js は import.meta.env を読むので Node から直接は import できない）。
 // ══════════════════════════════════════════════════
 
+import { createFieldMapper } from "./fieldRegistry.js";
+
 // 持ち駒の空の状態。オブジェクトなので、共有せず毎回作る
 const emptyHand = () => ({ p: 0, l: 0, n: 0, s: 0, g: 0, b: 0, r: 0 });
 
@@ -59,36 +61,21 @@ export const NODE_FIELDS = [
   { key: "openingFocus", column: "opening_focus", def: "" },
 ];
 
-const defaultOf = (f) => (typeof f.def === "function" ? f.def() : f.def);
+// 変換の中身は kifuFields.js と共通なので fieldRegistry.js に置いてある
+const mapper = createFieldMapper(NODE_FIELDS);
 
 /** DBの行 → アプリ内のノード。NULL は台帳の既定値で埋める。
  *  childIds は行には無く、buildTreeFromNodes が親子関係から組み立てる。 */
 export function nodeRowToNode(row) {
-  const node = { id: row.id };
-  for (const f of NODE_FIELDS) {
-    node[f.key] = row[f.column] ?? defaultOf(f);
-  }
+  const node = { id: row.id, ...mapper.rowToObj(row) };
   node.childIds = [];
   return node;
 }
 
 /** createNode の引数 → insert する行。未指定の項目は台帳の既定値で埋める。
  *  tree_id / user_id は呼び出し側（db.js）が足す。 */
-export function nodeToInsertRow(input) {
-  const row = {};
-  for (const f of NODE_FIELDS) {
-    row[f.column] = input[f.key] ?? defaultOf(f);
-  }
-  return row;
-}
+export const nodeToInsertRow = mapper.toInsertRow;
 
 /** updateNode のパッチ（camelCase）→ update する行（snake_case）。
  *  台帳に無いキー・noPatch の項目は黙って捨てる（打ち間違いでDBを壊さないため）。 */
-export function nodePatchToRow(patch) {
-  const row = {};
-  for (const f of NODE_FIELDS) {
-    if (f.noPatch) continue;
-    if (Object.hasOwn(patch, f.key)) row[f.column] = patch[f.key];
-  }
-  return row;
-}
+export const nodePatchToRow = mapper.patchToRow;

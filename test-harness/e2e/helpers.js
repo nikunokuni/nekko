@@ -2,6 +2,7 @@
 //   各テストは「まっさらな状態で新規登録するところ」から始める。
 //   モックDBは localStorage なので、ブラウザコンテキストが分かれていれば互いに干渉しない。
 import { expect } from "@playwright/test";
+import { readFileSync } from "node:fs";
 
 // 実戦の棋譜サンプル（四間飛車 vs 居飛車）。取り込みテストで使う。
 // test-harness/kifuAnalysis.test.mjs と同じ内容で、あちらは解析ロジック、こちらは画面を見る。
@@ -71,8 +72,26 @@ export async function blockExternalFonts(page) {
 //   登録後の画面では効かない。そちらは dismissOnboarding で送り切る。
 //   login() は登録を通らないぶんリセットされず、これだけでトーストが出なくなる。
 //   トースト自体の見え方は onboarding の専用テストで確かめる領分。
-//   キーは src/onboarding.jsx の ONBOARD_MESSAGES と揃える。
-const ONBOARD_KEYS = ["list", "kifus", "search", "settings", "map", "node", "board"];
+//
+// 画面の名前は src/onboarding.jsx の ONBOARD_MESSAGES から**読み取る**。
+//   ここに手で書き写していたときは、画面を1つ足すたびに写し忘れる余地があった。
+//   写し忘れるとその画面だけトーストが出てクリックを吸い、E2Eが
+//   「押したはずのボタンが効かない」という原因の分かりにくい落ち方をする。
+//   onboarding.jsx は JSX なので Node から import できない。テキストとして読む。
+function readOnboardKeys() {
+  const src = readFileSync(new URL("../../src/onboarding.jsx", import.meta.url), "utf8");
+  const start = src.indexOf("export const ONBOARD_MESSAGES = {");
+  const body  = src.slice(start, src.indexOf("\n};", start));
+  // 2字下げの「キー: [」だけを拾う（入れ子の JSX や ONBOARD_TARGETS を巻き込まない）
+  const keys = [...body.matchAll(/^ {2}(\w+):\s*\[/gm)].map((m) => m[1]);
+  // 読めなくなったら黙って素通りさせない。0個だとトーストが出っぱなしになり、
+  // 原因が分からないままE2Eが落ち続ける
+  if (start < 0 || keys.length === 0) {
+    throw new Error("src/onboarding.jsx から画面名を読み取れませんでした（書式が変わった？）");
+  }
+  return keys;
+}
+const ONBOARD_KEYS = readOnboardKeys();
 
 export async function skipOnboarding(page) {
   await page.addInitScript((keys) => {

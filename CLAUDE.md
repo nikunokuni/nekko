@@ -34,6 +34,8 @@ src/
   App.jsx            ルート。URL→画面の合成と、変更操作（DB更新＋treeOps＋遷移）の統括
   db.js              Supabase との境界。ここ以外から supabase を直接触らない
   nodeFields.js      ノードの項目台帳（キー名 ↔ DB列名 ↔ 既定値）。項目を足すのはここ
+  kifuFields.js      棋譜の項目台帳。上と同じ形（一覧で読む列もここから生成する）
+  fieldRegistry.js   台帳から行⇄オブジェクトの変換を作る仕掛け（上2つが使う）
   treeOps.js         ツリー変更の純粋関数（childIds / merge_parent_ids / tags の整合）
   data.js            定数・メタ（駒ラベル / 初期盤面 / ステータス表示 など）
   theme.js           色・寸法のトークン
@@ -95,9 +97,10 @@ if (!start || Math.hypot(...) > 10) return;
 画面やフックから `supabase` を直接叩かない。行 ↔ アプリ内オブジェクトの変換も
 `nodeRowToNode` / `kifuRowToKifu` に寄せる。
 
-### ノードに項目を足すときは `nodeFields.js` の台帳に1行
+### ノード・棋譜に項目を足すときは台帳に1行
 
-「キー名 ↔ DB列名 ↔ 既定値」の対応は `src/nodeFields.js` の `NODE_FIELDS` が唯一の出どころ。
+「キー名 ↔ DB列名 ↔ 既定値」の対応は `src/nodeFields.js` の `NODE_FIELDS`
+（棋譜は `src/kifuFields.js` の `KIFU_FIELDS`）が唯一の出どころ。
 ここに1行足せば、作成（insert）・更新（update）・読み込み（row→node）の3方向が同時に追従する。
 `db.js` に列名を手で書き足さない。
 
@@ -113,6 +116,11 @@ if (!start || Math.hypot(...) > 10) return;
 `copy_tree` でも同じ形の事故が起きている（`20260622_fix_copy_tree_rpc_columns.sql`）ので、
 `copy_tree` は列名を並べない書き方に変えてある（`20260803_copy_tree_without_column_list.sql`）。
 **列の追加で `copy_tree` を触る必要はもう無い。**
+
+棋譜は同じ対応を**5回**書いていた（4方向＋一覧で読む列 `KIFU_META_COLUMNS`）。
+一覧の列は手で並べると1つ書き漏らしたときにその項目だけ undefined になり、集計が静かに壊れる
+（`meta_parsed` の記載漏れで全棋譜が「未解析」と誤判定された）。今は台帳から生成する。
+重い列（`snapshots` / `source_text`）は台帳で `heavy: true` と印を付けて一覧から外す。
 
 ### フックは早期 return より「前」に置く
 
@@ -155,8 +163,8 @@ E2Eテストからも指せるようになる。
 
 ## テストの方針
 
-- **純粋関数はユニットテストを書く**（`treeOps` / `kifu*` / `nodeFields`）。`test-harness/*.test.mjs` に置けば
-  `npm test` が自動で拾う
+- **純粋関数はユニットテストを書く**（`treeOps` / `kifu*` / `nodeFields` / `kifuFields`）。
+  `test-harness/*.test.mjs` に置けば `npm test` が自動で拾う
 - **主要動線はE2Eで見張る**（`test-harness/e2e/*.spec.js`）。モック構成を自動で起動するので
   Supabase の準備は要らない。細かい表示崩れは追わず「押したものが動くか」「落ちないか」だけ
 - **バグを直したら、まず落ちるテストを書く**。直したあとに「バグをわざと戻すと落ちるか」まで
@@ -166,18 +174,20 @@ E2Eテストからも指せるようになる。
 - `src/` から import するときは**拡張子まで書く**（`./treeOps.js`）。
   test-harness が Node で直接実行するため
 
-### E2Eを速く保つ（全10本で約20秒）
+### E2Eを速く保つ（全11本で約20秒）
 
 テストが遅いと本数を増やせなくなるので、`test-harness/e2e/helpers.js` で3つ効かせている。
 新しいテストも `login()` から始めれば全部ついてくる。
 
-- **`blockExternalFonts`** … `index.html` の Google Fonts を遮断する。描画をブロックする
-  読み込みなので、外に出られない環境では `page.goto()` が1回あたり**約13秒**待たされていた
-  （遮断すると約0.35秒）。これがE2Eの時間のほとんどだった
+- **`blockExternalFonts`** … Google Fonts の取得を遮断し、外部への接続試行を無くす。
+  かつては `index.html` が描画をブロックする形で読んでいたため、これがE2Eの時間の
+  ほとんどだった（1回の遷移に約13秒）。今は `index.html` 側を直したので速度のためではなく、
+  結果を環境に左右されなくするために残している
 - **`login()`** … 登録画面を操作せず、モックDB（localStorage）に「登録直後の中身」を直接書く。
   登録動線そのものは `signUp()` を使うテストが1本だけ見張る
 - **`skipOnboarding`** … 初回の使い方トーストを「表示済み」にしておく。
-  トーストは画面を覆ってクリックを吸うため
+  トーストは画面を覆ってクリックを吸うため。画面の名前は `src/onboarding.jsx` から
+  読み取る（手で書き写すと、画面を足したときに写し忘れて原因の分かりにくい落ち方をする）
 
 ただし**ツリーの中身は seed で作らない**。`createTree()` で画面から作る。
 seed で作ると `App.jsx` の `handleNewTree` が変わってもテストは古い形のまま通り、
@@ -192,8 +202,10 @@ seed で作ると `App.jsx` の `handleNewTree` が変わってもテストは�
 - ユーザー向けの文言はすべて日本語。将棋用語は正式名で（「舟囲い」「四間飛車」など）
 - 囲い・戦法の判定条件は実戦の定義に合わせてある（`kifuFeatures.js`）。
   変えるときは `test-harness/kifuAnalysis.test.mjs` のケースも一緒に直す
-- `npm run lint` は**エラー0を保つ**。残る警告も「既知だから無視」とは扱わない。
-  未使用変数の警告から実際に機能が死んでいたのが見つかっている（上記の props 渡し忘れ）
+- `npm run lint` は**エラー0・警告0**。未使用変数の警告から実際に機能が死んでいたのが
+  見つかっている（上記の props 渡し忘れ）ので、警告を溜めない。
+  意図的に依存を外すときは `// eslint-disable-next-line` と**理由**を書いて消す。
+  そうしないと本物の警告が埋もれる
 - **盤（Canvas）に文字を描く所を触るときは、フォントの到着を考える。**
   日本語フォントは画面を先に出すために「描画をブロックしない読み込み」にしてあるので、
   盤を最初に描く時点ではまだ来ていないことがある。DOM の文字は届けば勝手に描き直るが
