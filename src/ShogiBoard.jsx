@@ -170,6 +170,10 @@ function NavBtn({ onClick, disabled, icon }) {
   );
 }
 
+// 持ち駒の帯の幅。駒スプライト32px＋左右の余白と枠線（box-sizing は border-box）。
+// ここを広げたぶんだけ盤が小さくなるので、駒がちょうど収まる最小幅にしてある
+const HAND_COL_W = 42;
+
 function HandArea({ hand, isSente, selectedHand, onSelectPiece, readOnly, boardSelected, onDeposit }) {
   const label = isSente ? '自分の持ち駒' : '相手の持ち駒';
   const pieces = HAND_ORDER.filter(k => hand[k] > 0);
@@ -178,11 +182,19 @@ function HandArea({ hand, isSente, selectedHand, onSelectPiece, readOnly, boardS
   return (
     <div
       onClick={canDeposit ? () => onDeposit(isSente) : undefined}
-      style={{ minHeight:40, background:'#f0e6cc', borderRadius:6, padding:'4px 8px',
-      marginBottom:4, display:'flex', alignItems:'center', gap:4, flexWrap:'wrap',
+      style={{ width:HAND_COL_W, flexShrink:0, alignSelf:'stretch',
+      background:'#f0e6cc', borderRadius:6, padding:'6px 4px',
+      display:'flex', flexDirection:'column', alignItems:'center', gap:3,
       border: canDeposit ? '1px dashed #a07840' : '1px solid rgba(120,80,10,0.2)',
       cursor: canDeposit ? 'pointer' : 'default' }}>
-      <span style={{ fontSize:"0.625rem", color:'rgba(26,15,0,0.45)', minWidth:60 }}>{label}</span>
+      {/* 見出しは縦書き。横書きにすると「相手の持ち駒」の6文字で帯に60px以上必要になり、
+          左右あわせて120px を盤から削ることになる。
+          縦書きに writing-mode を使わないのは、日本語フォントの取得に失敗した場面
+          （オフライン起動）でフォールバック側の縦書き字形metricsが無く、6文字が23pxに
+          潰れて重なって読めなくなるため。幅を1文字ぶんに絞って折り返させるやり方なら
+          フォントに関係なく1文字ずつ縦に並ぶ */}
+      <span style={{ width:'1em', lineHeight:1.15, textAlign:'center', wordBreak:'break-all',
+        fontSize:"0.625rem", color:'rgba(26,15,0,0.45)', flexShrink:0 }}>{label}</span>
       {pieces.length === 0 && <span style={{ fontSize:"0.6875rem", color:'rgba(26,15,0,0.3)' }}>なし</span>}
       {pieces.map(k => (
         <HandPiece key={k} k={k} count={hand[k]} isSente={isSente}
@@ -560,6 +572,9 @@ export default function ShogiBoard({
 
   if (!board) return null;
   const W = COLS * CELL, H = ROWS * CELL;
+  // 盤 ＋ 左右の持ち駒帯 ＋ すき間。全体の幅をこれで止めないと、広い画面では
+  // 盤が帯のぶん縮んだままになり、Canvas の実サイズ(342px)より小さく描かれてぼやける
+  const BOARD_ROW_W = W + HAND_COL_W * 2 + 10;
   const kifuLen = kifuProp.length;  // 保存済みスナップショット数（0 = 棋譜なし）
   const moveCount = Math.max(0, kifuLen - 1); // 手数 = スナップ数 - 1（初期局面分を引く）
   // 棋譜ナビ上の現在位置。通常表示(null)は最終手と同じ局面なので moveCount とみなす
@@ -625,7 +640,7 @@ export default function ShogiBoard({
   );
 
   return (
-    <div style={{ maxWidth: 420 }}>
+    <div style={{ maxWidth: BOARD_ROW_W }}>
 
       {/* ── ツールバー（再生中・棋譜入力モードでは非表示） ──
           棋譜入力モードで道具を出さないのは、棋譜に残るのは駒の動きだけで、
@@ -656,36 +671,48 @@ export default function ShogiBoard({
         </div>
       )}
 
-      {/* 後手の持ち駒（上） */}
-      <HandArea hand={dispHGote} isSente={false} selectedHand={playSnap ? null : selectedHand}
-        onSelectPiece={(piece) => {
-          if (tool !== 'move') return;
-          setSelected(null);
-          setSelectedHand(prev => prev?.piece === piece && !prev?.isSente ? null : { piece, isSente: false });
-        }}
-        readOnly={readOnly || playbackIdx !== null}
-        boardSelected={!playSnap && tool === 'move' && !!selected}
-        onDeposit={depositToHand}
-      />
+      {/* ── 盤と持ち駒（左：相手の駒台 ／ 中央：盤 ／ 右：自分の駒台）──
+          持ち駒を盤の上下ではなく左右に置いている。上下に積むと
+          「持ち駒40＋盤342＋持ち駒40」で縦に430px 使い、スマホの可視領域（約790px）の
+          半分以上が盤まわりだけで埋まって、局面と下の入力欄を同時に見られない。
+          左右に移すと縦は盤の高さだけで済む。盤は帯のぶん少し小さくなる（342→約290）が、
+          駒の判別には足りる大きさを保てている */}
+      <div style={{ display:'flex', alignItems:'stretch', gap:5, marginBottom:4 }}>
 
-      {/* 将棋盤 Canvas */}
-      <canvas ref={canvasRef} width={W} height={H}
-        onClick={handleClick} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}
-        style={{ display:'block', borderRadius:4, cursor: (readOnly || playbackIdx !== null) ? 'default' : 'pointer',
-          width:'100%', maxWidth:W, boxShadow:'0 3px 14px rgba(0,0,0,0.35)' }}
-      />
+        {/* 相手（後手）の持ち駒：左 */}
+        <HandArea hand={dispHGote} isSente={false} selectedHand={playSnap ? null : selectedHand}
+          onSelectPiece={(piece) => {
+            if (tool !== 'move') return;
+            setSelected(null);
+            setSelectedHand(prev => prev?.piece === piece && !prev?.isSente ? null : { piece, isSente: false });
+          }}
+          readOnly={readOnly || playbackIdx !== null}
+          boardSelected={!playSnap && tool === 'move' && !!selected}
+          onDeposit={depositToHand}
+        />
 
-      {/* 先手の持ち駒（下） */}
-      <HandArea hand={dispHSente} isSente={true} selectedHand={playSnap ? null : selectedHand}
-        onSelectPiece={(piece) => {
-          if (tool !== 'move') return;
-          setSelected(null);
-          setSelectedHand(prev => prev?.piece === piece && prev?.isSente ? null : { piece, isSente: true });
-        }}
-        readOnly={readOnly || playbackIdx !== null}
-        boardSelected={!playSnap && tool === 'move' && !!selected}
-        onDeposit={depositToHand}
-      />
+        {/* 将棋盤 Canvas：帯を除いた残り幅いっぱい（正方形を保つため高さは指定しない）。
+            alignSelf:'flex-start' で盤だけ縦に引き伸ばさず、駒台の帯のほうを盤の高さに合わせる。
+            駒の種類が多くて帯が盤より長くなったときは、帯の側がこの行の高さを決める */}
+        <canvas ref={canvasRef} width={W} height={H}
+          onClick={handleClick} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}
+          style={{ display:'block', borderRadius:4, cursor: (readOnly || playbackIdx !== null) ? 'default' : 'pointer',
+            flex:'1 1 0', minWidth:0, maxWidth:W, alignSelf:'flex-start',
+            boxShadow:'0 3px 14px rgba(0,0,0,0.35)' }}
+        />
+
+        {/* 自分（先手）の持ち駒：右 */}
+        <HandArea hand={dispHSente} isSente={true} selectedHand={playSnap ? null : selectedHand}
+          onSelectPiece={(piece) => {
+            if (tool !== 'move') return;
+            setSelected(null);
+            setSelectedHand(prev => prev?.piece === piece && prev?.isSente ? null : { piece, isSente: true });
+          }}
+          readOnly={readOnly || playbackIdx !== null}
+          boardSelected={!playSnap && tool === 'move' && !!selected}
+          onDeposit={depositToHand}
+        />
+      </div>
 
       {/* 棋譜入力モードの記録操作は盤の下（盤と持ち駒が画面の一番上に来るようにする） */}
       {recordOnly && recordControls}
