@@ -2,7 +2,7 @@
 //   盤より下にあるメモや子ノードを、局面を見ながら読み書きするための機能なので、
 //   「スクロールしたら出る／戻したら消える／盤が非表示なら出ない」の3点だけ見張る。
 import { test, expect } from "@playwright/test";
-import { signUp, createTree, dismissOnboarding, watchForAppErrors } from "./helpers.js";
+import { login, createTree, watchForAppErrors } from "./helpers.js";
 
 // スクロール領域（ノード編集画面の本文）を下まで送る
 async function scrollBody(page, dy) {
@@ -16,11 +16,10 @@ async function scrollBody(page, dy) {
 }
 
 async function openNodeWithBoard(page) {
-  await signUp(page);
+  await login(page);
   await createTree(page, "貼り付けテスト");
   await page.getByText("居飛車", { exact: true }).first().click();
   await page.waitForURL(/\/node\//);
-  await dismissOnboarding(page);
   await page.getByText(/タップして盤面を追加/).click();
   await page.waitForTimeout(600);
 }

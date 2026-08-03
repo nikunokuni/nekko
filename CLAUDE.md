@@ -33,6 +33,7 @@
 src/
   App.jsx            ルート。URL→画面の合成と、変更操作（DB更新＋treeOps＋遷移）の統括
   db.js              Supabase との境界。ここ以外から supabase を直接触らない
+  nodeFields.js      ノードの項目台帳（キー名 ↔ DB列名 ↔ 既定値）。項目を足すのはここ
   treeOps.js         ツリー変更の純粋関数（childIds / merge_parent_ids / tags の整合）
   data.js            定数・メタ（駒ラベル / 初期盤面 / ステータス表示 など）
   theme.js           色・寸法のトークン
@@ -94,6 +95,25 @@ if (!start || Math.hypot(...) > 10) return;
 画面やフックから `supabase` を直接叩かない。行 ↔ アプリ内オブジェクトの変換も
 `nodeRowToNode` / `kifuRowToKifu` に寄せる。
 
+### ノードに項目を足すときは `nodeFields.js` の台帳に1行
+
+「キー名 ↔ DB列名 ↔ 既定値」の対応は `src/nodeFields.js` の `NODE_FIELDS` が唯一の出どころ。
+ここに1行足せば、作成（insert）・更新（update）・読み込み（row→node）の3方向が同時に追従する。
+`db.js` に列名を手で書き足さない。
+
+```js
+{ key: "whenToUse", column: "when_to_use", def: "" },
+// 作成時にだけ決まり、あとから変えない項目は noPatch: true
+```
+
+やることは **①台帳に1行 ②migration を1本 ③画面に入力欄** の3つだけ。
+
+以前は同じ対応を db.js の中で3回書いていて、書き漏らしてもその項目だけが
+**静かに保存されない・読まれない**（画面は壊れないので手動では気づけない）。
+`copy_tree` でも同じ形の事故が起きている（`20260622_fix_copy_tree_rpc_columns.sql`）ので、
+`copy_tree` は列名を並べない書き方に変えてある（`20260803_copy_tree_without_column_list.sql`）。
+**列の追加で `copy_tree` を触る必要はもう無い。**
+
 ### フックは早期 return より「前」に置く
 
 ```js
@@ -135,7 +155,7 @@ E2Eテストからも指せるようになる。
 
 ## テストの方針
 
-- **純粋関数はユニットテストを書く**（`treeOps` / `kifu*`）。`test-harness/*.test.mjs` に置けば
+- **純粋関数はユニットテストを書く**（`treeOps` / `kifu*` / `nodeFields`）。`test-harness/*.test.mjs` に置けば
   `npm test` が自動で拾う
 - **主要動線はE2Eで見張る**（`test-harness/e2e/*.spec.js`）。モック構成を自動で起動するので
   Supabase の準備は要らない。細かい表示崩れは追わず「押したものが動くか」「落ちないか」だけ
@@ -146,8 +166,22 @@ E2Eテストからも指せるようになる。
 - `src/` から import するときは**拡張子まで書く**（`./treeOps.js`）。
   test-harness が Node で直接実行するため
 
-E2Eは初回の使い方トーストを `localStorage` に「表示済み」を書いて出さないようにしている
-（`test-harness/e2e/helpers.js` の `skipOnboarding`）。トーストは画面を覆ってクリックを吸うため。
+### E2Eを速く保つ（全10本で約20秒）
+
+テストが遅いと本数を増やせなくなるので、`test-harness/e2e/helpers.js` で3つ効かせている。
+新しいテストも `login()` から始めれば全部ついてくる。
+
+- **`blockExternalFonts`** … `index.html` の Google Fonts を遮断する。描画をブロックする
+  読み込みなので、外に出られない環境では `page.goto()` が1回あたり**約13秒**待たされていた
+  （遮断すると約0.35秒）。これがE2Eの時間のほとんどだった
+- **`login()`** … 登録画面を操作せず、モックDB（localStorage）に「登録直後の中身」を直接書く。
+  登録動線そのものは `signUp()` を使うテストが1本だけ見張る
+- **`skipOnboarding`** … 初回の使い方トーストを「表示済み」にしておく。
+  トーストは画面を覆ってクリックを吸うため
+
+ただし**ツリーの中身は seed で作らない**。`createTree()` で画面から作る。
+seed で作ると `App.jsx` の `handleNewTree` が変わってもテストは古い形のまま通り、
+「壊れているのに緑」になる。
 
 ---
 

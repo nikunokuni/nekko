@@ -4,7 +4,7 @@
 //   までがつながっているかを見る。盤はCanvasなので、押せているかどうかは
 //   記録中の手数表示と、保存後のカードの内容でしか確かめられない。
 import { test, expect } from "@playwright/test";
-import { signUp, dismissOnboarding, watchForAppErrors } from "./helpers.js";
+import { login, watchForAppErrors } from "./helpers.js";
 
 // 盤のマスをタップする。row/col は board 配列の添字（0行目＝後手陣の一番奥）。
 // Canvas は幅いっぱいに引き伸ばされるので、実寸から1マスの大きさを割り出す。
@@ -25,11 +25,10 @@ async function movePiece(page, canvas, from, to) {
 
 test("盤に並べて棋譜を作り、棋譜ライブラリに保存できる", async ({ page }) => {
   const errors = watchForAppErrors(page);
-  await signUp(page);
+  await login(page);
 
   await page.getByRole("button", { name: "棋譜ライブラリ" }).click();
   await page.waitForURL(/\/kifus/);
-  await dismissOnboarding(page);
 
   // ① 開いた時点で記録が始まっている（押し忘れで手が消えないための作り）
   await page.getByRole("button", { name: "棋譜入力" }).click();

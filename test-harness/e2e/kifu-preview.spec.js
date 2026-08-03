@@ -5,13 +5,12 @@
 //   黙って効かなくなっていた。見た目が崩れないので手動では気づけない類の不具合。
 //   props を外すとこのテストが落ちるようにしてある。
 import { test, expect } from "@playwright/test";
-import { signUp, createTree, dismissOnboarding, watchForAppErrors, KIF_SAMPLE } from "./helpers.js";
+import { login, createTree, watchForAppErrors, KIF_SAMPLE } from "./helpers.js";
 
 // 棋譜を1件貼り付けで保存し、プレビューを開くところまで進む
 async function importKifuAndOpenPreview(page) {
   await page.getByRole("button", { name: "棋譜ライブラリ" }).click();
   await page.waitForURL(/\/kifus/);
-  await dismissOnboarding(page);
 
   await page.getByRole("button", { name: /棋譜を保存/ }).click();
   await page.locator("textarea").fill(KIF_SAMPLE);
@@ -28,10 +27,9 @@ async function importKifuAndOpenPreview(page) {
 
 test("棋譜プレビューに「ツリーへ送る」と先後の選択が出る", async ({ page }) => {
   const errors = watchForAppErrors(page);
-  await signUp(page);
+  await login(page);
   await createTree(page, "送り先ツリー");
   await page.goto("/");
-  await dismissOnboarding(page);
 
   await importKifuAndOpenPreview(page);
 

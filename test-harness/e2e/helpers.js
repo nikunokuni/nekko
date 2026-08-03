@@ -49,10 +49,25 @@ export function watchForAppErrors(page) {
   return errors;
 }
 
+// ── 外部フォントの取得を遮断する ─────────────────
+// index.html は Google Fonts を <link rel="stylesheet"> で読んでいる。
+// これは描画をブロックする読み込みなので、page.goto() が待つ load イベントが
+// 取得の完了（または失敗）まで進まない。
+// CI やサンドボックスのように外部へ出られない環境ではここでタイムアウト待ちが発生し、
+// 実測で1回の遷移に約13秒かかっていた（遮断すると約0.35秒）。
+// テスト1本に遷移は数回あるので、E2E全体の時間のほとんどがこれだった。
+//
+// アプリはフォントが無くても serif フォールバックで動く前提なので（index.html のコメント）、
+// E2Eでは取らない。見た目のフォントを見張るテストは無い。
+export async function blockExternalFonts(page) {
+  await page.route(/fonts\.(googleapis|gstatic)\.com/, (route) => route.abort());
+}
+
 // 初回の使い方トーストを最初から「表示済み」にしておく。
 //   トーストは画面を覆ってクリックを吸うので、E2Eでは出さないのが素直。
 //   ただし新規登録はこの既読履歴を意図的にリセットする（初めての人に使い方を見せるため）ので、
 //   登録後の画面では効かない。そちらは dismissOnboarding で送り切る。
+//   login() は登録を通らないぶんリセットされず、これだけでトーストが出なくなる。
 //   トースト自体の見え方は onboarding の専用テストで確かめる領分。
 //   キーは src/onboarding.jsx の ONBOARD_MESSAGES と揃える。
 const ONBOARD_KEYS = ["list", "kifus", "search", "settings", "map", "node", "board"];
@@ -65,7 +80,10 @@ export async function skipOnboarding(page) {
 }
 
 // 新規登録してツリー一覧まで進む。テストごとに別アカウントを作る。
+//   画面を実際に操作するので遅い（1本あたり10秒前後）。登録動線そのものを見張る
+//   テストだけがこれを使い、他は login() を使う。
 export async function signUp(page) {
+  await blockExternalFonts(page);
   await skipOnboarding(page);
   await page.goto("/");
   await page.getByText("新規登録", { exact: true }).first().click();
@@ -81,6 +99,56 @@ export async function signUp(page) {
   // 登録直後はリカバリーコードのモーダルが必ず出る（閉じないと他が押せない）
   await page.getByRole("button", { name: /保存しました/ }).click();
   await dismissOnboarding(page);
+  await expect(page.getByRole("button", { name: /新規/ })).toBeVisible();
+  return id;
+}
+
+// ── ログイン済みの状態から始める ───────────────────
+// モックDBは localStorage が実体なので、登録画面を操作する代わりに
+// 「登録直後と同じ中身」を直接書いてから開く。
+//
+// これをやる理由：登録動線は毎回同じで、しかも遅い。フォーム入力・リカバリーコード
+// モーダル・使い方トーストの送り切りで1本あたり10秒以上を使っていた。
+// 見張りたいのはその先の機能なので、そこに毎回10秒払うとテストを増やせなくなる。
+// 登録動線そのものは signUp() を使う専用テストが1本見ている。
+//
+// 一方、ツリーの中身（ルート＋初期の枝＋「とりあえず」）は**ここで作らない**。
+// 作ってしまうと App.jsx の handleNewTree が変わってもテスト側は古い形のまま通り、
+// 「壊れているのに緑」になる。ツリーは createTree() で今までどおり画面から作る。
+const MOCK_DB_KEY   = "nekko_mock_db_v1";   // test-harness/supabaseMock.js と揃える
+const MOCK_AUTH_KEY = "nekko_mock_auth_v1";
+
+export async function login(page) {
+  const id     = `e2e${Date.now()}${Math.floor(Math.random() * 1000)}`;
+  const userId = crypto.randomUUID();
+  // src/db.js の idToFakeEmail と同じ変換（Supabase Auth が email 必須なため）
+  const email  = `${id}@nekko.local`;
+  const now    = new Date().toISOString();
+
+  const user = {
+    id: userId, email, created_at: now,
+    user_metadata: { username: id, display_name: id },
+  };
+  const db = {
+    users:    [{ ...user, password: "pass1234" }],
+    // profiles 行は本番ではDBトリガーが作る。モックの signUp と同じ形にする
+    profiles: [{ id: userId, username: id, display_name: id, created_at: now }],
+    trees: [], nodes: [], likes: [], kifus: [],
+    // 発行済みにしておく。未発行だと useRecoveryCode がログイン直後に
+    // 「スクショしてね」モーダルを出し、閉じるまで他が押せない
+    recovery_codes: [{ user_id: userId, code: "ABCD2345EFGH6789" }],
+  };
+
+  await blockExternalFonts(page);
+  await skipOnboarding(page);
+  await page.addInitScript(({ dbKey, authKey, db, user }) => {
+    // addInitScript は遷移のたびに走る。無条件に書くとテスト中に作ったツリーが
+    // ページ遷移で消えるので、まだ何も無いときだけ書き込む
+    if (!localStorage.getItem(dbKey))   localStorage.setItem(dbKey, JSON.stringify(db));
+    if (!localStorage.getItem(authKey)) localStorage.setItem(authKey, JSON.stringify(user));
+  }, { dbKey: MOCK_DB_KEY, authKey: MOCK_AUTH_KEY, db, user });
+
+  await page.goto("/");
   await expect(page.getByRole("button", { name: /新規/ })).toBeVisible();
   return id;
 }

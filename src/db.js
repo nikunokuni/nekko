@@ -2,6 +2,8 @@
 // db.js  ―  Supabase クライアント + 全 DB 操作
 // ══════════════════════════════════════════════════
 import { createClient } from "@supabase/supabase-js";
+// ノードの「キー名 ↔ DB列名 ↔ 既定値」の台帳。項目を増やすときはここだけを直す
+import { nodeToInsertRow, nodePatchToRow, nodeRowToNode } from "./nodeFields";
 
 const SUPABASE_URL      = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -155,59 +157,12 @@ export async function fetchAllMyNodes(userId) {
   return result;
 }
 
-export async function createNode({
-  treeId, userId, parentId, label,
-  status = "todo", board = null,
-  stamps = [], memo = "", isRoot = false, sortOrder = 0,
-  handSente = {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
-  handGote  = {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
-  kifu = [],
-  kifuImported = false,
-  isInbox = false,
-  branchFromMoveIndex = null,
-  usageLevel = 2,
-  winRate = null,
-  situation = [],
-  myApproach = [],
-  orientation = null,
-  likeLevel = null,
-  aim = "",
-  caution = "",
-  nextStudy = "",
-  commentTags = [],
-  turn = null,
-  evaluation = null,
-  whenToUse = "",
-  openingFocus = "",
-}) {
+/** ノードを1つ作る。項目の既定値と列名は nodeFields.js の台帳が持つ。
+ *  treeId / userId 以外は台帳にある項目をそのまま渡せる（省略した項目は既定値）。 */
+export async function createNode({ treeId, userId, ...fields }) {
   const result = await supabase
     .from("nodes")
-    .insert({
-      tree_id: treeId, user_id: userId, parent_id: parentId ?? null,
-      label, status,
-      board, stamps, memo, is_root: isRoot, sort_order: sortOrder,
-      is_inbox: isInbox,
-      board_hidden: false,
-      hand_sente: handSente ?? {"p":0,"l":0,"n":0,"s":0,"g":0,"b":0,"r":0},
-      hand_gote:  handGote  ?? {"p":0,"l":0,"n":0,"s":0,"g":0,"b":0,"r":0},
-      kifu: kifu ?? [],
-      kifu_imported: kifuImported ?? false,
-      branch_from_move_index: branchFromMoveIndex,
-      usage_level: usageLevel ?? 2,
-      win_rate: winRate,
-      situation: situation ?? [],
-      my_approach: myApproach ?? [],
-      orientation,
-      like_level: likeLevel,
-      aim,
-      caution,
-      next_study: nextStudy,
-      comment_tags: commentTags,
-      turn,
-      evaluation,
-      when_to_use: whenToUse,
-      opening_focus: openingFocus,
-    })
+    .insert({ tree_id: treeId, user_id: userId, ...nodeToInsertRow(fields) })
     .select()
     .single();
   if (result.error) {
@@ -218,42 +173,8 @@ export async function createNode({
 }
 
 export async function updateNode(nodeId, patch) {
-  // フロント側キー名 → DB カラム名へ変換
-  const map = {
-    label:          "label",
-    status:         "status",
-    board:          "board",
-    boardHidden:    "board_hidden",
-    sortOrder:      "sort_order",
-    stamps:         "stamps",
-    memo:           "memo",
-    isMergeTarget:  "is_merge_target",
-    parentId:       "parent_id",
-    mergeParentIds: "merge_parent_ids",
-    handSente:      "hand_sente",
-    handGote:       "hand_gote",
-    kifu:           "kifu",
-    kifuImported:   "kifu_imported",
-    usageLevel:     "usage_level",
-    winRate:        "win_rate",
-    situation:      "situation",
-    myApproach:     "my_approach",
-    orientation:    "orientation",
-    likeLevel:      "like_level",
-    aim:            "aim",
-    caution:        "caution",
-    nextStudy:      "next_study",
-    commentTags:    "comment_tags",
-    turn:           "turn",
-    evaluation:     "evaluation",
-    whenToUse:      "when_to_use",
-    openingFocus:   "opening_focus",
-  };
-  const dbPatch = {};
-  for (const [k, v] of Object.entries(patch)) {
-    if (map[k] !== undefined) dbPatch[map[k]] = v;
-  }
-  const result = await supabase.from("nodes").update(dbPatch).eq("id", nodeId).select().single();
+  // フロント側キー名 → DB カラム名への変換は台帳（nodeFields.js）が持つ
+  const result = await supabase.from("nodes").update(nodePatchToRow(patch)).eq("id", nodeId).select().single();
   if (result.error) console.error("updateNode error:", result.error);
   return result;
 }
@@ -464,44 +385,10 @@ export function kifuRowToKifu(k) {
 }
 
 // ── DBのノード行（snake_case）を内部ノード形式（camelCase）へ変換する ──
+// 変換規則も台帳（nodeFields.js）が持つ。ここからの再輸出は、既存の import 先を
+// 変えずに済ませるため（画面・フックは今までどおり db から取れる）。
 // childIds は呼び出し側で親子関係を構築する際に埋める（既存値があれば維持）
-export function nodeRowToNode(n) {
-  return {
-    id:            n.id,
-    label:         n.label,
-    status:        n.status,
-    parentId:      n.parent_id,
-    board:         n.board,
-    boardHidden:   !!n.board_hidden,
-    sortOrder:     n.sort_order ?? 0,
-    stamps:        n.stamps  || [],
-    memo:          n.memo    || "",
-    isRoot:        n.is_root,
-    isInbox:       !!n.is_inbox,
-    isMergeTarget:  n.is_merge_target,
-    mergeParentIds: n.merge_parent_ids || [],
-    handSente:      n.hand_sente || {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
-    handGote:       n.hand_gote  || {p:0,l:0,n:0,s:0,g:0,b:0,r:0},
-    kifu:           n.kifu || [],
-    kifuImported:   n.kifu_imported || false,
-    branchFromMoveIndex: n.branch_from_move_index ?? null,
-    usageLevel:     n.usage_level ?? 2,
-    winRate:        n.win_rate ?? null,
-    situation:      n.situation || [],
-    myApproach:     n.my_approach || [],
-    orientation:    n.orientation || null,
-    likeLevel:      n.like_level ?? null,
-    aim:            n.aim || "",
-    caution:        n.caution || "",
-    nextStudy:      n.next_study || "",
-    commentTags:    n.comment_tags || [],
-    turn:           n.turn || null,
-    evaluation:     n.evaluation ?? null,
-    whenToUse:      n.when_to_use || "",
-    openingFocus:   n.opening_focus || "",
-    childIds:      [],
-  };
-}
+export { nodeRowToNode };
 
 // ── フラットなノード配列からツリーオブジェクトを組み立てる ──
 export function buildTreeFromNodes(treeRow, flatNodes) {
