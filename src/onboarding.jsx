@@ -24,6 +24,7 @@ export const ONBOARD_MESSAGES = {
   // 棋譜ライブラリに初めて来たとき、保存方法・タグ・ノードへの取り込みを案内する
   kifus: [
     <span><b>棋譜を保存</b>　実戦の棋譜（KIF/CSA）をファイル選択か貼り付けで保存できます</span>,
+    <span><b><i className="ti ti-record-mail" />棋譜入力</b>　道場や大会など棋譜ファイルが無い対局は、盤に並べて残せます</span>,
     <span><b>戦法タグ</b>　棋譜にも戦法タグを付けられます。タグはノード編集画面と共通です</span>,
     <span>保存した棋譜は、ノード編集画面の「保存済み棋譜から取り込む」で研究に取り込めます</span>,
   ],
@@ -79,8 +80,8 @@ export const ONBOARD_MESSAGES = {
 export const ONBOARD_TARGETS = {
   list: ["search", "public", "kifus", "trophy", "settings", "new"],
   // search / settings は指さし対象なし（中央にトーストのみ表示）
-  // 棋譜ライブラリは「棋譜を保存」ボタンのみ指さし、タグ・取り込みの説明は中央に出す
-  kifus: ["kifu-save", null, null],
+  // 棋譜ライブラリは「棋譜を保存」「棋譜入力」を指さし、タグ・取り込みの説明は中央に出す
+  kifus: ["kifu-save", "kifu-record", null, null],
   // つなぎ替えの「元に戻す」は付け替え後にしか出ないボタンなので指さし対象なし
   map:  ["map-node", "map-node", null, "map-menu"],
   // 分岐のコツ4枚は特定のボタンの説明ではないので指さしせず、中央に出す
@@ -217,6 +218,10 @@ export function OnboardingLayer({ onboard, fingerPos, onAdvance }) {
     <>
       {showToast && (
         <div
+          // E2Eがトーストを最後まで送り切るための目印。
+          // 指さし（👆）を目印にすると、指さしの無い説明でトーストだけが残り、
+          // 画面を覆ったままクリックを吸ってテストが不安定になる
+          data-onboard-toast
           onClick={onAdvance}
           style={{
             position:     "fixed",

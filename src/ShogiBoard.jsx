@@ -202,6 +202,8 @@ export default function ShogiBoard({
   kifu:      kifuProp   = [],   // [{board, handSente, handGote}, ...]
   onChange,
   onKifuChange,
+  onRecordStop,             // (snaps) => void 「記録を終わる」を押したら必ず呼ぶ（0手でも呼ぶ）
+  recordOnly = false,       // 棋譜入力モード：開いた瞬間から記録を始め、スタンプ等の道具は出さない
   readOnly = false,
   allowBranch = false,      // true: 棋譜インポート由来のノードで「この局面で分岐」を表示
   onBranchFromHere,         // (snapshot) => void
@@ -364,6 +366,15 @@ export default function ShogiBoard({
     setPlaybackIdx(null);
   }, [board, handSente, handGote]);
 
+  // 棋譜入力モードでは、盤を開いた瞬間から記録を始める。
+  // 「棋譜を記録」を押させる作りだと、押し忘れたまま並べた手が丸ごと記録されず、
+  // 気づいた時点で最初から並べ直しになる（この画面は棋譜を作るために開いている）。
+  useEffect(() => {
+    if (recordOnly) startRecording();
+    // マウント時の一度だけ。startRecording を依存に入れると、1手ごとに
+    // 記録が初期局面から始め直しになる（startRecording は board 依存のため）
+  }, []); // eslint-disable-line
+
   // 記録中の最後の1手を取り消し、直前のスナップショットの局面へ戻す
   const undoRecordedMove = useCallback(() => {
     const rec = recordingRef.current;
@@ -385,7 +396,11 @@ export default function ShogiBoard({
     // 空の記録でバッジ獲得や0手の棋譜ナビが生まれるのを防ぐ。
     const snaps = recordingRef.current.snaps;
     if (snaps.length > 1) onKifuChange?.(snaps);
-  }, [onKifuChange]);
+    // 「終わったこと」自体を知りたい呼び出し側（棋譜入力モーダル）のために、
+    // 1手も指していなくても必ず呼ぶ。0手のときに何も起きないと、
+    // ボタンを押したのに画面が変わらず、壊れているように見えてしまう
+    onRecordStop?.(snaps);
+  }, [onKifuChange, onRecordStop]);
 
   // ── 成り確認モーダルを経て盤面確定 ──────────────
   const confirmPromotion = useCallback((doPromote) => {
@@ -574,7 +589,9 @@ export default function ShogiBoard({
       {/* ── ツールバー（再生中は非表示） ── */}
       {!readOnly && playbackIdx === null && (
         <div style={{ display:'flex', gap:6, marginBottom:6, flexWrap:'wrap', alignItems:'center' }}>
-          {[['move','動かす','ti-arrows-move'],['stamp','スタンプ','ti-stamp'],['erase','消す','ti-eraser']].map(([t,lbl,icon]) => (
+          {/* 棋譜入力モードでは道具を出さない。棋譜に残るのは駒の動きだけで、
+              スタンプは記録されないため、置けると「記録されたつもり」になる */}
+          {!recordOnly && [['move','動かす','ti-arrows-move'],['stamp','スタンプ','ti-stamp'],['erase','消す','ti-eraser']].map(([t,lbl,icon]) => (
             <button key={t} data-onboard={`board-${t}`} onClick={() => { setTool(t); setSelected(null); setSelectedHand(null); setArrowStart(null); }} style={btnStyle(tool===t)}>
               <i className={`ti ${icon}`} style={{fontSize:"0.8125rem"}}/>{lbl}
             </button>
@@ -583,7 +600,7 @@ export default function ShogiBoard({
           {/* 棋譜記録ボタン。既存の棋譜がある間は表示しない（上書き防止）。
               記録し直すには先に「棋譜を削除」してもらう */}
           {kifuLen === 0 && (
-          <div style={{ marginLeft: 'auto' }}>
+          <div style={{ marginLeft: recordOnly ? 0 : 'auto' }}>
             {!isRecording ? (
               <button data-onboard="board-kifu" onClick={startRecording} style={{
                 ...btnStyle(false), borderColor:'#854F0B', color:'#854F0B', gap:5,

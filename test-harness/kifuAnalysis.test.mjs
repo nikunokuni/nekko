@@ -5,7 +5,7 @@ import { importKifuText, parseKifuMeta, isEvenGame } from "../src/kifuParser.js"
 import { extractGameFeatures, detectCastle, detectMilestones } from "../src/kifuFeatures.js";
 import { branchCandidates, candidateToNodeFields } from "../src/kifuBranching.js";
 import { analyzeGames, analyzeSwingTiming, wilson, groupBy, BRANCH_VIEWS } from "../src/kifuStats.js";
-import { resolveMySide, outcomeFor, analyzeKifu, toAnalysisGame } from "../src/kifuAnalyze.js";
+import { resolveMySide, outcomeFor, resultFromOutcome, analyzeKifu, toAnalysisGame } from "../src/kifuAnalyze.js";
 
 // 先手＝四間飛車＋美濃 / 後手＝居飛車。21手目に先手投了（後手の勝ち）
 const KIF_SHIKENBISHA = `# ---- Kifu for Windows ----
@@ -249,6 +249,23 @@ check("先手番で先手勝ち → 勝ち", outcomeFor("sente", "sente"), "win"
 check("後手番で先手勝ち → 負け", outcomeFor("sente", "gote"), "lose");
 check("引き分け", outcomeFor("draw", "gote"), "draw");
 check("勝敗不明なら null", outcomeFor(null, "sente"), null);
+
+// 棋譜入力（盤に並べて作る棋譜）は「勝ち／負け」で聞いて、保存の直前に先手視点へ戻す。
+// ここがずれると、手入力した棋譜だけ勝敗が裏返って傾向に混ざる
+console.log("\n── 自分視点の勝敗 → 先手視点の結果 ──");
+check("先手番で勝ち → 先手の勝ち", resultFromOutcome("win",  "sente"), "sente");
+check("後手番で勝ち → 後手の勝ち", resultFromOutcome("win",  "gote"),  "gote");
+check("先手番で負け → 後手の勝ち", resultFromOutcome("lose", "sente"), "gote");
+check("後手番で負け → 先手の勝ち", resultFromOutcome("lose", "gote"),  "sente");
+check("引き分けはそのまま",       resultFromOutcome("draw", "gote"),  "draw");
+check("結果を記録しないなら null", resultFromOutcome(null,   "sente"), null);
+check("自分の側が無いなら null",   resultFromOutcome("win",  null),    null);
+// outcomeFor と往復して元に戻る（画面に出す勝敗と、DBに入れる結果が食い違わない）
+for (const side of ["sente", "gote"]) {
+  for (const oc of ["win", "lose", "draw"]) {
+    check(`往復して戻る（${side}・${oc}）`, outcomeFor(resultFromOutcome(oc, side), side), oc);
+  }
+}
 
 // 自分の側が分かって初めて特徴が付き、集計対象になる
 const a1 = analyzeKifu({ sourceText: KIF_SHIKENBISHA, snapshots: r1.snapshots, playerNames: ["にく"] });

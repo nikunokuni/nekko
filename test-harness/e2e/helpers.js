@@ -51,6 +51,8 @@ export function watchForAppErrors(page) {
 
 // 初回の使い方トーストを最初から「表示済み」にしておく。
 //   トーストは画面を覆ってクリックを吸うので、E2Eでは出さないのが素直。
+//   ただし新規登録はこの既読履歴を意図的にリセットする（初めての人に使い方を見せるため）ので、
+//   登録後の画面では効かない。そちらは dismissOnboarding で送り切る。
 //   トースト自体の見え方は onboarding の専用テストで確かめる領分。
 //   キーは src/onboarding.jsx の ONBOARD_MESSAGES と揃える。
 const ONBOARD_KEYS = ["list", "kifus", "search", "settings", "map", "node", "board"];
@@ -83,12 +85,24 @@ export async function signUp(page) {
   return id;
 }
 
-// 万一トーストが出てしまったときの逃げ道（画面中央を叩くと次に進む作り）。
-// 通常は skipOnboarding で出さないので、ここは保険。
+// 出てしまったトーストを最後の1枚まで送って消す。
+//   新規登録は「使い方を最初から見せる」ために既読履歴をリセットするので（screensPublic.jsx）、
+//   skipOnboarding を入れていても登録直後の画面ではトーストが出る。ここが実質の本命。
+//   指さし（👆）の有無で判定すると、指さしの無い説明に来た時点で抜けてしまい、
+//   トーストだけが画面に残ってクリックを吸う。トースト本体が消えるまで送り切る。
 export async function dismissOnboarding(page) {
-  for (let i = 0; i < 12; i++) {
-    if (await page.getByText("👆").count() === 0) break;
-    await page.mouse.click(200, 430);
+  const toast = page.locator("[data-onboard-toast]");
+  // 指さしの位置を測っている一瞬だけトーストが消えるので、
+  // 「2回続けて出ていない」を終了の合図にする
+  let gone = 0;
+  for (let i = 0; i < 20 && gone < 2; i++) {
+    if (await toast.count() === 0) {
+      gone++;
+      await page.waitForTimeout(250);
+      continue;
+    }
+    gone = 0;
+    await toast.click({ force: true }).catch(() => {});
     await page.waitForTimeout(200);
   }
 }

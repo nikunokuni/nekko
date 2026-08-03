@@ -54,6 +54,20 @@ export function outcomeFor(result, mySide) {
 }
 
 /**
+ * 自分から見た勝敗を、DBに入れる「先手から見た結果」へ戻す（outcomeFor の逆）。
+ * 盤に並べて作った棋譜（棋譜入力）は対局者名も「まで〜手で…の勝ち」も無いため、
+ * 利用者には「勝ち／負け」で聞き、保存の直前にここで先手視点へ直す。
+ * @returns {"sente"|"gote"|"draw"|null}
+ */
+export function resultFromOutcome(outcome, mySide) {
+  if (!outcome || !mySide) return null;
+  if (outcome === "draw") return "draw";
+  if (outcome === "win")  return mySide;
+  if (outcome === "lose") return mySide === "sente" ? "gote" : "sente";
+  return null;
+}
+
+/**
  * 棋譜1件を解析して、DBへ保存する形の値を返す。
  * @param {Object} p
  * @param {string} p.sourceText KIF/CSA 原文

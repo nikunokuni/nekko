@@ -1,18 +1,19 @@
 // ══════════════════════════════════════════════════════════════════
 // KifuListScreen.jsx  ―  棋譜ライブラリ画面
-//   KifuCard / KifuList / ImportKifuModal / KifuPreviewModal /
-//   EditKifuModal / DeleteKifuModal
-//   棋譜（kifus テーブル）の一覧・インポート・再生・削除を行う。
+//   KifuCard / KifuList / ImportKifuModal / RecordKifuModal /
+//   KifuPreviewModal / EditKifuModal / DeleteKifuModal
+//   棋譜（kifus テーブル）の一覧・インポート・手入力・再生・削除を行う。
 //   ノードへの取り込みはノード編集画面側（KifuPickerModal）から行う。
 // ══════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
 import { T, MODAL_OVERLAY_STYLE, MODAL_SHEET_STYLE, parseTags } from "../theme";
 import { InputField, SectionLabel, ModalActionButtons, ConfirmDeleteModal, KifuPreviewBoard, TagPickerField } from "../components/uiParts";
-import { STRATEGY_GROUPS } from "../data";
+import ShogiBoard from "../ShogiBoard";
+import { STRATEGY_GROUPS, INITIAL_BOARD } from "../data";
 import { recordAction, getCustomTagsByGroup, addCustomTag, getKifuPlayerNames, addKifuPlayerName } from "../rewards";
 import { importKifuText } from "../kifuParser";
 import { readKifuFile } from "../kifuFile";
-import { analyzeKifu, recomputeFeatures, resolveMySide, outcomeFor } from "../kifuAnalyze";
+import { analyzeKifu, recomputeFeatures, resolveMySide, outcomeFor, resultFromOutcome } from "../kifuAnalyze";
 import { fetchMyKifus, fetchKifu, createKifu, updateKifu, deleteKifu, kifuRowToKifu } from "../db";
 
 // 対局結果を「自分から見た」日本語にする。
@@ -388,6 +389,223 @@ function ImportKifuModal({ onClose, onImportMany, customTags, onAddCustomTag }) 
 }
 
 // ──────────────────────────────────────────
+// RecordKifuModal: 盤に並べて棋譜を作る（棋譜入力）
+//
+//   道場・大会・棋書のように、棋譜ファイルが手に入らない対局を残すための入口。
+//   開いた時点から記録が始まり、「記録を終わる」で保存フォームに変わる。
+//
+//   取り込みと違って対局者名も「まで〇手で…の勝ち」も無いので、自動で決まる
+//   ものが何も無い。代わりに「自分はどちら側か」「結果」をその場で聞く。
+//   この2つが欠けた棋譜は傾向分析に載らない（toAnalysisGame が null を返す）ため、
+//   忘れる前にここで押さえておく。
+// ──────────────────────────────────────────
+
+// 既定の棋譜名と対局日。手入力は「今日指した対局」を残すのが大半なので今日にする
+function todayInputValue() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+function RecordKifuModal({ onClose, onSave, customTags, onAddCustomTag }) {
+  const [snapshots, setSnapshots] = useState(null);  // null = まだ記録中
+  const [touched,   setTouched]   = useState(false); // 1手でも動かしたか（閉じる前の確認に使う）
+  const [emptyWarn, setEmptyWarn] = useState(false); // 0手のまま「記録を終わる」を押した
+  const [boardSeq,  setBoardSeq]  = useState(0);     // やり直しのたびに盤を作り直すためのキー
+
+  const [name,     setName]     = useState(() => {
+    const d = new Date();
+    return `${d.getMonth() + 1}/${d.getDate()} の対局`;
+  });
+  const [playedAt, setPlayedAt] = useState(todayInputValue);
+  const [mySide,   setMySide]   = useState(null);    // "sente" | "gote" | "none"
+  const [outcome,  setOutcome]  = useState(null);    // "win" | "lose" | "draw" | "none"
+  const [tags,     setTags]     = useState("");
+  const [saving,   setSaving]   = useState(false);
+  const [error,    setError]    = useState("");
+
+  // 「記録を終わる」を受ける。0手なら保存フォームへ進めず、盤に戻して並べ直してもらう
+  const handleRecordStop = (snaps) => {
+    if (snaps.length <= 1) { setEmptyWarn(true); return; }
+    setEmptyWarn(false);
+    setSnapshots(snaps);
+  };
+
+  const restart = () => {
+    setSnapshots(null);
+    setTouched(false);
+    setEmptyWarn(false);
+    setBoardSeq((n) => n + 1);
+  };
+
+  // 並べた手はどこにも残っていないので、閉じる前に確認する。
+  // オーバーレイのタップでは閉じない（他のモーダルと違い、誤タップの損失が大きい）
+  const handleClose = () => {
+    if ((touched || snapshots) && !window.confirm("入力した棋譜は保存されません。閉じますか？")) return;
+    onClose();
+  };
+
+  const side = mySide === "none" ? null : mySide;
+
+  const handleSave = async () => {
+    if (!snapshots || saving) return;
+    setSaving(true);
+    setError("");
+    const ok = await onSave({
+      name:      name.trim(),
+      tags:      parseTags(tags),
+      snapshots,
+      mySide:    side,
+      result:    resultFromOutcome(outcome === "none" ? null : outcome, side),
+      // 日付だけの入力なので、その日の 00:00 として保存する（一覧の並びは日単位で足りる）
+      playedAt:  playedAt ? new Date(`${playedAt}T00:00:00`).toISOString() : null,
+    });
+    setSaving(false);
+    if (ok) onClose();
+    else setError("保存できませんでした。もう一度お試しください");
+  };
+
+  // 選択式の共通ボタン（自分の側・結果）
+  const choiceBtn = (selected) => ({
+    padding: "5px 12px", borderRadius: T.radius.sm, cursor: "pointer",
+    fontFamily: T.fontSerif, fontSize: T.fontSize.base,
+    border: `0.5px solid ${selected ? T.gold : T.inkLine}`,
+    background: selected ? T.gold : "transparent",
+    color: selected ? T.cream : T.grayText,
+  });
+
+  return (
+    <div style={MODAL_OVERLAY_STYLE}>
+      <div style={{ ...MODAL_SHEET_STYLE, maxHeight: "94%", overflowY: "auto" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+          <div style={{ flex: 1, fontFamily: T.fontTitle, fontSize: T.fontSize.h, color: T.ink }}>
+            棋譜入力
+          </div>
+          <button onClick={handleClose} aria-label="棋譜入力を閉じる"
+            style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: "1.125rem", padding: 2 }}>
+            <i className="ti ti-x" />
+          </button>
+        </div>
+
+        {/* ── 記録中：盤に並べる ── */}
+        {!snapshots ? (
+          <>
+            <div style={{
+              marginBottom: 10, padding: "9px 12px", borderRadius: T.radius.md,
+              background: T.goldLight, fontSize: T.fontSize.sm, color: T.ink,
+              fontFamily: T.fontSerif, lineHeight: 1.7,
+            }}>
+              初手から順に、先手・後手の両方の駒を動かしてください。<br />
+              指し終えたら盤の上の<b>「記録を終わる」</b>を押すと、棋譜として保存できます。
+            </div>
+            {emptyWarn && (
+              <div style={{ marginBottom: 10, fontSize: T.fontSize.sm, color: T.red, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
+                まだ1手も動かしていません。盤の「棋譜を記録」からもう一度始めてください。
+              </div>
+            )}
+            <ShogiBoard
+              key={boardSeq}
+              board={INITIAL_BOARD}
+              recordOnly
+              onChange={() => setTouched(true)}
+              onRecordStop={handleRecordStop}
+            />
+          </>
+        ) : (
+          /* ── 記録後：内容を確かめて保存する ── */
+          <>
+            <div style={{
+              marginBottom: 10, padding: "9px 12px", borderRadius: T.radius.md,
+              background: T.goldLight, fontSize: T.fontSize.sm, color: T.ink,
+              fontFamily: T.fontSerif, lineHeight: 1.7,
+              display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
+            }}>
+              <span style={{ flex: 1 }}>
+                <i className="ti ti-check" style={{ fontSize: "0.75rem", color: T.green }} /> {snapshots.length - 1}手を記録しました
+              </span>
+              <button onClick={restart} style={{ ...choiceBtn(false), display: "flex", alignItems: "center", gap: 4 }}>
+                <i className="ti ti-refresh" style={{ fontSize: "0.75rem" }} />最初から入力し直す
+              </button>
+            </div>
+
+            <InputField label="棋譜の名前" value={name} onChange={setName} placeholder="例：7/18 道場での対局" />
+
+            <div style={{ marginBottom: 14 }}>
+              <SectionLabel style={{ marginBottom: 5 }}>対局日</SectionLabel>
+              <input
+                type="date"
+                value={playedAt}
+                onChange={(e) => setPlayedAt(e.target.value)}
+                aria-label="対局日"
+                style={{
+                  width: "100%", boxSizing: "border-box",
+                  border: `0.5px solid ${T.inkLine}`, borderRadius: T.radius.md,
+                  padding: "10px 12px", fontSize: T.fontSize.base, color: T.ink,
+                  background: T.cream, fontFamily: T.fontSerif, outline: "none",
+                }}
+              />
+            </div>
+
+            {/* 自分の側と結果。傾向分析はこの2つが揃った棋譜だけを数える */}
+            <div style={{ marginBottom: 14 }}>
+              <SectionLabel style={{ marginBottom: 6 }}>あなたはどちら</SectionLabel>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {[["sente", "先手"], ["gote", "後手"], ["none", "分析しない"]].map(([v, label]) => (
+                  <button key={v} onClick={() => setMySide(v)} style={choiceBtn(mySide === v)}>{label}</button>
+                ))}
+              </div>
+            </div>
+
+            {side && (
+              <div style={{ marginBottom: 14 }}>
+                <SectionLabel style={{ marginBottom: 6 }}>結果</SectionLabel>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {[["win", "勝ち"], ["lose", "負け"], ["draw", "引き分け"], ["none", "記録しない"]].map(([v, label]) => (
+                    <button key={v} onClick={() => setOutcome(v)} style={choiceBtn(outcome === v)}>{label}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div style={{ margin: "0 -16px" }}>
+              <TagPickerField
+                label="戦法タグ（任意）"
+                text={tags}
+                onSelectTag={(next) => setTags(next.join("、"))}
+                groups={STRATEGY_GROUPS}
+                customTags={customTags}
+                onAddCustomTag={onAddCustomTag}
+              />
+            </div>
+
+            {/* 保存前に並べた手順を見返せるようにする（記録した棋譜そのものを再生する） */}
+            <KifuPreviewBoard snapshots={snapshots} />
+
+            {error && (
+              <div style={{ marginTop: 10, fontSize: T.fontSize.sm, color: T.red, fontFamily: T.fontSerif }}>
+                {error}
+              </div>
+            )}
+
+            <ModalActionButtons
+              onCancel={handleClose}
+              onConfirm={handleSave}
+              confirmLabel={saving ? "保存中..." : "保存する"}
+              disabled={!name.trim() || !mySide || saving}
+            />
+            {!mySide && (
+              <div style={{ marginTop: 8, fontSize: T.fontSize.sm, color: T.grayText, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
+                「あなたはどちら」を選ぶと保存できます。あとから決められない項目なので、ここで聞いています。
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────
 // KifuPreviewModal: 保存済み棋譜の再生ビュー
 // ──────────────────────────────────────────
 // 読み取った対局情報と特徴を並べて見せる表。
@@ -708,6 +926,7 @@ export function KifuList({ userId, trees = [], onBack, onInsight, onSendToInbox 
   const [loading, setLoading] = useState(true);
 
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showRecordModal, setShowRecordModal] = useState(false);
   const [previewTarget,   setPreviewTarget]   = useState(null); // snapshots込みの棋譜
   const [previewLoading,  setPreviewLoading]  = useState(false);
   const [editTarget,      setEditTarget]      = useState(null);
@@ -767,6 +986,27 @@ export function KifuList({ userId, trees = [], onBack, onInsight, onSendToInbox 
     return saved.length;
   };
 
+  // 盤に並べて作った棋譜を保存する（棋譜入力）。
+  // 原文（sourceText）は無いが、対局情報は利用者が答えたものが揃っているので
+  // metaParsed: true にする。false にすると「未解析の棋譜」として後追い解析に拾われ、
+  // 空の原文を読み直した結果で先後や勝敗が消える。
+  const handleSaveRecorded = async ({ name, tags, snapshots, mySide, result, playedAt }) => {
+    const { data, error } = await createKifu({
+      userId, name, tags, snapshots,
+      // 手入力は初期配置から並べるので必ず平手（特徴を計算してよい）
+      handicap: "平手",
+      result, mySide, playedAt,
+      features: recomputeFeatures({ snapshots, mySide, handicap: "平手" }),
+      metaParsed: true,
+    });
+    if (error || !data) return false;
+    setKifus((prev) => [kifuRowToKifu(data), ...prev]);
+    // トロフィー「棋譜記録者（盤面に棋譜を記録する）」は、ノードの盤で録ったときと
+    // 同じ達成なので、ここでも記録する
+    recordAction("kifu");
+    return true;
+  };
+
   // 保存済み棋譜の先後を手で決める。
   // 選んだ名前を覚えるので、以降の取り込みと「まとめて解析する」でも同じ判定になる。
   const handleSetSide = async (kifu, side) => {
@@ -811,7 +1051,7 @@ export function KifuList({ userId, trees = [], onBack, onInsight, onSendToInbox 
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: T.cream }}>
       {/* ── ヘッダー ── */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "16px 18px 12px", borderBottom: `0.5px solid ${T.inkLine}` }}>
-        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.125rem", padding: 2, lineHeight: 1 }}>
+        <button onClick={onBack} aria-label="ツリー一覧にもどる" style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.125rem", padding: 2, lineHeight: 1 }}>
           <i className="ti ti-chevron-left" />
         </button>
         <div style={{ flex: 1, fontFamily: T.fontTitle, fontSize: "1.125rem", color: T.ink, letterSpacing: "0.1em" }}>
@@ -820,6 +1060,7 @@ export function KifuList({ userId, trees = [], onBack, onInsight, onSendToInbox 
         {/* ためた棋譜の傾向を見る画面へ。読み取り専用で、ツリーには手を加えない */}
         <button
           onClick={onInsight}
+          aria-label="棋譜の傾向"
           title="棋譜の傾向"
           style={{
             background: "none", border: "none", cursor: "pointer", color: T.gold,
@@ -827,6 +1068,21 @@ export function KifuList({ userId, trees = [], onBack, onInsight, onSendToInbox 
           }}
         >
           <i className="ti ti-chart-histogram" />
+        </button>
+        {/* 盤に並べて棋譜を作る。ヘッダーは横幅が足りないので絵だけのボタンにし、
+            読み上げとテストから指せるよう aria-label で名前を付ける
+            （アイコンフォントは ::before で文字を差し込むため title だけでは足りない） */}
+        <button
+          data-onboard="kifu-record"
+          onClick={() => setShowRecordModal(true)}
+          aria-label="棋譜入力"
+          title="棋譜入力（盤に並べて作る）"
+          style={{
+            background: "none", border: "none", cursor: "pointer", color: T.gold,
+            fontSize: "1.125rem", padding: 2, lineHeight: 1, marginRight: 4,
+          }}
+        >
+          <i className="ti ti-record-mail" />
         </button>
         <button
           data-onboard="kifu-save"
@@ -848,6 +1104,20 @@ export function KifuList({ userId, trees = [], onBack, onInsight, onSendToInbox 
             <i className="ti ti-chess" style={{ fontSize: "2.5rem", display: "block", marginBottom: 12 }} />
             保存した棋譜がまだありません<br />
             <span style={{ fontSize: T.fontSize.md }}>「棋譜を保存」から実戦の棋譜を貯めておき、<br />ノード編集画面から研究に取り込めます</span>
+            {/* 棋譜ファイルが手に入らない対局（道場・大会・棋書）はここから作れる。
+                ヘッダーの絵だけのボタンでは気づけないので、空のときは言葉で出す */}
+            <button
+              onClick={() => setShowRecordModal(true)}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                margin: "20px auto 0", padding: "9px 16px", borderRadius: T.radius.md,
+                border: `0.5px dashed ${T.gold}`, background: "transparent",
+                color: T.gold, cursor: "pointer", fontSize: T.fontSize.base, fontFamily: T.fontSerif,
+              }}
+            >
+              <i className="ti ti-record-mail" style={{ fontSize: "0.875rem" }} />
+              棋譜ファイルが無いときは、盤に並べて入力する
+            </button>
           </div>
         ) : (
           kifus.map((k) => (
@@ -861,6 +1131,14 @@ export function KifuList({ userId, trees = [], onBack, onInsight, onSendToInbox 
         <ImportKifuModal
           onClose={() => setShowImportModal(false)}
           onImportMany={handleImportMany}
+          customTags={customTags}
+          onAddCustomTag={handleAddCustomTag}
+        />
+      )}
+      {showRecordModal && (
+        <RecordKifuModal
+          onClose={() => setShowRecordModal(false)}
+          onSave={handleSaveRecorded}
           customTags={customTags}
           onAddCustomTag={handleAddCustomTag}
         />
