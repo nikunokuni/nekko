@@ -4,6 +4,7 @@
 //   棋譜記録（録画） / 棋譜再生（←→ナビ）
 // ══════════════════════════════════════════════════
 import { useRef, useEffect, useState, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { PIECE_LABEL, PROMOTED_LABEL, PROMOTABLE } from "./data";
 import { detectMilestones } from "./kifuFeatures";
 
@@ -14,13 +15,13 @@ const STAMP_COLOR = { maru:'#2471A3', ya:'#6B3FA0', shikaku:'#C0392B', q:'#5F5E5
 const STAMP_CHAR  = { maru:'○', ya:'➡', shikaku:'□', q:'？' };
 
 // ── 矢印スタンプを描画（マスの中心→中心へ大きな矢印） ──
-function drawArrowStamp(ctx, x1, y1, x2, y2, color) {
-  const headLen = CELL * 0.34;
+function drawArrowStamp(ctx, x1, y1, x2, y2, color, cell) {
+  const headLen = cell * 0.34;
   const angle   = Math.atan2(y2 - y1, x2 - x1);
   ctx.save();
   ctx.globalAlpha = 0.85;
   ctx.strokeStyle = color; ctx.fillStyle = color;
-  ctx.lineWidth = CELL * 0.14; ctx.lineCap = 'round';
+  ctx.lineWidth = cell * 0.14; ctx.lineCap = 'round';
   ctx.beginPath();
   ctx.moveTo(x1, y1);
   ctx.lineTo(x2 - headLen * 0.6 * Math.cos(angle), y2 - headLen * 0.6 * Math.sin(angle));
@@ -111,6 +112,77 @@ function drawPiece(ctx, cx, cy, cellSize, pieceKey, highlighted) {
   ctx.restore();
 }
 
+// ── 盤一面を Canvas に描く ────────────────────────
+// 貼り付け用のミニ盤（BoardPeek）でも同じ絵を使うので、マスの大きさを引数にして
+// コンポーネントの外に出してある。描画を二重に持つと片方だけ直す事故が起きる。
+function drawBoardTo(ctx, { board, stamps = [], cell, selected = null, arrowStart = null }) {
+  const W = COLS * cell, H = ROWS * cell;
+  ctx.clearRect(0, 0, W, H);
+
+  const boardGrad = ctx.createLinearGradient(0, 0, W, H);
+  boardGrad.addColorStop(0, '#d4a84b'); boardGrad.addColorStop(0.5, '#c8971e'); boardGrad.addColorStop(1, '#b87c10');
+  ctx.fillStyle = boardGrad; ctx.fillRect(0, 0, W, H);
+
+  ctx.strokeStyle = 'rgba(80,50,10,0.6)'; ctx.lineWidth = 1.5;
+  ctx.strokeRect(0, 0, W, H);
+
+  ctx.strokeStyle = 'rgba(60,35,5,0.45)'; ctx.lineWidth = 0.7;
+  for (let i = 0; i <= COLS; i++) { ctx.beginPath(); ctx.moveTo(i*cell,0); ctx.lineTo(i*cell,H); ctx.stroke(); }
+  for (let j = 0; j <= ROWS; j++) { ctx.beginPath(); ctx.moveTo(0,j*cell); ctx.lineTo(W,j*cell); ctx.stroke(); }
+
+  if (selected) {
+    ctx.fillStyle = 'rgba(255,230,60,0.5)';
+    ctx.fillRect(selected.col*cell + 1, selected.row*cell + 1, cell - 2, cell - 2);
+  }
+
+  if (arrowStart) {
+    ctx.fillStyle = 'rgba(107,63,160,0.35)';
+    ctx.fillRect(arrowStart.col*cell + 1, arrowStart.row*cell + 1, cell - 2, cell - 2);
+  }
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const p = board[r]?.[c];
+      if (!p || p === ' ') continue;
+      drawPiece(ctx, c*cell + cell/2, r*cell + cell/2, cell, p,
+        selected?.row === r && selected?.col === c);
+    }
+  }
+
+  for (const st of stamps) {
+    if (!STAMP_COLOR[st.type]) continue;
+    const x = st.col*cell + cell/2, y = st.row*cell + cell/2;
+    ctx.save();
+
+    if (st.type === 'ya') {
+      // 矢印：始点マス中心 → 終点マス中心
+      const x2 = st.toCol*cell + cell/2, y2 = st.toRow*cell + cell/2;
+      drawArrowStamp(ctx, x, y, x2, y2, STAMP_COLOR.ya, cell);
+    } else if (st.type === 'shikaku') {
+      // 四角：マスの輪郭を強調（駒が見えるよう枠線のみ）
+      const pad = cell * 0.05;
+      ctx.globalAlpha = 0.9;
+      ctx.strokeStyle = STAMP_COLOR.shikaku; ctx.lineWidth = cell * 0.09;
+      ctx.strokeRect(st.col*cell + pad, st.row*cell + pad, cell - pad*2, cell - pad*2);
+    } else if (st.type === 'maru') {
+      // 丸：駒を囲む円（中は塗りつぶさない）
+      ctx.globalAlpha = 0.9;
+      ctx.strokeStyle = STAMP_COLOR.maru; ctx.lineWidth = cell * 0.07;
+      ctx.beginPath(); ctx.arc(x, y, cell * 0.46, 0, Math.PI * 2); ctx.stroke();
+    } else {
+      // ？マーク：マス左上に小さく表示し、駒本体は隠さない
+      const bx = st.col*cell + cell*0.20, by = st.row*cell + cell*0.20;
+      const fs = cell * 0.34;
+      ctx.font = `bold ${fs}px 'Noto Serif JP',serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.globalAlpha = 0.92;
+      ctx.strokeStyle = 'white'; ctx.lineWidth = fs*0.22; ctx.lineJoin = 'round';
+      ctx.strokeText(STAMP_CHAR.q, bx, by);
+      ctx.fillStyle = STAMP_COLOR.q; ctx.fillText(STAMP_CHAR.q, bx, by);
+    }
+    ctx.restore();
+  }
+}
+
 // ── 持ち駒UIパーツ ────────────────────────────────
 const HAND_ORDER = ['r','b','g','s','n','l','p'];
 
@@ -134,7 +206,9 @@ function getHandPieceSprite(pieceKey, isSelected, count) {
   return off;
 }
 
-function HandPiece({ k, count, isSente, isSelected, onClick, readOnly, boardSelected }) {
+// size は見た目の大きさ（CSS）だけを変える。スプライトは32pxのまま縮小して描くので、
+// 貼り付け用のミニ盤でもキャッシュを共有できる（種類×先後×選択×枚数の分だけで済む）
+function HandPiece({ k, count, isSente, isSelected, onClick, readOnly, boardSelected, size = 32 }) {
   const ref = useRef(null);
   useEffect(() => {
     const canvas = ref.current; if (!canvas) return;
@@ -145,10 +219,103 @@ function HandPiece({ k, count, isSente, isSelected, onClick, readOnly, boardSele
   return (
     // 盤上の駒を選択中は、ここをタップしても駒選択せずエリアのクリック（=持ち駒へ移動）に委ねる
     <canvas ref={ref} width={32} height={32} onClick={() => { if (readOnly || boardSelected) return; onClick(); }}
-      style={{ cursor: readOnly ? 'default' : 'pointer', borderRadius: 4,
+      style={{ width: size, height: size, flexShrink: 0,
+        cursor: readOnly ? 'default' : 'pointer', borderRadius: 4,
         border: isSelected ? '1.5px solid #a07840' : '1.5px solid transparent',
         background: isSelected ? '#f0e8d4' : 'transparent' }}
     />
+  );
+}
+
+// ── 貼り付け用のミニ盤（見るだけ）────────────────
+//   相手の持ち駒・盤・自分の持ち駒の3つだけを縮めて描く。
+//   道具・棋譜ナビ・ヒント文は載せない：載せると「ここでも操作できる」に見えるが、
+//   実際に編集できるのは本体の盤だけなので、押しても何も起きない道具が並ぶことになる。
+const PEEK_CELL  = 20;   // 盤は 20×9 = 180px。本体(342px)の半分強で、駒はまだ読める
+const PEEK_COL_W = 30;
+
+function BoardPeek({ board, stamps, handSente, handGote }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const canvas = ref.current; if (!canvas || !board) return;
+    drawBoardTo(canvas.getContext('2d'), { board, stamps, cell: PEEK_CELL });
+  }, [board, stamps]);
+  if (!board) return null;
+  const S = COLS * PEEK_CELL;
+  return (
+    <div style={{ display:'flex', alignItems:'stretch', gap:4,
+      width: S + PEEK_COL_W * 2 + 8, margin:'0 auto' }}>
+      <HandArea hand={handGote} isSente={false} readOnly
+        colW={PEEK_COL_W} pieceSize={22} labelSize="0.5rem" />
+      <canvas ref={ref} width={S} height={S}
+        style={{ display:'block', borderRadius:4, alignSelf:'flex-start',
+          boxShadow:'0 2px 8px rgba(0,0,0,0.3)' }} />
+      <HandArea hand={handSente} isSente={true} readOnly
+        colW={PEEK_COL_W} pieceSize={22} labelSize="0.5rem" />
+    </div>
+  );
+}
+
+// 本体の盤がスクロールで上へ流れたら、ミニ盤を画面上端に貼り付ける。
+//   position:sticky を使わないのは、sticky が「親の箱の中」でしか貼り付かないため。
+//   盤は BoardSection > ShogiBoard と入れ子になっていて親の箱は高々600px しかなく、
+//   少しスクロールしただけで剥がれてしまう。
+//   position:fixed をスクロール領域の上端に合わせ、body へ portal で出す。
+//   portal にするのは、途中の親に transform が付くと fixed が親基準になって位置が壊れるため。
+//   本体の盤は元の場所に残したままなので、貼り付いた瞬間に下の内容がずれ上がることはない。
+function StickyBoardPeek({ anchorRef, board, stamps, handSente, handGote }) {
+  const [pin, setPin] = useState(null); // 貼り付け位置。null = 貼り付けない
+
+  useEffect(() => {
+    const anchor = anchorRef.current;
+    if (!anchor) return;
+    // 実際にスクロールしている親を探す
+    let sc = anchor.parentElement;
+    while (sc && sc !== document.body) {
+      const oy = getComputedStyle(sc).overflowY;
+      if (oy === 'auto' || oy === 'scroll') break;
+      sc = sc.parentElement;
+    }
+    if (!sc || sc === document.body) return;
+
+    const update = () => {
+      const a = anchor.getBoundingClientRect();
+      const c = sc.getBoundingClientRect();
+      const next = a.top < c.top ? { top: c.top, left: c.left, width: c.width } : null;
+      // 位置が変わっていなければ同じオブジェクトを返して再描画を止める。
+      // スクロール中は毎フレーム呼ばれるので、ここで止めないと指の動きが重くなる
+      setPin(prev => {
+        if (!next || !prev) return next === prev ? prev : next;
+        return (prev.top === next.top && prev.left === next.left && prev.width === next.width)
+          ? prev : next;
+      });
+    };
+    update();
+    sc.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    // 上にある入力欄が伸びたりキーボードが出たりしても位置がずれないよう、大きさの変化も見る
+    const ro = new ResizeObserver(update);
+    ro.observe(sc); ro.observe(anchor);
+    return () => {
+      sc.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+      ro.disconnect();
+    };
+  }, [anchorRef]);
+
+  if (!pin) return null;
+  return createPortal(
+    // タップは受け取るが何もしない（下の入力欄に吸わせない）。
+    // pointerEvents:'none' にすると、盤を押したつもりで裏の入力欄に文字が入る
+    <div data-board-peek style={{
+      position:'fixed', top:pin.top, left:pin.left, width:pin.width, zIndex:45,
+      padding:'6px 8px 8px', background:'#faf4e8', userSelect:'none',
+      borderBottom:'0.5px solid rgba(26,15,0,0.15)',
+      boxShadow:'0 4px 10px rgba(26,15,0,0.12)',
+    }}>
+      <BoardPeek board={board} stamps={stamps} handSente={handSente} handGote={handGote} />
+    </div>,
+    document.body
   );
 }
 
@@ -174,7 +341,8 @@ function NavBtn({ onClick, disabled, icon }) {
 // ここを広げたぶんだけ盤が小さくなるので、駒がちょうど収まる最小幅にしてある
 const HAND_COL_W = 42;
 
-function HandArea({ hand, isSente, selectedHand, onSelectPiece, readOnly, boardSelected, onDeposit }) {
+function HandArea({ hand, isSente, selectedHand, onSelectPiece, readOnly, boardSelected, onDeposit,
+                    colW = HAND_COL_W, pieceSize = 32, labelSize = "0.625rem" }) {
   const label = isSente ? '自分の持ち駒' : '相手の持ち駒';
   const pieces = HAND_ORDER.filter(k => hand[k] > 0);
   // 盤上の駒を選択中にこのエリアをタップしたら、その駒を持ち駒へ移す
@@ -182,7 +350,7 @@ function HandArea({ hand, isSente, selectedHand, onSelectPiece, readOnly, boardS
   return (
     <div
       onClick={canDeposit ? () => onDeposit(isSente) : undefined}
-      style={{ width:HAND_COL_W, flexShrink:0, alignSelf:'stretch',
+      style={{ width:colW, flexShrink:0, alignSelf:'stretch',
       background:'#f0e6cc', borderRadius:6, padding:'6px 4px',
       display:'flex', flexDirection:'column', alignItems:'center', gap:3,
       border: canDeposit ? '1px dashed #a07840' : '1px solid rgba(120,80,10,0.2)',
@@ -194,10 +362,10 @@ function HandArea({ hand, isSente, selectedHand, onSelectPiece, readOnly, boardS
           潰れて重なって読めなくなるため。幅を1文字ぶんに絞って折り返させるやり方なら
           フォントに関係なく1文字ずつ縦に並ぶ */}
       <span style={{ width:'1em', lineHeight:1.15, textAlign:'center', wordBreak:'break-all',
-        fontSize:"0.625rem", color:'rgba(26,15,0,0.45)', flexShrink:0 }}>{label}</span>
-      {pieces.length === 0 && <span style={{ fontSize:"0.6875rem", color:'rgba(26,15,0,0.3)' }}>なし</span>}
+        fontSize:labelSize, color:'rgba(26,15,0,0.45)', flexShrink:0 }}>{label}</span>
+      {pieces.length === 0 && <span style={{ fontSize:labelSize, color:'rgba(26,15,0,0.3)' }}>なし</span>}
       {pieces.map(k => (
-        <HandPiece key={k} k={k} count={hand[k]} isSente={isSente}
+        <HandPiece key={k} k={k} count={hand[k]} isSente={isSente} size={pieceSize}
           isSelected={selectedHand?.piece === k && selectedHand?.isSente === isSente}
           readOnly={readOnly} boardSelected={boardSelected} onClick={() => onSelectPiece(k, isSente)} />
       ))}
@@ -220,8 +388,14 @@ export default function ShogiBoard({
   allowBranch = false,      // true: 棋譜インポート由来のノードで「この局面で分岐」を表示
   onBranchFromHere,         // (snapshot) => void
   onBranchRange,            // (startIdx, endIdx) => void 範囲を選んで棋譜ごと切り出し
+  // true: スクロールで盤が上へ流れたら、縮小した「見るだけの盤」を画面上端に貼り付ける。
+  //   局面を見ながら下のメモや子ノードを読み書きするための機能なので、それが要る画面
+  //   （ノード編集・公開ツリー）だけ on にする。棋譜入力モーダルは盤がすでに一番上にあり不要
+  stickyPeek = false,
 }) {
   const canvasRef = useRef(null);
+  // 貼り付けを始める目印。この行（持ち駒＋盤）の上端が画面から出たら貼り付ける
+  const boardRowRef = useRef(null);
 
   const [board,        setBoard]        = useState(() => boardProp ? JSON.parse(JSON.stringify(boardProp)) : null);
   const [stamps,       setStamps]       = useState(stampsProp);
@@ -288,75 +462,16 @@ export default function ShogiBoard({
   const dispHGote   = playSnap ? playSnap.handGote  : handGote;
 
   // ── Canvas 描画 ─────────────────────────────────
+  // 再生中（playSnap あり）は編集中の選択・矢印待ちを映さない。
+  // 再生は閲覧操作なので、別の局面の上に編集途中の印が残ると誤解のもとになる
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas || !dispBoard) return;
-    const ctx = canvas.getContext('2d');
-    const W = COLS * CELL, H = ROWS * CELL;
-    ctx.clearRect(0, 0, W, H);
-
-    const boardGrad = ctx.createLinearGradient(0, 0, W, H);
-    boardGrad.addColorStop(0, '#d4a84b'); boardGrad.addColorStop(0.5, '#c8971e'); boardGrad.addColorStop(1, '#b87c10');
-    ctx.fillStyle = boardGrad; ctx.fillRect(0, 0, W, H);
-
-    ctx.strokeStyle = 'rgba(80,50,10,0.6)'; ctx.lineWidth = 1.5;
-    ctx.strokeRect(0, 0, W, H);
-
-    ctx.strokeStyle = 'rgba(60,35,5,0.45)'; ctx.lineWidth = 0.7;
-    for (let i = 0; i <= COLS; i++) { ctx.beginPath(); ctx.moveTo(i*CELL,0); ctx.lineTo(i*CELL,H); ctx.stroke(); }
-    for (let j = 0; j <= ROWS; j++) { ctx.beginPath(); ctx.moveTo(0,j*CELL); ctx.lineTo(W,j*CELL); ctx.stroke(); }
-
-    if (selected && !playSnap) {
-      ctx.fillStyle = 'rgba(255,230,60,0.5)';
-      ctx.fillRect(selected.col*CELL + 1, selected.row*CELL + 1, CELL - 2, CELL - 2);
-    }
-
-    if (arrowStart && !playSnap) {
-      ctx.fillStyle = 'rgba(107,63,160,0.35)';
-      ctx.fillRect(arrowStart.col*CELL + 1, arrowStart.row*CELL + 1, CELL - 2, CELL - 2);
-    }
-
-    for (let r = 0; r < ROWS; r++) {
-      for (let c = 0; c < COLS; c++) {
-        const p = dispBoard[r]?.[c];
-        if (!p || p === ' ') continue;
-        drawPiece(ctx, c*CELL + CELL/2, r*CELL + CELL/2, CELL, p,
-          !playSnap && selected?.row === r && selected?.col === c);
-      }
-    }
-
-    for (const st of stamps) {
-      if (!STAMP_COLOR[st.type]) continue;
-      const x = st.col*CELL + CELL/2, y = st.row*CELL + CELL/2;
-      ctx.save();
-
-      if (st.type === 'ya') {
-        // 矢印：始点マス中心 → 終点マス中心
-        const x2 = st.toCol*CELL + CELL/2, y2 = st.toRow*CELL + CELL/2;
-        drawArrowStamp(ctx, x, y, x2, y2, STAMP_COLOR.ya);
-      } else if (st.type === 'shikaku') {
-        // 四角：マスの輪郭を強調（駒が見えるよう枠線のみ）
-        const pad = CELL * 0.05;
-        ctx.globalAlpha = 0.9;
-        ctx.strokeStyle = STAMP_COLOR.shikaku; ctx.lineWidth = CELL * 0.09;
-        ctx.strokeRect(st.col*CELL + pad, st.row*CELL + pad, CELL - pad*2, CELL - pad*2);
-      } else if (st.type === 'maru') {
-        // 丸：駒を囲む円（中は塗りつぶさない）
-        ctx.globalAlpha = 0.9;
-        ctx.strokeStyle = STAMP_COLOR.maru; ctx.lineWidth = CELL * 0.07;
-        ctx.beginPath(); ctx.arc(x, y, CELL * 0.46, 0, Math.PI * 2); ctx.stroke();
-      } else {
-        // ？マーク：マス左上に小さく表示し、駒本体は隠さない
-        const bx = st.col*CELL + CELL*0.20, by = st.row*CELL + CELL*0.20;
-        const fs = CELL * 0.34;
-        ctx.font = `bold ${fs}px 'Noto Serif JP',serif`;
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.globalAlpha = 0.92;
-        ctx.strokeStyle = 'white'; ctx.lineWidth = fs*0.22; ctx.lineJoin = 'round';
-        ctx.strokeText(STAMP_CHAR.q, bx, by);
-        ctx.fillStyle = STAMP_COLOR.q; ctx.fillText(STAMP_CHAR.q, bx, by);
-      }
-      ctx.restore();
-    }
+    drawBoardTo(canvas.getContext('2d'), {
+      board: dispBoard, stamps, cell: CELL,
+      selected:   playSnap ? null : selected,
+      arrowStart: playSnap ? null : arrowStart,
+    });
   }, [dispBoard, stamps, selected, arrowStart, playSnap]);
 
   useEffect(() => { draw(); }, [draw]);
@@ -677,7 +792,7 @@ export default function ShogiBoard({
           半分以上が盤まわりだけで埋まって、局面と下の入力欄を同時に見られない。
           左右に移すと縦は盤の高さだけで済む。盤は帯のぶん少し小さくなる（342→約290）が、
           駒の判別には足りる大きさを保てている */}
-      <div style={{ display:'flex', alignItems:'stretch', gap:5, marginBottom:4 }}>
+      <div ref={boardRowRef} style={{ display:'flex', alignItems:'stretch', gap:5, marginBottom:4 }}>
 
         {/* 相手（後手）の持ち駒：左 */}
         <HandArea hand={dispHGote} isSente={false} selectedHand={playSnap ? null : selectedHand}
@@ -713,6 +828,13 @@ export default function ShogiBoard({
           onDeposit={depositToHand}
         />
       </div>
+
+      {/* 貼り付け用のミニ盤。再生中は再生中の局面を映す（dispBoard を渡している）ので、
+          棋譜を送りながら下の子ノードを見比べられる */}
+      {stickyPeek && (
+        <StickyBoardPeek anchorRef={boardRowRef} board={dispBoard} stamps={stamps}
+          handSente={dispHSente} handGote={dispHGote} />
+      )}
 
       {/* 棋譜入力モードの記録操作は盤の下（盤と持ち駒が画面の一番上に来るようにする） */}
       {recordOnly && recordControls}

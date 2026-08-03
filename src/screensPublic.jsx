@@ -358,6 +358,8 @@ function NodeViewSheet({ node, onClose }) {
               handGote={node.handGote}
               kifu={node.kifu || []}
               readOnly
+              // 公開ツリーでもノード編集と同じく、局面を見ながら下の説明を読めるようにする
+              stickyPeek
             />
           </div>
         )}

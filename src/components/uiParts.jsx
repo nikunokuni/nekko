@@ -371,6 +371,9 @@ export function BoardSection({ boardVisible, boardData, stamps, handSente, handG
           allowBranch={allowBranch}
           onBranchFromHere={onBranchFromHere}
           onBranchRange={onBranchRange}
+          // 盤より下にあるメモ・気を付けること・子ノードを、局面を見ながら読み書きするため。
+          // 盤が非表示のときはこの分岐に来ない（上の early return）ので、貼り付けも起きない
+          stickyPeek
         />
       </div>
     </div>
