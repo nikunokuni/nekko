@@ -35,17 +35,23 @@ test("盤に並べて棋譜を作り、棋譜ライブラリに保存できる",
   await page.getByRole("button", { name: "棋譜入力" }).click();
   await expect(page.getByRole("button", { name: "記録を終わる" })).toBeVisible();
 
-  // ② 1手も指さずに終えたら棋譜は確定せず、やり直せる
+  // ② 1手も指さずに終えても棋譜は確定せず、記録も止まらない。
+  //    ここで記録が止まると、続けて並べた手が黙って捨てられる
+  //    （画面は普通に動くので気づけない）ので、そこを見張る
   await page.getByRole("button", { name: "記録を終わる" }).click();
   const emptyWarn = page.getByText(/まだ1手も動かしていません/);
   await expect(emptyWarn).toBeVisible();
-  await page.getByRole("button", { name: /棋譜を記録/ }).click();
+  await expect(page.getByRole("button", { name: "記録を終わる" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /棋譜を記録/ })).toHaveCount(0);
 
   // ③ 盤に並べる（▲7六歩 △3四歩）。手数表示が動けばタップが効いている
   const canvas = page.locator("canvas[width='342']");
   await canvas.scrollIntoViewIfNeeded();
+  await expect(page.getByText("次は▲先手")).toBeVisible();
   await movePiece(page, canvas, [6, 2], [5, 2]);
   await expect(page.getByText("1手", { exact: true })).toBeVisible();
+  // 手番の案内が進む（「片方の手を飛ばした」に気づくための唯一の手がかり）
+  await expect(page.getByText("次は△後手")).toBeVisible();
   // 動かしたら0手の注意は消える（並べ直しているのに残ると矛盾する）
   await expect(emptyWarn).toHaveCount(0);
 
@@ -67,8 +73,13 @@ test("盤に並べて棋譜を作り、棋譜ライブラリに保存できる",
   await page.getByRole("button", { name: "記録を終わる" }).click();
   await expect(page.getByText(/2手を記録しました/)).toBeVisible();
 
-  // ⑥ 結果は自分の側を選んでから出る。対局者名が無いので手で答えるしかない
+  // ⑥ 結果は自分の側を選んでから出る。対局者名が無いので手で答えるしかない。
+  //    並べ終わっても結果が空のうちは保存できない：勝敗の無い棋譜は傾向分析に
+  //    載らないので、通してしまうと「分析されない棋譜」が黙って溜まる
+  await expect(saveBtn).toBeDisabled();
+  await expect(page.getByText(/「結果」を選ぶと保存できます/)).toBeVisible();
   await page.getByRole("button", { name: "勝ち", exact: true }).click();
+  await expect(saveBtn).toBeEnabled();
   await saveBtn.click();
 
   // ⑦ 一覧に出る。勝敗が「勝ち」で出れば、自分の側と結果が保存されている

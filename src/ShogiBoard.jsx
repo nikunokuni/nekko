@@ -390,17 +390,24 @@ export default function ShogiBoard({
   }, [notify, stamps]);
 
   const stopRecording = useCallback(() => {
+    const snaps = recordingRef.current.snaps;
+    // 棋譜入力モードで1手も指していないときは、知らせるだけで記録は止めない。
+    // ここで止めると「記録していない盤」が残り、注意書きを読んで並べ直した手が
+    // 丸ごと捨てられる（盤は普通に動くので気づけない）。しかもその状態で
+    // 「棋譜を記録」を押すと、並べ終わった局面が初期局面として記録され始め、
+    // 途中から始まる棋譜が黙って出来上がる。この画面は棋譜を作るために
+    // 開いているので、「記録していない状態」を一瞬も作らない
+    if (recordOnly && snaps.length <= 1) { onRecordStop?.(snaps); return; }
     recordingRef.current.active = false;
     setIsRecording(false);
     // 初期局面1枚だけ（=1手も指していない）の場合は棋譜として保存しない。
     // 空の記録でバッジ獲得や0手の棋譜ナビが生まれるのを防ぐ。
-    const snaps = recordingRef.current.snaps;
     if (snaps.length > 1) onKifuChange?.(snaps);
     // 「終わったこと」自体を知りたい呼び出し側（棋譜入力モーダル）のために、
     // 1手も指していなくても必ず呼ぶ。0手のときに何も起きないと、
     // ボタンを押したのに画面が変わらず、壊れているように見えてしまう
     onRecordStop?.(snaps);
-  }, [onKifuChange, onRecordStop]);
+  }, [onKifuChange, onRecordStop, recordOnly]);
 
   // ── 成り確認モーダルを経て盤面確定 ──────────────
   const confirmPromotion = useCallback((doPromote) => {
@@ -604,6 +611,17 @@ export default function ShogiBoard({
             <span style={{ width:7, height:7, borderRadius:'50%', background:'#A93226', display:'inline-block' }}/>
             {recordingRef.current.snaps.length - 1}手
           </span>
+          {/* 次にどちらが指す番かを出す（棋譜入力モードだけ）。
+              道場の対局を思い出しながら60手並べる作業でいちばん起きるのは
+              「片方の手を飛ばす」で、手数だけでは気づけない。
+              手番の交互は強制しない方針なので、間違いを止めるのではなく事実だけ見せる。
+              通常のノード編集で出さないのは、そちらの盤は途中局面から始まることがあり、
+              手数の偶奇が手番と一致しないため（嘘の案内になる） */}
+          {recordOnly && (
+            <span style={{ fontSize:"0.6875rem", color:'rgba(26,15,0,0.55)', fontFamily:"'Noto Serif JP',serif" }}>
+              次は{recordingRef.current.snaps.length % 2 === 1 ? "▲先手" : "△後手"}
+            </span>
+          )}
           {/* 記録中の直前の1手だけ取り消す */}
           <button
             onClick={undoRecordedMove}

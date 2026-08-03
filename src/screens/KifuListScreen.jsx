@@ -404,11 +404,20 @@ function ImportKifuModal({ onClose, onImportMany, customTags, onAddCustomTag }) 
 //   忘れる前にここで押さえておく。
 // ──────────────────────────────────────────
 
-// 既定の棋譜名と記録日。手入力は「今日指した対局」を残すのが大半なので今日にする
+// 既定の記録日。手入力は「今日指した対局」を残すのが大半なので今日にする
 function todayInputValue() {
   const d = new Date();
   const p = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+// 記録日から作る既定の棋譜名。日付を変えたら名前も追いかける（下記 nameEdited）。
+// 道場の対局を後日まとめて入力すると、名前だけ入力日のままになって
+// 一覧で「8/3 の対局」が並び、どれがどれだか分からなくなる
+function defaultNameFor(dateValue) {
+  const [, m, d] = (dateValue || "").split("-");
+  if (!m || !d) return "手入力の対局";
+  return `${Number(m)}/${Number(d)} の対局`;
 }
 
 function RecordKifuModal({ onClose, onSave, customTags, onAddCustomTag }) {
@@ -417,11 +426,10 @@ function RecordKifuModal({ onClose, onSave, customTags, onAddCustomTag }) {
   const [emptyWarn, setEmptyWarn] = useState(false); // 0手のまま「記録を終わる」を押した
   const [boardSeq,  setBoardSeq]  = useState(0);     // やり直しのたびに盤を作り直すためのキー
 
-  const [name,     setName]     = useState(() => {
-    const d = new Date();
-    return `${d.getMonth() + 1}/${d.getDate()} の対局`;
-  });
   const [playedAt, setPlayedAt] = useState(todayInputValue);
+  const [name,     setName]     = useState(() => defaultNameFor(todayInputValue()));
+  // 名前を手で触ったか。触った後に日付を変えても、書いた名前を上書きしない
+  const [nameEdited, setNameEdited] = useState(false);
   const [mySide,   setMySide]   = useState(null);    // "sente" | "gote" | "none"
   const [outcome,  setOutcome]  = useState(null);    // "win" | "lose" | "draw" | "none"
   const [tags,     setTags]     = useState("");
@@ -471,10 +479,17 @@ function RecordKifuModal({ onClose, onSave, customTags, onAddCustomTag }) {
     else setError("保存できませんでした。もう一度お試しください");
   };
 
+  // 結果は「自分の側を選んだとき」だけ必須。傾向分析は勝敗の付いた棋譜しか数えないので
+  //（toAnalysisGame が null を返す）、ここで飛ばすと分析に載らない棋譜が黙って出来る。
+  // 勝敗を残したくない場合の逃げ道は「記録しない」＝ outcome:"none" で、
+  // 選ばせること自体は省かない（省くと「選び忘れ」と「残さない意思」が区別できない）
+  const needsOutcome = !!side && !outcome;
+
   // 保存できない理由（先に出会うものから1つだけ出す）
   const blocker =
     !snapshots       ? "盤に並べて「記録を終わる」を押すと保存できます"
     : !mySide        ? "「あなたはどちら」を選ぶと保存できます。あとから思い出せない項目なので、ここで聞いています"
+    : needsOutcome   ? "「結果」を選ぶと保存できます。勝敗の無い棋譜は傾向分析に入りません（残さないなら「記録しない」）"
     : !name.trim()   ? "棋譜の名前を入れてください"
     : null;
 
@@ -517,9 +532,11 @@ function RecordKifuModal({ onClose, onSave, customTags, onAddCustomTag }) {
           onRecordStop={handleRecordStop}
         />
 
+        {/* 記録は止まっていない（ShogiBoard 側で 0手のときは終わらせない）ので、
+            「もう一度始めてください」とは言わない。そのまま並べれば記録される */}
         {emptyWarn && (
           <div style={{ marginTop: 10, fontSize: T.fontSize.sm, color: T.red, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
-            まだ1手も動かしていません。「棋譜を記録」からもう一度始めてください。
+            まだ1手も動かしていません。初手から順に駒を動かしてください（記録は続いています）。
           </div>
         )}
 
@@ -548,7 +565,12 @@ function RecordKifuModal({ onClose, onSave, customTags, onAddCustomTag }) {
         </div>
 
         {/* ── 入力欄（盤の下）── */}
-        <InputField label="棋譜の名前" value={name} onChange={setName} placeholder="例：7/18 道場での対局" />
+        <InputField
+          label="棋譜の名前"
+          value={name}
+          onChange={(v) => { setName(v); setNameEdited(true); }}
+          placeholder="例：7/18 道場での対局"
+        />
 
         {/* 記録日と「あなたはどちら」は横並び。日付は幅を取らないので、
             この2つを1行に収めると盤と保存ボタンの距離が縮む */}
@@ -558,7 +580,11 @@ function RecordKifuModal({ onClose, onSave, customTags, onAddCustomTag }) {
             <input
               type="date"
               value={playedAt}
-              onChange={(e) => setPlayedAt(e.target.value)}
+              // 名前をまだ触っていなければ、既定の名前を新しい日付に合わせ直す
+              onChange={(e) => {
+                setPlayedAt(e.target.value);
+                if (!nameEdited) setName(defaultNameFor(e.target.value));
+              }}
               aria-label="記録日"
               style={{
                 border: `0.5px solid ${T.inkLine}`, borderRadius: T.radius.md,
@@ -630,7 +656,7 @@ function RecordKifuModal({ onClose, onSave, customTags, onAddCustomTag }) {
           onCancel={handleClose}
           onConfirm={handleSave}
           confirmLabel={saving ? "保存中..." : "保存する"}
-          disabled={!snapshots || !name.trim() || !mySide || saving}
+          disabled={!snapshots || !name.trim() || !mySide || needsOutcome || saving}
         />
         {/* なぜ保存できないのかを1つだけ出す。並べ終わる前から欄を埋められるぶん、
             「押せない理由」が見えないと止まってしまう */}
