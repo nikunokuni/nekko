@@ -4,6 +4,7 @@ node_modules/
 # ビルド成果物
 dist/
 dist-ssr/
+dev-dist/
 *.local
 
 # 環境変数（秘密情報）

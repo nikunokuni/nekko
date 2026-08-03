@@ -432,15 +432,38 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
     JSON.stringify(node?.kifu || [])  !== JSON.stringify(boardSnapshot.kifu)
   ), [boardSnapshot, boardVisible, boardData, stamps, handSente, handGote, node]);
 
-  if (!node) return null;
-
-  const parent   = node.parentId ? tree.nodes[node.parentId] : null;
-  const children = (node.childIds || []).map((id) => tree.nodes[id]).filter(Boolean);
+  // ── ここから下の早期 return より「前」に置くフック群 ──────────
+  //   フックは毎レンダリングで同じ順番・同じ個数だけ呼ばれる必要がある。
+  //   `if (!node) return null` より後ろに useMemo を置くと、ノードを削除した直後など
+  //   node が消えた瞬間にフックの個数が減り、React が
+  //   "Rendered fewer hooks than expected" を投げて画面ごと落ちる。
+  //   そのため node が無くても計算できる形（node?.）にして前倒ししてある。
+  const children = (node?.childIds || []).map((id) => tree.nodes[id]).filter(Boolean);
 
   // ── 分岐の候補 ────────────────────────────────────
   // 実戦で当たった相手を候補として出す。アプリが出すのは「相手が選ぶ分岐」だけで、
   // 自分がどう指すかは枝の中身なので候補にしない。
   // 当たったことのない戦法も出さない（その人にとっては対策不要とも言えるため）。
+  const branch = useMemo(() => branchCandidates({
+    myApproach: parseTags(myApproach),
+    situation:  parseTags(situation),
+    games:      branchGames || [],
+    // 既に枝がある相手は候補から外す。ノード名と「相手の戦法」タグの両方で照合する
+    existingNames: children.flatMap((c) => [c.label, ...(c.situation || [])]),
+  }), [myApproach, situation, branchGames, children]);
+
+  // ── 「とりあえず」の作り直し ────────────────────────
+  // 置き場は普通のノードなので削除できてしまう。消したあと戻す道が
+  // どこにも無いと詰むため、ルートの子ノード欄から作り直せるようにする。
+  const treeHasInbox = useMemo(
+    () => Object.values(tree.nodes).some((n) => n.isInbox),
+    [tree.nodes],
+  );
+
+  if (!node) return null;
+
+  const parent = node.parentId ? tree.nodes[node.parentId] : null;
+
   const toggleBranchCandidates = async () => {
     const next = !branchOpen;
     setBranchOpen(next);
@@ -452,23 +475,7 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
     setBranchLoading(false);
   };
 
-  const branch = useMemo(() => branchCandidates({
-    myApproach: parseTags(myApproach),
-    situation:  parseTags(situation),
-    games:      branchGames || [],
-    // 既に枝がある相手は候補から外す。ノード名と「相手の戦法」タグの両方で照合する
-    existingNames: children.flatMap((c) => [c.label, ...(c.situation || [])]),
-  }), [myApproach, situation, branchGames, children]);
-
   const hasStrategyTag = parseTags(myApproach).length > 0 || parseTags(situation).length > 0;
-
-  // ── 「とりあえず」の作り直し ────────────────────────
-  // 置き場は普通のノードなので削除できてしまう。消したあと戻す道が
-  // どこにも無いと詰むため、ルートの子ノード欄から作り直せるようにする。
-  const treeHasInbox = useMemo(
-    () => Object.values(tree.nodes).some((n) => n.isInbox),
-    [tree.nodes],
-  );
 
 
   // 「ついか」内の各項目の表示可否（設定でON/OFF可能。OFFでもデータは残る）。

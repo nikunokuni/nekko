@@ -10,10 +10,13 @@
   likes の一意制約と `liked_by` 同期トリガー相当を実装。
 
 - `treeOps.test.mjs` — ツリー変更ロジックの純粋関数ユニットテスト。
-  実行: `node test-harness/treeOps.test.mjs`
 
 - `kifuAnalysis.test.mjs` — 棋譜解析（対局情報のパース・特徴抽出・傾向集計）の
-  ユニットテスト。実行: `node test-harness/kifuAnalysis.test.mjs`
+  ユニットテスト。
+
+  テストは `npm test` でまとめて実行する（`test-harness/**/*.test.mjs` を自動で拾うので、
+  新しいテストはこのディレクトリに `〜.test.mjs` の名前で置くだけでよい）。
+  1本だけ動かしたいときは `node test-harness/treeOps.test.mjs` のように直接実行する。
 
 - `QA_REPORT.md` — 2026-07-13 実施の全機能QAの結果（バグ・気になる仕様の一覧）。
 
@@ -21,7 +24,7 @@
 
 ```bash
 npm install
-npx vite --config vite.mock.config.js   # モック差し替えで起動（ポート5173）
+npm run dev:mock   # モック差し替えで起動（ポート5173）
 ```
 
 ブラウザで http://localhost:5173 を開き、任意のID/パスワードで新規登録すれば

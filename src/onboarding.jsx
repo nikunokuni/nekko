@@ -8,6 +8,10 @@ import { shouldShowOnboard, markOnboardSeen } from "./rewards";
 
 // 画面ごとの初回オンボーディング文面（その画面に初めて来たとき1度だけ表示する）
 // 各画面は配列で、複数枚を順番に（連続で）表示する
+//
+// eslint の react/jsx-key はこの配列を「まとめて描画するリスト」と誤解して key を要求するが、
+// ここは msgs[index] で毎回1枚だけ取り出して描画する（OnboardingLayer 参照）ので key は不要。
+/* eslint-disable react/jsx-key */
 export const ONBOARD_MESSAGES = {
   list: [
     <span><i className="ti ti-search" />ノード検索　全ツリーのノードをまとめて探せます</span>,
@@ -69,6 +73,7 @@ export const ONBOARD_MESSAGES = {
     <span><b>棋譜を記録</b>　その間に動かした手順を記録し、あとで再生できます</span>,
   ],
 };
+/* eslint-enable react/jsx-key */
 
 // 各トーストが指さす対象（data-onboard 属性値）。null は指さし対象なし（トーストのみ）
 export const ONBOARD_TARGETS = {

@@ -1,0 +1,40 @@
+# push / Pull Request のたびに「lint → テスト → ビルド」を自動で回す。
+#   目的は、壊れたコードが main に入ったことをブラウザで触るより先に知ること。
+#   ローカルで同じことをするには: npm run check
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+# 同じブランチに続けて push したとき、古い実行は打ち切って最新だけ走らせる
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      # package-lock.json どおりに入れる（npm install と違い lock を書き換えない）
+      - run: npm ci
+
+      # 体裁ではなくバグの検出。警告は通し、エラーだけ落とす。
+      - name: Lint
+        run: npm run lint
+
+      # 純粋関数のユニットテスト（test-harness/*.test.mjs）
+      - name: Test
+        run: npm test
+
+      # 本番ビルドが通ることの確認
+      - name: Build
+        run: npm run build
