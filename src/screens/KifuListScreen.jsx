@@ -487,22 +487,12 @@ function RecordKifuModal({ onClose, onSave, customTags, onAddCustomTag }) {
           </button>
         </div>
 
-        {/* ── 記録中：盤に並べる ── */}
+        {/* ── 記録中：盤に並べる ──
+            盤と持ち駒を一番上に置き、説明と操作は下にまわす。
+            並べている間ずっと見るのは盤なので、説明が上にあると
+            1手指すたびに盤を探して画面を送ることになる */}
         {!snapshots ? (
           <>
-            <div style={{
-              marginBottom: 10, padding: "9px 12px", borderRadius: T.radius.md,
-              background: T.goldLight, fontSize: T.fontSize.sm, color: T.ink,
-              fontFamily: T.fontSerif, lineHeight: 1.7,
-            }}>
-              初手から順に、先手・後手の両方の駒を動かしてください。<br />
-              指し終えたら盤の上の<b>「記録を終わる」</b>を押すと、棋譜として保存できます。
-            </div>
-            {emptyWarn && (
-              <div style={{ marginBottom: 10, fontSize: T.fontSize.sm, color: T.red, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
-                まだ1手も動かしていません。盤の「棋譜を記録」からもう一度始めてください。
-              </div>
-            )}
             <ShogiBoard
               key={boardSeq}
               board={INITIAL_BOARD}
@@ -510,6 +500,19 @@ function RecordKifuModal({ onClose, onSave, customTags, onAddCustomTag }) {
               onChange={() => setTouched(true)}
               onRecordStop={handleRecordStop}
             />
+            {emptyWarn && (
+              <div style={{ marginTop: 10, fontSize: T.fontSize.sm, color: T.red, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
+                まだ1手も動かしていません。「棋譜を記録」からもう一度始めてください。
+              </div>
+            )}
+            <div style={{
+              marginTop: 10, padding: "9px 12px", borderRadius: T.radius.md,
+              background: T.goldLight, fontSize: T.fontSize.sm, color: T.ink,
+              fontFamily: T.fontSerif, lineHeight: 1.7,
+            }}>
+              初手から順に、先手・後手の両方の駒を動かしてください。<br />
+              指し終えたら<b>「記録を終わる」</b>を押すと、棋譜として保存できます。
+            </div>
           </>
         ) : (
           /* ── 記録後：内容を確かめて保存する ── */

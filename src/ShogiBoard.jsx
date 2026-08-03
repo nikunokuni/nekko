@@ -583,55 +583,61 @@ export default function ShogiBoard({
     color:       active ? '#1a0f00' : 'rgba(26,15,0,0.5)',
   });
 
+  // ── 記録の操作（棋譜を記録 / 手数・一手戻す・記録を終わる）──
+  //   既存の棋譜がある間は出さない（上書き防止。録り直すには先に「棋譜を削除」）。
+  //   置き場所は2通り：
+  //     通常（ノード編集）  … 道具と同じ行の右端
+  //     棋譜入力モード      … 盤の下（盤と持ち駒を画面の一番上に置きたいため）
+  //   同じものを2箇所に書くと片方だけ直す事故が起きるので、変数にして置き場所だけ変える。
+  const recordControls = (!readOnly && playbackIdx === null && kifuLen === 0) && (
+    <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap',
+      marginLeft: recordOnly ? 0 : 'auto', marginTop: recordOnly ? 6 : 0 }}>
+      {!isRecording ? (
+        <button data-onboard="board-kifu" onClick={startRecording} style={{
+          ...btnStyle(false), borderColor:'#854F0B', color:'#854F0B', gap:5,
+        }}>
+          <i className="ti ti-record-mail" style={{fontSize:"0.8125rem"}}/>棋譜を記録
+        </button>
+      ) : (
+        <>
+          <span style={{ fontSize:"0.6875rem", color:'#A93226', fontFamily:"'Noto Serif JP',serif", display:'flex', alignItems:'center', gap:4 }}>
+            <span style={{ width:7, height:7, borderRadius:'50%', background:'#A93226', display:'inline-block' }}/>
+            {recordingRef.current.snaps.length - 1}手
+          </span>
+          {/* 記録中の直前の1手だけ取り消す */}
+          <button
+            onClick={undoRecordedMove}
+            disabled={recordingRef.current.snaps.length < 2}
+            style={recordingRef.current.snaps.length < 2
+              ? { ...btnStyle(false), color:'#ccc', cursor:'default' }
+              : { ...btnStyle(false), borderColor:'#854F0B', color:'#854F0B' }}
+          >
+            <i className="ti ti-arrow-back-up" style={{fontSize:"0.8125rem"}}/>一手戻す
+          </button>
+          <button onClick={stopRecording} style={{
+            ...btnStyle(true), borderColor:'#A93226', background:'#A93226', color:'#fff',
+          }}>
+            記録を終わる
+          </button>
+        </>
+      )}
+    </div>
+  );
+
   return (
     <div style={{ maxWidth: 420 }}>
 
-      {/* ── ツールバー（再生中は非表示） ── */}
-      {!readOnly && playbackIdx === null && (
+      {/* ── ツールバー（再生中・棋譜入力モードでは非表示） ──
+          棋譜入力モードで道具を出さないのは、棋譜に残るのは駒の動きだけで、
+          スタンプは記録されないため。置けると「記録されたつもり」になる */}
+      {!readOnly && playbackIdx === null && !recordOnly && (
         <div style={{ display:'flex', gap:6, marginBottom:6, flexWrap:'wrap', alignItems:'center' }}>
-          {/* 棋譜入力モードでは道具を出さない。棋譜に残るのは駒の動きだけで、
-              スタンプは記録されないため、置けると「記録されたつもり」になる */}
-          {!recordOnly && [['move','動かす','ti-arrows-move'],['stamp','スタンプ','ti-stamp'],['erase','消す','ti-eraser']].map(([t,lbl,icon]) => (
+          {[['move','動かす','ti-arrows-move'],['stamp','スタンプ','ti-stamp'],['erase','消す','ti-eraser']].map(([t,lbl,icon]) => (
             <button key={t} data-onboard={`board-${t}`} onClick={() => { setTool(t); setSelected(null); setSelectedHand(null); setArrowStart(null); }} style={btnStyle(tool===t)}>
               <i className={`ti ${icon}`} style={{fontSize:"0.8125rem"}}/>{lbl}
             </button>
           ))}
-
-          {/* 棋譜記録ボタン。既存の棋譜がある間は表示しない（上書き防止）。
-              記録し直すには先に「棋譜を削除」してもらう */}
-          {kifuLen === 0 && (
-          <div style={{ marginLeft: recordOnly ? 0 : 'auto' }}>
-            {!isRecording ? (
-              <button data-onboard="board-kifu" onClick={startRecording} style={{
-                ...btnStyle(false), borderColor:'#854F0B', color:'#854F0B', gap:5,
-              }}>
-                <i className="ti ti-record-mail" style={{fontSize:"0.8125rem"}}/>棋譜を記録
-              </button>
-            ) : (
-              <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                <span style={{ fontSize:"0.6875rem", color:'#A93226', fontFamily:"'Noto Serif JP',serif", display:'flex', alignItems:'center', gap:4 }}>
-                  <span style={{ width:7, height:7, borderRadius:'50%', background:'#A93226', display:'inline-block' }}/>
-                  {recordingRef.current.snaps.length - 1}手
-                </span>
-                {/* 記録中の直前の1手だけ取り消す */}
-                <button
-                  onClick={undoRecordedMove}
-                  disabled={recordingRef.current.snaps.length < 2}
-                  style={recordingRef.current.snaps.length < 2
-                    ? { ...btnStyle(false), color:'#ccc', cursor:'default' }
-                    : { ...btnStyle(false), borderColor:'#854F0B', color:'#854F0B' }}
-                >
-                  <i className="ti ti-arrow-back-up" style={{fontSize:"0.8125rem"}}/>一手戻す
-                </button>
-                <button onClick={stopRecording} style={{
-                  ...btnStyle(true), borderColor:'#A93226', background:'#A93226', color:'#fff',
-                }}>
-                  記録を終わる
-                </button>
-              </div>
-            )}
-          </div>
-          )}
+          {recordControls}
         </div>
       )}
 
@@ -680,6 +686,9 @@ export default function ShogiBoard({
         boardSelected={!playSnap && tool === 'move' && !!selected}
         onDeposit={depositToHand}
       />
+
+      {/* 棋譜入力モードの記録操作は盤の下（盤と持ち駒が画面の一番上に来るようにする） */}
+      {recordOnly && recordControls}
 
       {/* ── 棋譜ナビ（保存済み棋譜がある場合）──
           再生は盤面を書き換えない閲覧操作なので、readOnly（公開ツリーのプレビュー等）でも使える */}
