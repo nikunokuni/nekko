@@ -102,11 +102,16 @@ function drawPiece(ctx, cx, cy, cellSize, pieceKey, highlighted) {
   ctx.font = `bold ${fontSize}px 'Noto Serif JP',serif`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   const ty = cy + h * 0.06;
+  // 文字の輪郭は白。駒の木目（黄土色）と文字色の明度が近いところがあり、
+  // 成駒の朱色は特に沈む。白で縁取ると、どの濃さの木目の上でも字形が浮く。
+  // lineJoin を round にするのは、明朝体のとがった画（はね・払い）で
+  // 既定の miter が針のように飛び出し、小さい盤では字が汚れて見えるため
+  ctx.strokeStyle = '#fff'; ctx.lineJoin = 'round';
   if (promoted) {
-    ctx.lineWidth = fontSize * 0.16; ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = fontSize * 0.16;
     ctx.strokeText(label, cx, ty); ctx.fillStyle = '#b00000'; ctx.fillText(label, cx, ty);
   } else {
-    ctx.lineWidth = fontSize * 0.12; ctx.strokeStyle = 'rgba(255,240,180,0.4)';
+    ctx.lineWidth = fontSize * 0.12;
     ctx.strokeText(label, cx, ty); ctx.fillStyle = '#1a0800'; ctx.fillText(label, cx, ty);
   }
   ctx.restore();
