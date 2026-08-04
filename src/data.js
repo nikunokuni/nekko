@@ -198,11 +198,13 @@ export const BOARD_TEMPLATES = [
 // ノード詳細の項目は設定でON/OFFできる
 // （メモアプリとして、自分に必要な項目だけに絞れるように）。
 // OFFは表示を消すだけで、入力済みのデータは消えない。
-// 「ついか」内の項目に加え、一言コメント（メモの下）と評価値（盤面の下）も対象。
+// 「ついか」内の項目に加え、一言コメント（メモの下）・評価値（盤面の下）・
+// ミニ盤面（スクロール中の貼り付け盤）も対象。
 // ※ 保存先のDB列名は歴史的経緯で tsuika_visibility のまま
 export const TSUIKA_ITEMS = [
   { key: "merge",        label: "合流（追加の親子リンク）",       icon: "ti-arrow-merge" },
   { key: "commentTags",  label: "一言コメント（メモの下）",       icon: "ti-message-2" },
+  { key: "boardPeek",    label: "ミニ盤面（スクロール中も盤を上に出す）", icon: "ti-pin" },
   { key: "evaluation",   label: "評価値（盤面の下）",             icon: "ti-chart-line" },
   { key: "orientation",  label: "志向（攻め・受け・バランス）",   icon: "ti-compass" },
   { key: "openingFocus", label: "序盤の意識（この局面までの心得）", icon: "ti-flag" },

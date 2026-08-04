@@ -500,6 +500,9 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
   const showCommentTags = isTsuikaVisible("commentTags");
   const showEvaluation  = isTsuikaVisible("evaluation");
   const showMerge       = isTsuikaVisible("merge");
+  // ミニ盤面（スクロールで盤が流れたら上端に貼り付く盤）。
+  // OFFにすると貼り付け自体が起きない（盤そのものの表示には関係しない）
+  const showBoardPeek   = isTsuikaVisible("boardPeek");
 
   // 「親ノードの盤面を引き継いでいます」バナーは、実際に親と同一局面（＝引き継いだまま
   // 編集していない）ときだけ表示する。テンプレート読込や編集で局面が変わったら消す。
@@ -902,6 +905,7 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
           onBranchRange={(startIdx, endIdx) => onBranchRangeFromKifu?.(nodeId, startIdx, endIdx)}
           canUndo={canUndoBoard}
           onUndo={handleUndoBoard}
+          stickyPeek={showBoardPeek}
         />
 
         {/* 手番・評価値（盤面表示中のみ。局面に紐づく情報のため盤面の直下に置く） */}

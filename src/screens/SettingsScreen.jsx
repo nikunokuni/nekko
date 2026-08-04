@@ -17,12 +17,16 @@ function formatBuildDate(iso) {
 }
 
 // ── Toggle: ON/OFFスイッチ（ついか項目の表示設定で使用）──
-function Toggle({ on, onChange }) {
+function Toggle({ on, onChange, label }) {
   return (
     <div
       onClick={onChange}
       role="switch"
       aria-checked={on}
+      // 見た目だけのスイッチなので、隣の項目名を名前として与える。
+      // 無いと読み上げでは「スイッチ」としか読まれず、どの項目のものか分からない
+      // （E2Eからも項目名で指せるようになる）
+      aria-label={label}
       style={{
         width: 40, height: 22, borderRadius: 11, flexShrink: 0,
         background: on ? T.gold : "rgba(26,15,0,0.15)",
@@ -271,7 +275,7 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOn
                 <span style={{ flex: 1, fontSize: T.fontSize.lg, color: tsuikaVis[it.key] ? T.ink : T.inkMid, fontFamily: T.fontSerif }}>
                   {it.label}
                 </span>
-                <Toggle on={tsuikaVis[it.key]} onChange={() => handleTsuikaToggle(it.key)} />
+                <Toggle on={tsuikaVis[it.key]} onChange={() => handleTsuikaToggle(it.key)} label={it.label} />
               </div>
             ))}
           </div>

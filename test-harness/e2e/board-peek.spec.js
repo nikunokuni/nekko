@@ -1,6 +1,7 @@
 // 盤の貼り付け（スクロールしても局面が見える）の回帰テスト。
 //   盤より下にあるメモや子ノードを、局面を見ながら読み書きするための機能なので、
-//   「スクロールしたら出る／戻したら消える／盤が非表示なら出ない」の3点だけ見張る。
+//   「スクロールしたら出る／戻したら消える／盤が非表示なら出ない」に加えて、
+//   消し方の2通り（×は今回だけ・設定はずっと）が混ざっていないかを見張る。
 //   ついでに、貼り付け盤とおおもとの盤が両方とも実解像度で描けていることも見る
 //   （同じ絵を描く2か所なので、片方だけ直して片方を忘れる形の事故が起きやすい）。
 import { test, expect } from "@playwright/test";
@@ -17,9 +18,9 @@ async function scrollBody(page, dy) {
   await page.waitForTimeout(300);
 }
 
-async function openNodeWithBoard(page) {
-  await login(page);
-  await createTree(page, "貼り付けテスト");
+// ログイン済みの状態から、盤のあるノード編集画面まで開く
+async function openNodeWithBoard(page, treeName = "貼り付けテスト") {
+  await createTree(page, treeName);
   await page.getByText("居飛車", { exact: true }).first().click();
   await page.waitForURL(/\/node\//);
   await page.getByText(/タップして盤面を追加/).click();
@@ -28,6 +29,7 @@ async function openNodeWithBoard(page) {
 
 test("スクロールで盤が流れると、縮小した盤が上端に貼り付く", async ({ page }) => {
   const errors = watchForAppErrors(page);
+  await login(page);
   await openNodeWithBoard(page);
 
   const peek = page.locator("[data-board-peek]");
@@ -87,8 +89,57 @@ test("スクロールで盤が流れると、縮小した盤が上端に貼り�
   expect(errors).toEqual([]);
 });
 
+test("×で閉じるとその場だけ消え、盤を通り直すとまた貼り付く", async ({ page }) => {
+  const errors = watchForAppErrors(page);
+  await login(page);
+  await openNodeWithBoard(page, "閉じるテスト");
+
+  const peek = page.locator("[data-board-peek]");
+  await scrollBody(page, 900);
+  await expect(peek).toHaveCount(1);
+
+  await page.getByRole("button", { name: "ミニ盤面を閉じる" }).click();
+  await expect(peek).toHaveCount(0);
+
+  // 閉じたあとにさらに下へ送っても戻ってこない（押した意味が無くなるため）
+  await scrollBody(page, 200);
+  await expect(peek).toHaveCount(0);
+
+  // 盤が見える位置まで戻せば「閉じた」は解除。もう一度流せばまた貼り付く。
+  // ここが出てこないと、閉じたが最後この画面では二度と使えないことになる
+  await scrollBody(page, -1100);
+  await scrollBody(page, 900);
+  await expect(peek).toHaveCount(1);
+
+  expect(errors).toEqual([]);
+});
+
+test("設定でミニ盤面をOFFにすると、スクロールしても貼り付かない", async ({ page }) => {
+  const errors = watchForAppErrors(page);
+  await login(page);
+
+  // 設定 →「ノード編集画面に表示する項目」→ ミニ盤面 をOFF
+  await page.goto("/settings");
+  await page.getByText("ノード編集画面に表示する項目").click();
+  const sw = page.getByRole("switch", { name: /ミニ盤面/ });
+  await expect(sw).toHaveAttribute("aria-checked", "true"); // 既定はON
+  await sw.click();
+  await expect(sw).toHaveAttribute("aria-checked", "false");
+
+  await page.goto("/");
+  await openNodeWithBoard(page, "設定OFFテスト");
+
+  // 盤そのものは今までどおり出る（消すのは貼り付けだけ）
+  await expect(page.locator("[data-main-board]")).toBeVisible();
+  await scrollBody(page, 900);
+  await expect(page.locator("[data-board-peek]")).toHaveCount(0);
+
+  expect(errors).toEqual([]);
+});
+
 test("盤を非表示にすると貼り付かない", async ({ page }) => {
   const errors = watchForAppErrors(page);
+  await login(page);
   await openNodeWithBoard(page);
 
   await page.getByRole("button", { name: /非表示/ }).click();

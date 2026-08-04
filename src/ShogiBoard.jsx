@@ -382,6 +382,10 @@ function BoardPeek({ board, stamps, handSente, handGote, availWidth }) {
 //   本体の盤は元の場所に残したままなので、貼り付いた瞬間に下の内容がずれ上がることはない。
 function StickyBoardPeek({ anchorRef, board, stamps, handSente, handGote }) {
   const [pin, setPin] = useState(null); // 貼り付け位置。null = 貼り付けない
+  // ×で閉じたかどうか。設定のON/OFFとは別物で、閉じるのは「今この場で邪魔」なとき。
+  // 盤が画面に戻った時点（pin が消えた時点）で解除するので、
+  // スクロールで盤を通り直せばまた貼り付く。閉じたことを覚えない＝設定を汚さない
+  const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
     const anchor = anchorRef.current;
@@ -399,6 +403,8 @@ function StickyBoardPeek({ anchorRef, board, stamps, handSente, handGote }) {
       const a = anchor.getBoundingClientRect();
       const c = sc.getBoundingClientRect();
       const next = a.top < c.top ? { top: c.top, left: c.left, width: c.width } : null;
+      // 盤が画面に戻ったら「閉じた」を解除する（次に流れたらまた貼り付く）
+      if (!next) setDismissed(false);
       // 位置が変わっていなければ同じオブジェクトを返して再描画を止める。
       // スクロール中は毎フレーム呼ばれるので、ここで止めないと指の動きが重くなる
       setPin(prev => {
@@ -420,7 +426,7 @@ function StickyBoardPeek({ anchorRef, board, stamps, handSente, handGote }) {
     };
   }, [anchorRef]);
 
-  if (!pin) return null;
+  if (!pin || dismissed) return null;
   return createPortal(
     // タップは受け取るが何もしない（下の入力欄に吸わせない）。
     // pointerEvents:'none' にすると、盤を押したつもりで裏の入力欄に文字が入る
@@ -430,6 +436,24 @@ function StickyBoardPeek({ anchorRef, board, stamps, handSente, handGote }) {
       borderBottom:'0.5px solid rgba(26,15,0,0.15)',
       boxShadow:'0 4px 10px rgba(26,15,0,0.12)',
     }}>
+      {/* 閉じるボタン。盤の下の文章を書いている最中に「今だけ邪魔」なときの逃げ道で、
+          設定のON/OFF（＝ずっと出さない）とは役割を分けている。
+          22px・right:2 なのは、貼り付け盤の中身（最大288px）と重ならない大きさに
+          収めるため。狭い端末（幅320px）でも中身の右端との間にちょうど収まる */}
+      <button
+        onClick={() => setDismissed(true)}
+        aria-label="ミニ盤面を閉じる"
+        title="閉じる（スクロールし直すとまた出ます）"
+        style={{
+          position:'absolute', top:2, right:2, width:22, height:22,
+          display:'flex', alignItems:'center', justifyContent:'center',
+          padding:0, borderRadius:11, cursor:'pointer',
+          border:'0.5px solid rgba(26,15,0,0.15)', background:'#f0e6cc',
+          color:'rgba(26,15,0,0.5)', lineHeight:1,
+        }}
+      >
+        <i className="ti ti-x" style={{ fontSize:'0.75rem' }} />
+      </button>
       <BoardPeek board={board} stamps={stamps} handSente={handSente} handGote={handGote}
         availWidth={pin.width} />
     </div>,

@@ -214,7 +214,7 @@ export function KifuPreviewBoard({ snapshots }) {
 // ──────────────────────────────────────────
 // BoardSection: 将棋盤の表示/追加エリア
 // ──────────────────────────────────────────
-export function BoardSection({ boardVisible, boardData, stamps, handSente, handGote, parentBoard, parentLabel, onToggle, onChange, onDelete, onLoadTemplate, kifu, onKifuChange, onKifuDelete, allowBranch, onBranchFromHere, onBranchRange, canUndo, onUndo }){
+export function BoardSection({ boardVisible, boardData, stamps, handSente, handGote, parentBoard, parentLabel, onToggle, onChange, onDelete, onLoadTemplate, kifu, onKifuChange, onKifuDelete, allowBranch, onBranchFromHere, onBranchRange, canUndo, onUndo, stickyPeek = true }){
   const [tmplOpen, setTmplOpen] = useState(false);
 
   // 盤面操作系ボタンの共通スタイル
@@ -372,8 +372,9 @@ export function BoardSection({ boardVisible, boardData, stamps, handSente, handG
           onBranchFromHere={onBranchFromHere}
           onBranchRange={onBranchRange}
           // 盤より下にあるメモ・気を付けること・子ノードを、局面を見ながら読み書きするため。
-          // 盤が非表示のときはこの分岐に来ない（上の early return）ので、貼り付けも起きない
-          stickyPeek
+          // 盤が非表示のときはこの分岐に来ない（上の early return）ので、貼り付けも起きない。
+          // 設定「ノード編集画面に表示する項目」でOFFにすると貼り付けない（既定はON）
+          stickyPeek={stickyPeek}
         />
       </div>
     </div>
