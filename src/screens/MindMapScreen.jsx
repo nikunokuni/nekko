@@ -3,13 +3,12 @@
 //   （ドラッグ操作・目次ドロワー付き）
 // ══════════════════════════════════════════════════════════════════
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
-import { Accordion } from "../components";
+import { Accordion, SummaryList } from "../components";
 import { STATUS_META, USAGE_META, ORIENTATION_META } from "../data";
+import { collapsedHiddenIds, visibleAnchor, subtreeCounts } from "../treeOps";
+import { layoutTree, findInboxId, NODE_W, NODE_H } from "../mapLayout";
+import { readCollapsed, writeCollapsed } from "../mapView";
 import { T } from "../theme";
-
-/** ノードの矩形サイズ */
-const NODE_W = 110;
-const NODE_H = 38;
 
 /** ステータス別のノード枠線・テキスト色 */
 const STATUS_NODE = {
@@ -34,111 +33,6 @@ function truncateLabel(label, maxWidth, fontSize) {
   return label;
 }
 
-/** 志向ごとのエッジ色（攻め=赤 / 受け=青 / バランス=緑 / 不明=グレー） */
-const ORIENTATION_LINE_COLOR = {
-  "攻め":     ORIENTATION_META["攻め"].color,
-  "受け":     ORIENTATION_META["受け"].color,
-  "バランス": ORIENTATION_META["バランス"].color,
-  "不明":     ORIENTATION_META["不明"].color,
-};
-
-/**
- * ツリー構造からSVG描画用の座標・エッジ情報を計算する
- *
- * ロジック:
- *   - 葉ノードを左から順番に配置（xCounter）
- *   - 親ノードは子ノード群の中央に配置
- *   - エッジは親の下端→子の上端へのベジェ曲線
- *
- * @param {Object} nodes  - ノードID→ノードオブジェクトのマップ
- * @param {string} rootId - ルートノードのID
- * @returns {{ positions: Object, edges: Array }}
- */
-// 「とりあえず」（置き場）は本体の枝の並びから外し、
-// ツリー全体の下に離して置く。置き場が枝の途中に混ざると、
-// 整理済みの分岐と見分けがつかなくなるため。
-export function findInboxId(nodes, rootId) {
-  const root = nodes[rootId];
-  if (!root) return null;
-  return (root.childIds || []).find((cid) => nodes[cid]?.isInbox) ?? null;
-}
-
-function layoutTree(nodes, rootId, inboxId = null) {
-  const positions = {};
-  const edges     = [];
-  let xCounter    = 0;
-  // 「とりあえず」の枝を本体のレイアウトから外すための基準。
-  // 本体を組んでから、その下に別の島として置き直す。
-  let yBase = 0;
-
-  /** 再帰的に各ノードの x/y 座標を割り当てる */
-  function assignPositions(id, depth) {
-    const node = nodes[id];
-    if (!node) return;
-
-    const children = (node.childIds || [])
-      .filter((cid) => nodes[cid])
-      .filter((cid) => cid !== inboxId);   // 置き場は本体に混ぜない
-
-    if (children.length === 0) {
-      // 葉ノード: 左から順に配置
-      positions[id] = { x: xCounter * (NODE_W + 16), y: yBase + depth * (NODE_H + 40) };
-      xCounter++;
-      return;
-    }
-
-    // 中間ノード: 子を先に配置してから中央に合わせる
-    const startX = xCounter;
-    children.forEach((cid) => assignPositions(cid, depth + 1));
-    const endX  = xCounter - 1;
-    const midX  = ((startX + endX) / 2) * (NODE_W + 16);
-    positions[id] = { x: midX, y: yBase + depth * (NODE_H + 40) };
-  }
-
-  /** 再帰的にエッジ情報を構築する */
-  function buildEdges(id) {
-    const node = nodes[id];
-    if (!node) return;
-
-    (node.childIds || []).filter((cid) => cid !== inboxId).forEach((cid) => {
-      const child   = nodes[cid];
-      const fromPos = positions[id];
-      const toPos   = positions[cid];
-      if (!child || !fromPos || !toPos) return;
-
-      edges.push({
-        from:    id,
-        to:      cid,
-        x1:      fromPos.x + NODE_W / 2,  // 親ノードの下辺中央
-        y1:      fromPos.y + NODE_H,
-        x2:      toPos.x   + NODE_W / 2,  // 子ノードの上辺中央
-        y2:      toPos.y,
-        color:   ORIENTATION_LINE_COLOR[child.orientation] || ORIENTATION_LINE_COLOR["不明"],
-        dashed:  !child.orientation || child.orientation === "不明",
-        isMerge: false,
-      });
-
-      buildEdges(cid);
-    });
-  }
-
-  assignPositions(rootId, 0);
-  buildEdges(rootId);
-
-  // ── 「とりあえず」の島を本体の下に置く ──
-  // 親（ルート）との線は引かない。ツリーの上から下まで貫く長い線になって
-  // 本体の枝と交差し、かえって読みにくくなるため。位置で所属を示す。
-  if (inboxId && nodes[inboxId]) {
-    const ys = Object.values(positions).map((p) => p.y);
-    yBase = (ys.length ? Math.max(...ys) : 0) + NODE_H + 72;
-    xCounter = 0;
-    assignPositions(inboxId, 0);
-    buildEdges(inboxId);
-  }
-
-  return { positions, edges };
-}
-
 // readOnly: 公開ツリーのプレビュー用。ドラッグでの親付け替えを無効にし、一言メモを閲覧のみにする
 export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparent, onUndoReparent, onMemoSave, readOnly = false }) {
   const [drawerOpen,   setDrawerOpen]   = useState(false);
@@ -149,12 +43,16 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
   const [animate,      setAnimate]      = useState(true); // 目次ジャンプ等のときだけ移動をアニメーションする
   const [nodeDrag,     setNodeDrag]     = useState(null); // 親付け替え中のノードID
   const [dropTarget,   setDropTarget]   = useState(null); // ドロップ先候補ノードID
+  const [drawerTab,    setDrawerTab]    = useState("index"); // ドロワー: "index" | "summary"
+  // 畳んでいるまとめノード。DBには持たず端末ローカル（mapView.js）に置く
+  const [collapsed,    setCollapsed]    = useState(() => readCollapsed(tree?.id));
   const dragStart    = useRef(null);
   const pinchStart   = useRef(null);
   const mapRef       = useRef(null);
   const drawerRef    = useRef(null);  // 目次ドロワー本体（ホイール操作の判定に使う）
   const nodeDragRef  = useRef(null);  // window リスナーから最新値を読むため
   const dropTargetRef = useRef(null);
+  const pendingJumpRef = useRef(null); // 畳みを開いてから飛ぶノード（座標が出るのを待つ）
 
   const MIN_SCALE = 0.4;
   const MAX_SCALE = 2.5;
@@ -204,23 +102,71 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
 
   // 「とりあえず」（置き場）は本体の下へ離して置く
   const inboxId = useMemo(() => findInboxId(nodes, rootId), [nodes, rootId]);
-  const { positions, edges } = useMemo(
-    () => rootId ? layoutTree(nodes, rootId, inboxId) : { positions: {}, edges: [] },
-    [nodes, rootId, inboxId]
+
+  // 畳んだまとめノードの配下（＝描かないノード）。
+  // まとめでなくなった／消えたノードの畳み指定は collapsedHiddenIds が黙って捨てる
+  const hiddenIds = useMemo(() => collapsedHiddenIds(nodes, collapsed), [nodes, collapsed]);
+
+  const { positions, edges, trunks } = useMemo(
+    () => rootId ? layoutTree(nodes, rootId, inboxId, hiddenIds) : { positions: {}, edges: [], trunks: [] },
+    [nodes, rootId, inboxId, hiddenIds]
   );
 
-  // 合流エッジ（追加の親 → 子）。紫の点線で、ノードを避けて描画する
+  // 別のツリーへ移ったら畳み方を読み直す。
+  // この画面はツリーが変わっても作り直されないことがあるため、放っておくと
+  // 前のツリーの畳み方が残り、下の保存でそれが新しいツリーの分として書き込まれる。
+  // 「レンダリング中に state を調整する」形にしてあるのは、useEffect にすると
+  // 読み直す前に一度だけ古い畳み方が保存されてしまうため
+  const [loadedTreeId, setLoadedTreeId] = useState(tree?.id);
+  if (loadedTreeId !== tree?.id) {
+    setLoadedTreeId(tree?.id);
+    setCollapsed(readCollapsed(tree?.id));
+  }
+
+  // 畳み方を端末に残す（次に開いたときも畳んだまま）
+  useEffect(() => { writeCollapsed(tree?.id, collapsed, nodes); }, [tree?.id, collapsed, nodes]);
+
+  /** まとめノードの開閉。ノード本体のタップ（＝詳細へ）とは別のボタンで行う */
+  const toggleCollapse = useCallback((id) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  /** そのノードが見えるように、祖先の畳みをすべて開く */
+  const expandAncestors = useCallback((id) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      let cur = nodes[id]?.parentId;
+      while (cur) { next.delete(cur); cur = nodes[cur]?.parentId; }
+      return next.size === prev.size ? prev : next;
+    });
+  }, [nodes]);
+
+  // 合流エッジ（追加の親 → 子）。紫の点線で、ノードを避けて描画する。
+  // 端点が畳んだ束の中にあるときは、束の代表（まとめノード）へ寄せて描く。
+  // 寄せずに positions を直接引くと、座標が無いぶんの線が黙って消える
   const mergeEdges = useMemo(() => {
-    const out = [];
+    const out  = [];
+    const seen = new Set();
     Object.values(nodes).forEach((n) => {
       (n.mergeParentIds || []).forEach((pid) => {
-        const from = positions[pid];
-        const to   = positions[n.id];
+        const a = visibleAnchor(nodes, pid,  hiddenIds);
+        const b = visibleAnchor(nodes, n.id, hiddenIds);
+        // 束の中で完結する合流は、外から見ても意味が無いので描かない
+        if (!a || !b || a === b) return;
+        const key = `${a}>${b}`;
+        if (seen.has(key)) return;   // 同じ束どうしの合流が何本もあっても線は1本
+        seen.add(key);
+        const from = positions[a];
+        const to   = positions[b];
         if (from && to) out.push({ from, to });
       });
     });
     return out;
-  }, [nodes, positions]);
+  }, [nodes, positions, hiddenIds]);
 
   // ── ノードドラッグで親付け替え ─────────────────
   /** あるノードの子孫ID集合（循環防止）。
@@ -292,6 +238,14 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
         onNodeSelect(dd.id); // 動いていなければ通常の選択
       } else if (!dd.noMove && target && target !== nodes[dd.id]?.parentId && typeof onReparent === "function") {
         onReparent(dd.id, target);
+        // 畳んだ束へ入れたときは開く。入れたのに中が見えないと、
+        // 入ったかどうかが分からない
+        setCollapsed((prev) => {
+          if (!prev.has(target)) return prev;
+          const next = new Set(prev);
+          next.delete(target);
+          return next;
+        });
       }
       nodeDragRef.current = null;
       dropTargetRef.current = null;
@@ -323,6 +277,15 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
     };
   }, [positions]);
 
+  /** マップ領域の横中央（px）。
+      以前はここが 140 の決め打ちだった。ツリーが必ず右へ伸びる前提の値で、
+      棋譜の分岐を幹の左右に振り分けるようにしてからは、左側の枝が画面の外に
+      出てしまう。実際の幅から出せば、左右どちらに伸びていても収まる */
+  const viewCenterX = useCallback(() => {
+    const w = mapRef.current?.getBoundingClientRect().width;
+    return w ? w / 2 : 140;
+  }, []);
+
   // ── ルートノードを画面内（上部中央）に表示する ──
   // 大きいツリーではキャンバス左上（＝最深部の葉）だけが見えてしまうため、
   // 初期表示と「表示リセット」はルートを基準にする。
@@ -330,10 +293,10 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
     const pos = rootId ? positions[rootId] : null;
     if (!pos) { setCanvasOffset({ x: 20, y: 20 }); return; }
     setCanvasOffset({
-      x: 140 - (pos.x + NODE_W / 2) * s,
+      x: viewCenterX() - (pos.x + NODE_W / 2) * s,
       y: 70 - pos.y * s,
     });
-  }, [positions, rootId]);
+  }, [positions, rootId, viewCenterX]);
 
   // 初回マウント時にルートを表示する
   const didInitViewRef = useRef(false);
@@ -424,15 +387,28 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
   const jumpToNode = useCallback((nodeId) => {
     setDrawerOpen(false);
     const pos = positions[nodeId];
-    if (!pos) return;
+    if (!pos) {
+      // 畳んだ束の中にあるノードは座標を持たない。祖先を開いてから飛ぶ。
+      // ここを素通りさせると「目次に出ているのに飛べないノード」ができる
+      if (nodes[nodeId]) { expandAncestors(nodeId); pendingJumpRef.current = nodeId; }
+      return;
+    }
     setAnimate(true);
     // キャンバスは transformOrigin 0,0 で scale 倍されるため、画面中央に合わせるには
     // ノードのキャンバス座標に scale を掛けてからオフセットを算出する
     setCanvasOffset({
-      x: 140 - (pos.x + NODE_W / 2) * scale,
+      x: viewCenterX() - (pos.x + NODE_W / 2) * scale,
       y: 200 - (pos.y + NODE_H / 2) * scale,
     });
-  }, [positions, scale]);
+  }, [positions, scale, nodes, expandAncestors, viewCenterX]);
+
+  // 畳みを開いた結果あらためて座標が付いたら、待たせておいたジャンプを実行する
+  useEffect(() => {
+    const id = pendingJumpRef.current;
+    if (!id || !positions[id]) return;
+    pendingJumpRef.current = null;
+    jumpToNode(id);
+  }, [positions, jumpToNode]);
 
   // エッジ色→マーカーインデックスのマッピング
   const MARKER_COLORS = [
@@ -504,6 +480,35 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
               ))}
             </defs>
 
+            {/* 幹（棋譜の手数軸）。親ノードの下から伸ばした1本の線に、分岐した手数の
+                目盛りを打つ。目盛りは枝の出る側へ突き出し、数字も同じ側に置くので、
+                幹を上から下へ辿れば「3 → 12 → 20」と読める。
+                線として描くことで、ノードの矩形（当たり判定・合流線・ズーム）は変えずに済む */}
+            {trunks.map((tr, i) => (
+              <g key={`t${i}`}>
+                <line
+                  x1={tr.x} y1={tr.y0} x2={tr.x} y2={tr.y1}
+                  stroke={T.inkLine} strokeWidth={1.5} strokeLinecap="round"
+                />
+                {tr.ticks.map((tick, j) => (
+                  <g key={j}>
+                    <line
+                      x1={tr.x} y1={tick.y} x2={tr.x + tick.dir * 9} y2={tick.y}
+                      stroke={T.inkLine} strokeWidth={1.5} strokeLinecap="round"
+                    />
+                    {/* 数字は目盛りの少し上。枝の曲線と重ならないようにする */}
+                    <text
+                      x={tr.x + tick.dir * 12} y={tick.y - 3}
+                      textAnchor={tick.dir < 0 ? "end" : "start"}
+                      fontSize={8} fill={T.inkMid} fontFamily={T.fontSerif}
+                    >
+                      {tick.label}
+                    </text>
+                  </g>
+                ))}
+              </g>
+            ))}
+
             {/* エッジ（ベジェ曲線） */}
             {edges.map((edge, i) => {
               const midY = (edge.y1 + edge.y2) / 2;
@@ -565,6 +570,15 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
               const cx = pos.x + NODE_W / 2;
               const cy = pos.y + NODE_H / 2;
 
+              // ── まとめノード（＝章の見出し。ここから下を束ねられる）──
+              // ルートは畳めない（畳むとツリー全体が消える）。置き場は既に別扱い
+              const canCollapse   = node.isSummary && !isRoot && !node.isInbox
+                                    && (node.childIds || []).some((c) => nodes[c]);
+              const isCollapsed   = canCollapse && collapsed.has(id);
+              // 畳んでいる間も中の状態が分かるようにする。分からないと畳んだ枝が
+              // そのまま忘れられ、研究が止まったことに気づけない
+              const counts        = isCollapsed ? subtreeCounts(nodes, id) : null;
+
               return (
                 <g
                   key={id}
@@ -574,14 +588,83 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
                   onTouchStart={(e) => { e.stopPropagation(); const t = e.touches[0]; startNodeDrag(id, t.clientX, t.clientY); }}
                   style={{ cursor: "pointer", opacity: isBeingDragged ? 0.5 : 1 }}
                 >
+                  {/* まとめノードは、後ろにカードが重なっているように描く（＝束ねられる印）。
+                      色は志向のまま変えない（凡例と矛盾させないため） */}
+                  {canCollapse && (
+                    <rect
+                      x={rx + 3} y={ry + 3} width={w} height={h}
+                      rx={6} fill={nodeColor.fill} stroke={nodeColor.stroke}
+                      strokeWidth={0.6} opacity={0.55}
+                    />
+                  )}
+
                   <rect
                     x={rx} y={ry} width={w} height={h}
                     rx={isRoot ? 9 : 6}
                     fill={isDropTarget ? T.goldBg : nodeColor.fill}
                     stroke={isDropTarget ? T.gold : node.isMergeTarget ? T.purple : nodeColor.stroke}
-                    strokeWidth={isDropTarget ? 2.5 : isRoot || node.isMergeTarget ? 1.5 : 0.9}
+                    strokeWidth={isDropTarget ? 2.5 : isRoot || node.isMergeTarget || canCollapse ? 1.5 : 0.9}
                     strokeDasharray={s.dashed ? "5 2.5" : "none"}
                   />
+
+                  {/* 畳んでいるときの中身の内訳（完成／研究中／未定の比率バー）と件数 */}
+                  {isCollapsed && counts.total > 0 && (
+                    <>
+                      {(() => {
+                        const barW = w - 16;
+                        let acc = 0;
+                        return ["done", "wip", "todo"].map((k) => {
+                          const seg = (counts[k] / counts.total) * barW;
+                          const x   = rx + 8 + acc;
+                          acc += seg;
+                          if (seg <= 0) return null;
+                          return (
+                            <rect
+                              key={k} x={x} y={ry + 3} width={seg} height={3} rx={1.5}
+                              fill={STATUS_META[k]?.dot || T.gray}
+                            />
+                          );
+                        });
+                      })()}
+                      <text
+                        x={rx + 4} y={ry + h + 11}
+                        fontSize={9} fill={T.gold} fontFamily={T.fontSerif}
+                      >
+                        ＋{counts.total}
+                      </text>
+                    </>
+                  )}
+
+                  {/* 開閉ボタン。ノード本体のタップ（＝詳細へ）／ドラッグ（＝親付け替え）は
+                      そのままなので、3つ目のジェスチャを増やさず小さなボタンで開閉する。
+                      絵しか無いので aria-label が要る（読み上げ・E2Eから指すため） */}
+                  {canCollapse && (
+                    <g
+                      role="button"
+                      aria-label={`「${node.label}」の枝を${isCollapsed ? "開く" : "畳む"}`}
+                      // 開閉は onClick だけで行う。touchstart でも開閉すると、
+                      // タッチ端末（＝このアプリの主戦場）で touchstart と click の
+                      // 両方が走って2回切り替わり、押しても何も起きないように見える。
+                      // ここでは伝播だけ止めて（＝ノードのドラッグを始めさせない）、
+                      // preventDefault はしない。すると touchend のあとに click が来る
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onTouchStart={(e) => e.stopPropagation()}
+                      onClick={(e) => { e.stopPropagation(); toggleCollapse(id); }}
+                      style={{ cursor: "pointer" }}
+                    >
+                      <circle
+                        cx={rx + w - 5} cy={ry + h + 3} r={7.5}
+                        fill={T.cream} stroke={T.gold} strokeWidth={1}
+                      />
+                      <text
+                        x={rx + w - 5} y={ry + h + 3.5}
+                        textAnchor="middle" dominantBaseline="middle"
+                        fontSize={11} fill={T.gold} fontFamily={T.fontSerif}
+                      >
+                        {isCollapsed ? "＋" : "−"}
+                      </text>
+                    </g>
+                  )}
 
                   {/* ステータスドット（ルート・todo 以外） */}
                   {!isRoot && node.status !== "todo" && (
@@ -724,14 +807,42 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
           display:    "flex",
           flexDirection: "column",
         }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 14px 10px", borderBottom: `0.5px solid ${T.inkLine}`, flexShrink: 0 }}>
-            <span style={{ fontFamily: T.fontTitle, fontSize: T.fontSize.xl, color: T.ink, letterSpacing: "0.2em" }}>目次</span>
-            <button onClick={() => setDrawerOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1rem" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 14px 10px", flexShrink: 0 }}>
+            {/* 目次＝探す場所、まとめ＝続けて読む場所。役割が違うのでタブで分ける */}
+            <div style={{ display: "flex", gap: 14 }}>
+              {[
+                { key: "index",   label: "目次" },
+                { key: "summary", label: "まとめ" },
+              ].map((t) => (
+                <span
+                  key={t.key}
+                  onClick={() => setDrawerTab(t.key)}
+                  style={{
+                    fontFamily:   T.fontTitle,
+                    fontSize:     T.fontSize.xl,
+                    letterSpacing: "0.15em",
+                    cursor:       "pointer",
+                    color:        drawerTab === t.key ? T.ink : T.inkFaint,
+                    borderBottom: drawerTab === t.key ? `1.5px solid ${T.gold}` : "1.5px solid transparent",
+                    paddingBottom: 2,
+                  }}
+                >
+                  {t.label}
+                </span>
+              ))}
+            </div>
+            <button onClick={() => setDrawerOpen(false)} aria-label="閉じる" style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1rem" }}>
               <i className="ti ti-x" />
             </button>
           </div>
-          <div style={{ flex: 1, overflowY: "auto", overscrollBehavior: "contain" }}>
-            <Accordion nodes={nodes} rootId={rootId} rootChildIds={rootNode?.childIds || []} onSelect={jumpToNode} />
+          <div style={{ flex: 1, overflowY: "auto", overscrollBehavior: "contain", borderTop: `0.5px solid ${T.inkLine}` }}>
+            {/* 目次はマップの畳み状態と連動させない。探すための場所なので常に全部見える
+                （畳んだ中のノードを選んだときは jumpToNode が祖先を開いてから飛ぶ） */}
+            {drawerTab === "index" ? (
+              <Accordion nodes={nodes} rootId={rootId} rootChildIds={rootNode?.childIds || []} onSelect={jumpToNode} />
+            ) : (
+              <SummaryList nodes={nodes} rootId={rootId} onSelect={jumpToNode} />
+            )}
           </div>
 
           {/* 一言メモ（閲覧専用時はテキスト表示のみ） */}
@@ -792,6 +903,14 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
         {/* 合流エッジ（紫の点線）の凡例 */}
         <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: T.fontSize.sm, color: T.inkMid }}>
           <div style={{ width: 18, height: 0, borderTop: `2px dashed ${T.purple}` }} />合流
+        </div>
+        {/* まとめノード＝後ろにカードが重なった見た目。＋/− で束ねられる */}
+        <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: T.fontSize.sm, color: T.inkMid }}>
+          <div style={{ position: "relative", width: 14, height: 10, flexShrink: 0 }}>
+            <div style={{ position: "absolute", left: 3, top: 2, width: 10, height: 7, border: `0.5px solid ${T.gold}`, borderRadius: 2, opacity: 0.55 }} />
+            <div style={{ position: "absolute", left: 0, top: 0, width: 10, height: 7, border: `1px solid ${T.gold}`, borderRadius: 2, background: T.cream }} />
+          </div>
+          まとめ
         </div>
         {[
           { color: T.green,   label: "完成" },

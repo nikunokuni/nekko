@@ -59,6 +59,13 @@ export const NODE_FIELDS = [
   { key: "evaluation",  column: "evaluation",   def: null },
   { key: "whenToUse",   column: "when_to_use",  def: "" },
   { key: "openingFocus", column: "opening_focus", def: "" },
+  // まとめノード（＝章の見出し）。マップでここから下を束ねられる。
+  // isRoot / isInbox と違って noPatch を付けないのは、あとから切り替えるものだから。
+  // 「主根／側根」のような型を増やさず、普通のノードに印を1つ足す形にしてある
+  { key: "isSummary",   column: "is_summary",   def: false },
+  // 戦型全体の考え方（棋書の章末まとめ）。局面に紐づく aim/caution/nextStudy とは
+  // 役割が違うので列を分けてある（まとめだけを続けて読むために引けるようにする）
+  { key: "summary",     column: "summary",      def: "" },
 ];
 
 // 変換の中身は kifuFields.js と共通なので fieldRegistry.js に置いてある

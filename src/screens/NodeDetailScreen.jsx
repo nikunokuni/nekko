@@ -4,8 +4,9 @@
 // ══════════════════════════════════════════════════════════════════
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
-  StatusChip, MergeTag, Divider, BackBtn,
+  StatusChip, MergeTag, SummaryTag, Divider, BackBtn,
 } from "../components";
+import { orderedChildIds } from "../treeOps";
 import {
   STATUS_META, ORIENTATION_META, STRATEGY_GROUPS, WIN_RATE_LEVELS, LIKE_LEVELS, COMMENT_GROUPS, USAGE_LEVELS, USAGE_META,
 } from "../data";
@@ -223,6 +224,11 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
   const [nextStudy,   setNextStudy]   = useState("");
   const [whenToUse,   setWhenToUse]   = useState(""); // きほん：いつ使う（短文）
   const [openingFocus, setOpeningFocus] = useState(""); // ついか：序盤の意識
+  const [summary,     setSummary]     = useState(""); // まとめ：戦型全体の考え方
+  // まとめノードでは局面まわり（盤面・手番・棋譜）を畳んでおく。
+  // 「ざっくり」を項目を消して表すと、まとめを解除したときに入力済みの値が
+  // 画面から消えたように見える。消さずに畳むだけにして、開けば元通りにする
+  const [positionOpen, setPositionOpen] = useState(true);
   // 分岐の候補（実戦で当たった相手）。開いたときだけ棋譜を読む
   const [branchOpen,     setBranchOpen]     = useState(false);
   const [branchGames,    setBranchGames]    = useState(null);  // null = 未取得
@@ -303,6 +309,8 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
       setNextStudy(node.nextStudy || "");
       setWhenToUse(node.whenToUse || "");
       setOpeningFocus(node.openingFocus || "");
+      setSummary(node.summary || "");
+      setPositionOpen(!node.isSummary);
       setBoardVisible(!!node.board && !node.boardHidden);
       setBoardData(node.board || null);
       setStamps(node.stamps || []);
@@ -443,7 +451,9 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
   //   node が消えた瞬間にフックの個数が減り、React が
   //   "Rendered fewer hooks than expected" を投げて画面ごと落ちる。
   //   そのため node が無くても計算できる形（node?.）にして前倒ししてある。
-  const children = (node?.childIds || []).map((id) => tree.nodes[id]).filter(Boolean);
+  // 並び順は treeOps に一本化する。マップと一覧で順番が食い違うと、
+  // どちらが本当の並びなのか分からなくなる（棋譜の分岐はどちらも手数順になる）
+  const children = orderedChildIds(tree.nodes, nodeId).map((id) => tree.nodes[id]);
 
   // ── 分岐の候補 ────────────────────────────────────
   // 実戦で当たった相手を候補として出す。アプリが出すのは「相手が選ぶ分岐」だけで、
@@ -842,6 +852,43 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
         {/* ════════════════ きほん ════════════════ */}
         <SectionHeader icon="ti-pencil" dataOnboard="kihon">きほん</SectionHeader>
 
+        {/* まとめ（戦型全体の考え方）。まとめノードとルートにだけ出す。
+            棋書の章末まとめにあたるもので、局面ではなく戦型に対する方針を書く。
+            局面に紐づく「ここでの狙い / 気を付けること」（研究メモ）とは役割が違うので
+            列を分けてある（まとめだけを続けて読めるようにするため）。
+            局面より先に出すのは、まとめノードでは局面が主役ではないから */}
+        {(node.isSummary || node.isRoot) && (
+          <div style={{ padding: "0 16px 12px" }}>
+            <SectionLabel style={{ marginBottom: 5 }}>
+              <i className="ti ti-bookmark" style={{ fontSize: "0.75rem", color: T.gold, marginRight: 4 }} />
+              {node.isRoot ? "まとめ（このツリー全体の考え方）" : "まとめ（この戦型の考え方）"}
+            </SectionLabel>
+            <textarea
+              value={summary}
+              onChange={(e) => { setSummary(e.target.value); scheduleSave({ summary: e.target.value }); }}
+              onBlur={(e)  => { e.target.style.borderColor = T.inkLine; flushSave(); }}
+              onFocus={(e) => (e.target.style.borderColor = T.gold)}
+              placeholder="例：この戦型は角道を止めるかどうかで方針が変わる。止めるなら美濃を優先し、待ってから動く。止めないなら…"
+              rows={6}
+              style={{ width: "100%", border: `0.5px solid ${T.inkLine}`, borderRadius: T.radius.sm, padding: "10px 12px", fontSize: T.fontSize.base, color: T.ink, background: T.cream, resize: "none", fontFamily: T.fontSerif, lineHeight: 1.7, outline: "none", boxSizing: "border-box" }}
+            />
+          </div>
+        )}
+
+        {/* まとめノードでは局面まわりを畳んでおく（開けば今までどおり全部ある）。
+            項目を消すのではなく畳むだけにしてあるので、まとめを解除すれば元に戻る */}
+        {node.isSummary && (
+          <div
+            onClick={() => setPositionOpen((v) => !v)}
+            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px 8px", cursor: "pointer" }}
+          >
+            <SectionLabel style={{ marginBottom: 0 }}>局面（盤面・手番・棋譜）</SectionLabel>
+            <i className={`ti ti-chevron-${positionOpen ? "up" : "down"}`} style={{ fontSize: "0.8125rem", color: T.inkMid }} />
+          </div>
+        )}
+
+        {(!node.isSummary || positionOpen) && <>
+
         {/* 盤面 ―「きほん」の先頭に置く。
             このノードが何の話なのかは局面を見れば分かるので、文字入力欄より先に出す。
             下にあると、ノードを開くたびに盤を探して画面を送ることになっていた。
@@ -997,6 +1044,8 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
           </div>
         )}
 
+        </>}
+
         <Divider />
 
         {/* ノード名 + ステータス */}
@@ -1038,6 +1087,36 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
             ))}
           </div>
         </div>
+
+        {/* まとめノードにするトグル。
+            1つのフラグが「マップで束ねる」と「戦型のまとめを書く」の2つを同時に
+            意味するので、説明を1行添える。ルートは畳めない（ツリー全体が消えるため）ので
+            トグルを出さず、まとめ欄だけ常に出している。置き場は既に別扱い */}
+        {!node.isRoot && !node.isInbox && (
+          <div style={{ padding: "0 16px 10px" }}>
+            <button
+              onClick={() => {
+                const next = !node.isSummary;
+                setPositionOpen(!next);
+                saveField({ isSummary: next }, () => {}, () => {});
+              }}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "6px 12px", borderRadius: T.radius.xl, cursor: "pointer",
+                fontFamily: T.fontSerif, fontSize: T.fontSize.base,
+                border: node.isSummary ? `1px solid ${T.gold}` : `0.5px dashed ${T.inkLine}`,
+                background: node.isSummary ? T.goldLight : "transparent",
+                color: node.isSummary ? T.gold : T.inkMid,
+              }}
+            >
+              <i className={`ti ti-bookmark${node.isSummary ? "-filled" : ""}`} style={{ fontSize: "0.8125rem" }} />
+              {node.isSummary ? "まとめノードにしています" : "このノードをまとめにする"}
+            </button>
+            <div style={{ fontSize: T.fontSize.sm, color: T.inkFaint, marginTop: 4, fontFamily: T.fontSerif, lineHeight: 1.6 }}>
+              マップでこの下を束ねられます／戦型全体の考えを書けます
+            </div>
+          </div>
+        )}
 
         {/* 相手の戦法・局面の状況 / 自分の戦法 */}
         {!node.isRoot && (
@@ -1288,6 +1367,9 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
             {children.map((child) => {
               const m = STATUS_META[child.status] || STATUS_META.todo;
               const childWhenToUse = (child.whenToUse || "").trim();
+              // 棋譜から切り出した分岐は、何手目から分かれたかを出す（並びも手数順）。
+              // マップでは幹の目盛りが同じことを示している
+              const mv = (node.kifu || []).length > 0 ? child.branchFromMoveIndex : null;
               return (
                 <div
                   key={child.id}
@@ -1297,6 +1379,11 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
                   onMouseLeave={(e) => (e.currentTarget.style.background = T.cream)}
                 >
                   <div style={{ width: 2, height: childWhenToUse ? 30 : 20, borderRadius: 1, flexShrink: 0, background: m.dashed ? "transparent" : m.dot, border: m.dashed ? "0.5px dashed #B4B2A9" : "none" }} />
+                  {mv != null && (
+                    <span style={{ fontSize: T.fontSize.xs, color: T.inkMid, fontFamily: T.fontSerif, flexShrink: 0 }}>
+                      {mv === 0 ? "初期局面" : `第${mv}手`}
+                    </span>
+                  )}
                   {/* いつ使うメモがあれば、ノード名の下に小さく表示する */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ fontSize: T.fontSize.base, color: T.ink }}>{child.label}</span>
@@ -1307,6 +1394,7 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
                       </div>
                     )}
                   </div>
+                  {child.isSummary && <SummaryTag />}
                   {child.isMergeTarget && <MergeTag />}
                   <StatusChip status={child.status} />
                   <i className="ti ti-chevron-right" style={{ fontSize: "0.875rem", color: T.gray }} />

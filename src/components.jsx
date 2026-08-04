@@ -5,6 +5,7 @@
 // ══════════════════════════════════════════════════
 import { useState, useMemo } from "react";
 import { STATUS_META, PIECE_LABEL, PROMOTED_LABEL } from "./data";
+import { orderedChildIds } from "./treeOps";
 import { T } from "./theme";
 
 // ── MiniBoard ─────────────────────────────────────
@@ -93,6 +94,22 @@ export function MergeTag() {
   );
 }
 
+// ── SummaryTag ────────────────────────────────────
+// まとめノード（＝章の見出し）の印。合流タグと並ぶので同じ寸法にそろえる
+export function SummaryTag() {
+  return (
+    <span style={{
+      display:'inline-flex', alignItems:'center', gap:3,
+      fontSize:T.fontSize.xs, padding:'1px 5px', borderRadius:T.radius.sm,
+      background:T.goldLight, color:T.gold,
+      border:`0.5px solid ${T.gold}55`,
+      fontFamily:T.fontSerif,
+    }}>
+      <i className="ti ti-bookmark" style={{fontSize:"0.5rem"}}/>まとめ
+    </span>
+  );
+}
+
 // ── Divider ───────────────────────────────────────
 export function Divider({ style = {} }) {
   return <div style={{ height:'0.5px', background:T.inkLineFaint, ...style }} />;
@@ -115,7 +132,9 @@ export function BackBtn({ onClick }) {
 // ══════════════════════════════════════════════════
 function AccordionItem({ node, nodes, depth, onSelect }) {
   const [open, setOpen] = useState(depth === 0);
-  const hasChildren = node.childIds && node.childIds.length > 0;
+  // 並び順は treeOps に一本化する（棋譜の分岐はマップと同じ手数順で出す）
+  const childIds = orderedChildIds(nodes, node.id);
+  const hasChildren = childIds.length > 0;
   const m = STATUS_META[node.status] || STATUS_META.todo;
   const pl = 12 + depth * 12;
 
@@ -138,6 +157,7 @@ function AccordionItem({ node, nodes, depth, onSelect }) {
         }}/>
         <span style={{fontSize:T.fontSize.md,color:T.gold,marginRight:5,flexShrink:0}}>{node.num}</span>
         <span style={{fontSize:T.fontSize.base,color:T.ink,flex:1,lineHeight:1.35}}>{node.label}</span>
+        {node.isSummary && <SummaryTag/>}
         {node.isMergeTarget && <MergeTag/>}
         <StatusChip status={node.status} style={{marginLeft:4}}/>
         {hasChildren && (
@@ -170,7 +190,7 @@ function AccordionItem({ node, nodes, depth, onSelect }) {
 
       {hasChildren && open && (
         <div>
-          {node.childIds.map((cid, idx) => {
+          {childIds.map((cid, idx) => {
             const child = nodes[cid];
             if (!child) return null;
             return (
@@ -190,7 +210,8 @@ function AccordionItem({ node, nodes, depth, onSelect }) {
 }
 
 export function Accordion({ nodes, rootId, rootChildIds, onSelect }) {
-  const safeIds = rootChildIds || [];
+  // 並び順は treeOps に一本化する。rootChildIds はルートが読めないときの控え
+  const safeIds = rootId && nodes?.[rootId] ? orderedChildIds(nodes, rootId) : (rootChildIds || []);
   const root = rootId ? nodes[rootId] : null;
   return (
     <div>
@@ -233,6 +254,92 @@ export function Accordion({ nodes, rootId, rootChildIds, onSelect }) {
             depth={0}
             onSelect={onSelect}
           />
+        );
+      })}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════
+// SummaryList  ―  ドロワーの「まとめ」タブ
+//
+//   まとめノードだけを縦に並べて全文を出す。棋書の章末まとめを続けて読む形。
+//   まとめを書く欄を作るだけでは半分で、「まとめだけを続けて読める」ことが
+//   この機能の狙い（局面ではなく戦型に対する方針を確認する）。
+//
+//   並びはツリーの深さ優先＝マップを左から右へ辿った順にする。
+//   「まだ書いていない」まとめも薄く出す。隠すと、まとめノードにしたのに
+//   本文が空のままであることに気づけない。
+// ══════════════════════════════════════════════════
+export function SummaryList({ nodes, rootId, onSelect }) {
+  const items = useMemo(() => {
+    const out = [];
+    const walk = (id) => {
+      const n = nodes?.[id];
+      if (!n) return;
+      if (n.isSummary && !n.isInbox) {
+        // 章の大きさ（配下の件数と完成数）を出す。畳んでいても進み具合が分かるように
+        let total = 0, done = 0;
+        const stack = [...(n.childIds || [])];
+        const seen  = new Set();
+        while (stack.length) {
+          const cur = stack.pop();
+          const c = nodes[cur];
+          if (!c || seen.has(cur)) continue;
+          seen.add(cur);
+          total++;
+          if (c.status === "done") done++;
+          stack.push(...(c.childIds || []));
+        }
+        out.push({ node: n, total, done });
+      }
+      (n.childIds || []).forEach(walk);
+    };
+    if (rootId) walk(rootId);
+    return out;
+  }, [nodes, rootId]);
+
+  if (items.length === 0) {
+    return (
+      <div style={{ padding:'16px 14px', fontSize:T.fontSize.base, color:T.inkFaint, fontFamily:T.fontSerif, lineHeight:1.8 }}>
+        まとめノードがまだありません。<br/>
+        ノードの詳細画面で「このノードをまとめにする」を押すと、
+        戦型全体の考え方を書けるようになり、マップでその下を束ねられます。
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {items.map(({ node, total, done }) => {
+        const text = (node.summary || "").trim();
+        return (
+          <div
+            key={node.id}
+            onClick={() => onSelect?.(node.id)}
+            style={{
+              padding:'11px 14px', cursor:'pointer',
+              borderBottom:'0.5px solid rgba(26,15,0,0.06)',
+              transition:'background 0.1s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(160,120,64,0.07)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+          >
+            <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
+              <i className="ti ti-bookmark" style={{ fontSize:'0.6875rem', color:T.gold, flexShrink:0 }}/>
+              <span style={{ fontSize:T.fontSize.base, color:T.ink, fontWeight:600, flex:1, lineHeight:1.35 }}>{node.label}</span>
+              <span style={{ fontSize:T.fontSize.xs, color:T.inkFaint, fontFamily:T.fontSerif, flexShrink:0 }}>
+                {total}件・完成{done}
+              </span>
+            </div>
+            <div style={{
+              fontSize:T.fontSize.base, lineHeight:1.7, whiteSpace:'pre-wrap',
+              color: text ? T.inkMid : T.inkFaint,
+              fontFamily:T.fontSerif,
+            }}>
+              {text || "（まだ書いていない）"}
+            </div>
+          </div>
         );
       })}
     </div>

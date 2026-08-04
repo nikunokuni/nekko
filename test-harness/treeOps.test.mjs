@@ -4,6 +4,8 @@
 import {
   collectTreeTags, nextSortOrder, addNode, applyNodePatch,
   reparent, setMergeParents, removeNodes,
+  collapsedHiddenIds, chapterOf, visibleAnchor, subtreeCounts,
+  isTrunkParent, orderedChildIds, branchRanks, branchSides,
 } from "../src/treeOps.js";
 
 let pass = 0, fail = 0;
@@ -104,6 +106,182 @@ function makeTree() {
   // a(4,棒銀) b(5,四間飛車) が対象。頻度降順で b→a
   check("collectTreeTags: 頻度4以上を降順集約", eq(collectTreeTags(t.nodes), ["四間飛車", "棒銀"]));
   check("collectTreeTags: ルートは除外", !collectTreeTags(t.nodes).includes(undefined));
+}
+
+// ══════════════════════════════════════════════════
+// まとめノード（束ね）
+// ══════════════════════════════════════════════════
+
+// root ─ a(まとめ) ─ b ─ d
+//        │          └ c(まとめ) ─ e
+//        └ f
+function makeSummaryTree() {
+  const n = (id, parentId, childIds, extra = {}) =>
+    ({ id, parentId, childIds, status: "todo", ...extra });
+  return {
+    root: n("root", null, ["a", "f"], { isRoot: true }),
+    a:    n("a", "root", ["b", "c"], { isSummary: true, status: "wip" }),
+    b:    n("b", "a", ["d"], { status: "done" }),
+    d:    n("d", "b", [], { status: "done" }),
+    c:    n("c", "a", ["e"], { isSummary: true }),
+    e:    n("e", "c", [], { status: "wip" }),
+    f:    n("f", "root", []),
+  };
+}
+
+// ── collapsedHiddenIds ──
+{
+  const nodes = makeSummaryTree();
+  const hidden = collapsedHiddenIds(nodes, ["a"]);
+  check("collapsedHiddenIds: 配下を全部隠す", eq([...hidden].sort(), ["b", "c", "d", "e"]),
+    JSON.stringify([...hidden]));
+  // 入れ子のまとめ(c)も隠す。残すと親を失った島が浮いてレイアウトが壊れる
+  check("collapsedHiddenIds: 入れ子のまとめも隠す", hidden.has("c") && hidden.has("e"));
+  check("collapsedHiddenIds: 畳んだノード自身は隠さない", !hidden.has("a"));
+  check("collapsedHiddenIds: 別の枝は隠さない", !hidden.has("f"));
+
+  check("collapsedHiddenIds: 畳み指定なしなら空", collapsedHiddenIds(nodes, []).size === 0);
+  // 端末ローカルの畳み状態はツリーと食い違いうる（削除・まとめ解除）
+  check("collapsedHiddenIds: 消えたIDは無視", collapsedHiddenIds(nodes, ["nosuch"]).size === 0);
+  check("collapsedHiddenIds: まとめでないノードの畳みは効かない",
+    collapsedHiddenIds(nodes, ["b"]).size === 0);
+
+  // 入れ子を両方畳んでも結果は変わらない（重複して数えない）
+  check("collapsedHiddenIds: 入れ子を両方畳んでも同じ",
+    eq([...collapsedHiddenIds(nodes, ["a", "c"])].sort(), ["b", "c", "d", "e"]));
+}
+
+// ── chapterOf ──
+{
+  const nodes = makeSummaryTree();
+  const ch = chapterOf(nodes, "root");
+  check("chapterOf: まとめ自身は自分の章", ch.get("a") === "a" && ch.get("c") === "c");
+  check("chapterOf: 配下は直近のまとめに属す", ch.get("b") === "a" && ch.get("d") === "a");
+  check("chapterOf: 入れ子は内側のまとめに属す", ch.get("e") === "c", ch.get("e"));
+  check("chapterOf: まとめの外は null", ch.get("root") === null && ch.get("f") === null);
+}
+
+// ── visibleAnchor ──
+{
+  const nodes  = makeSummaryTree();
+  const hidden = collapsedHiddenIds(nodes, ["a"]);
+  check("visibleAnchor: 見えているノードは自分自身", visibleAnchor(nodes, "f", hidden) === "f");
+  // 合流線が黙って消えないよう、隠れた端点は束の代表へ寄せる
+  check("visibleAnchor: 隠れたノードは見える祖先へ寄る", visibleAnchor(nodes, "d", hidden) === "a");
+  check("visibleAnchor: 入れ子の奥からも寄る", visibleAnchor(nodes, "e", hidden) === "a");
+  check("visibleAnchor: 隠していなければそのまま",
+    visibleAnchor(nodes, "e", new Set()) === "e");
+}
+
+// ── subtreeCounts ──
+{
+  const nodes = makeSummaryTree();
+  const c = subtreeCounts(nodes, "a");
+  check("subtreeCounts: 子孫を数える（自分は含まない）", c.total === 4, JSON.stringify(c));
+  check("subtreeCounts: ステータス内訳", c.done === 2 && c.wip === 1 && c.todo === 1, JSON.stringify(c));
+  check("subtreeCounts: 葉は0", subtreeCounts(nodes, "d").total === 0);
+}
+
+// ══════════════════════════════════════════════════
+// 棋譜分岐の幹（縦＝手数）
+// ══════════════════════════════════════════════════
+
+// p(棋譜あり) の子を、作った順（sort_order順）に childIds へ並べたもの。
+// 手数は 3 → 20 → 12 の順に作られている（あとから間の手数を足した形）
+function makeTrunkTree() {
+  const kifu = [{}, {}, {}];   // 中身は使わない。「棋譜を持っている」ことだけが条件
+  return {
+    p:  { id: "p",  parentId: null, childIds: ["c1", "c2", "c3"], kifu },
+    c1: { id: "c1", parentId: "p", childIds: [], sortOrder: 0, branchFromMoveIndex: 3 },
+    c2: { id: "c2", parentId: "p", childIds: [], sortOrder: 1, branchFromMoveIndex: 20 },
+    c3: { id: "c3", parentId: "p", childIds: [], sortOrder: 2, branchFromMoveIndex: 12 },
+  };
+}
+
+// ── isTrunkParent ──
+{
+  const nodes = makeTrunkTree();
+  check("isTrunkParent: 棋譜を持ち分岐が2つ以上なら幹", isTrunkParent(nodes, "p") === true);
+
+  // 「とりあえず」配下は別々の対局の切り出し。同じ時間軸に乗せてはいけない
+  const inbox = {
+    box: { id: "box", parentId: "root", childIds: ["k1", "k2"], isInbox: true, kifu: [] },
+    k1:  { id: "k1", parentId: "box", childIds: [], branchFromMoveIndex: 3 },
+    k2:  { id: "k2", parentId: "box", childIds: [], branchFromMoveIndex: 20 },
+  };
+  check("isTrunkParent: 親が棋譜を持たなければ幹にしない（とりあえず配下）",
+    isTrunkParent(inbox, "box") === false);
+
+  const one = makeTrunkTree();
+  one.p.childIds = ["c1"];
+  check("isTrunkParent: 分岐が1つだけなら幹にしない", isTrunkParent(one, "p") === false);
+
+  const manual = makeTrunkTree();
+  manual.c2.branchFromMoveIndex = null;
+  manual.c3.branchFromMoveIndex = null;
+  check("isTrunkParent: 手で作った子ばかりなら幹にしない", isTrunkParent(manual, "p") === false);
+}
+
+// ── orderedChildIds ──
+{
+  const nodes = makeTrunkTree();
+  check("orderedChildIds: 幹モードは手数順", eq(orderedChildIds(nodes, "p"), ["c1", "c3", "c2"]),
+    JSON.stringify(orderedChildIds(nodes, "p")));
+
+  // 手で作ったノードは手数軸に乗らないので先頭（作った順のまま）
+  const mixed = makeTrunkTree();
+  mixed.p.childIds = ["c1", "c2", "c3", "m"];
+  mixed.m = { id: "m", parentId: "p", childIds: [], sortOrder: 3, branchFromMoveIndex: null };
+  check("orderedChildIds: 手数なしは先頭", eq(orderedChildIds(mixed, "p"), ["m", "c1", "c3", "c2"]),
+    JSON.stringify(orderedChildIds(mixed, "p")));
+
+  // 幹モードでないときは childIds の並び（sort_order順）をそのまま使う
+  const flat = makeTrunkTree();
+  flat.p.kifu = [];
+  check("orderedChildIds: 幹モードでなければ並べ替えない",
+    eq(orderedChildIds(flat, "p"), ["c1", "c2", "c3"]));
+}
+
+// ── branchRanks ──
+{
+  const nodes = makeTrunkTree();
+  const r = branchRanks(nodes, "p");
+  check("branchRanks: 手数順に 0,1,2", r.get("c1") === 0 && r.get("c3") === 1 && r.get("c2") === 2,
+    `c1=${r.get("c1")} c3=${r.get("c3")} c2=${r.get("c2")}`);
+
+  const mixed = makeTrunkTree();
+  mixed.p.childIds = ["c1", "c2", "c3", "m"];
+  mixed.m = { id: "m", parentId: "p", childIds: [], sortOrder: 3, branchFromMoveIndex: null };
+  check("branchRanks: 手数なしは0", branchRanks(mixed, "p").get("m") === 0);
+
+  const flat = makeTrunkTree();
+  flat.p.kifu = [];
+  const rf = branchRanks(flat, "p");
+  check("branchRanks: 幹モードでなければ全員0",
+    rf.get("c1") === 0 && rf.get("c2") === 0 && rf.get("c3") === 0);
+}
+
+// ── branchSides ──
+{
+  const nodes = makeTrunkTree();
+  const s = branchSides(nodes, "p");
+  check("branchSides: 作った順に右・左・右", s.get("c1") === "R" && s.get("c2") === "L" && s.get("c3") === "R",
+    `c1=${s.get("c1")} c2=${s.get("c2")} c3=${s.get("c3")}`);
+
+  // ここが本命の回帰テスト。あとから「間の手数」に枝を足したとき、
+  // 既存の枝が反対側へ飛ぶ（＝マップが勝手に組み替わる）ことがあってはいけない
+  const added = makeTrunkTree();
+  added.p.childIds = ["c1", "c2", "c3", "c4"];
+  added.c4 = { id: "c4", parentId: "p", childIds: [], sortOrder: 3, branchFromMoveIndex: 5 };
+  const s2 = branchSides(added, "p");
+  check("branchSides: 間の手数を足しても既存の左右が変わらない",
+    s2.get("c1") === "R" && s2.get("c2") === "L" && s2.get("c3") === "R",
+    `c1=${s2.get("c1")} c2=${s2.get("c2")} c3=${s2.get("c3")}`);
+  check("branchSides: 追加分は末尾のパリティで決まる", s2.get("c4") === "L", s2.get("c4"));
+  // 一方で縦の順（手数順）はちゃんと入れ替わる
+  check("branchSides: 縦順は手数順に入れ替わる",
+    eq(orderedChildIds(added, "p"), ["c1", "c4", "c3", "c2"]),
+    JSON.stringify(orderedChildIds(added, "p")));
 }
 
 console.log(`\n=== ${pass}/${pass + fail} passed ===`);

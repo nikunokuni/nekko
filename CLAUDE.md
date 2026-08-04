@@ -37,6 +37,9 @@ src/
   kifuFields.js      棋譜の項目台帳。上と同じ形（一覧で読む列もここから生成する）
   fieldRegistry.js   台帳から行⇄オブジェクトの変換を作る仕掛け（上2つが使う）
   treeOps.js         ツリー変更の純粋関数（childIds / merge_parent_ids / tags の整合）
+                     ＋まとめノードの束ね範囲・棋譜分岐の並び（マップと一覧で共用）
+  mapLayout.js       マップの座標計算（ツリー→ SVG の座標・エッジ・幹）。純粋関数
+  mapView.js         マップの見え方の保存（畳んだまとめノード。端末ローカル）
   data.js            定数・メタ（駒ラベル / 初期盤面 / ステータス表示 など）
   theme.js           色・寸法のトークン
   rewards.js         トロフィーとオンボーディングの進捗記録（localStorage）
@@ -199,6 +202,12 @@ seed で作ると `App.jsx` の `handleNewTree` が変わってもテストは�
 
 - `src/screens/NodeDetailScreen.jsx` は約1500行あるが機能単位でまとまっている。
   ついでの分割はしない（差分が読めなくなる）
+- **マップの座標計算は `mapLayout.js`（JSXの外）に置く。** 図の正しさの芯なので
+  Node から直接テストしたい。とくに「子は必ず親より下に来る」は、崩れても画面は
+  落ちず矢印が上を向くだけなので、目で見つけるしかない壊れ方をする
+  （`test-harness/mapLayout.test.mjs` が全エッジで見張っている）
+- **子ノードの並び順は `treeOps.js` の `orderedChildIds` から取る。** マップ・目次・
+  詳細画面の子一覧で別々に並べると、どれが本当の順番か分からなくなる
 - ユーザー向けの文言はすべて日本語。将棋用語は正式名で（「舟囲い」「四間飛車」など）
 - 囲い・戦法の判定条件は実戦の定義に合わせてある（`kifuFeatures.js`）。
   変えるときは `test-harness/kifuAnalysis.test.mjs` のケースも一緒に直す
