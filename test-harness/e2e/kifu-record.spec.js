@@ -41,7 +41,7 @@ test("盤に並べて棋譜を作り、棋譜ライブラリに保存できる",
   await page.getByRole("button", { name: /棋譜を記録/ }).click();
 
   // ③ 盤に並べる（▲7六歩 △3四歩）。手数表示が動けばタップが効いている
-  const canvas = page.locator("canvas[width='342']");
+  const canvas = page.locator("[data-main-board]");
   await canvas.scrollIntoViewIfNeeded();
   await movePiece(page, canvas, [6, 2], [5, 2]);
   await expect(page.getByText("1手", { exact: true })).toBeVisible();

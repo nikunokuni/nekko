@@ -1,6 +1,8 @@
 // 盤の貼り付け（スクロールしても局面が見える）の回帰テスト。
 //   盤より下にあるメモや子ノードを、局面を見ながら読み書きするための機能なので、
 //   「スクロールしたら出る／戻したら消える／盤が非表示なら出ない」の3点だけ見張る。
+//   ついでに、貼り付け盤とおおもとの盤が両方とも実解像度で描けていることも見る
+//   （同じ絵を描く2か所なので、片方だけ直して片方を忘れる形の事故が起きやすい）。
 import { test, expect } from "@playwright/test";
 import { login, createTree, watchForAppErrors } from "./helpers.js";
 
@@ -31,6 +33,17 @@ test("スクロールで盤が流れると、縮小した盤が上端に貼り�
   const peek = page.locator("[data-board-peek]");
   // 盤が見えている間は貼り付けない（同じものが二重に出ると邪魔なだけ）
   await expect(peek).toHaveCount(0);
+
+  // おおもとの盤も実解像度で描けていること。貼り付け盤と同じ絵を描いているので、
+  // ここが等倍のままだと「縮んだミニ盤のほうが字がくっきりしている」という
+  // ちぐはぐな状態になる（実際そうなっていた）
+  const main = await page.locator("[data-main-board]").evaluate((c) => ({
+    pixels: c.width,
+    css:    c.getBoundingClientRect().width,
+    dpr:    Math.min(window.devicePixelRatio || 1, 3),
+  }));
+  expect(main.dpr).toBeGreaterThan(1); // 等倍の端末で試すと素通りするので前提を明示する
+  expect(main.pixels).toBeGreaterThanOrEqual(Math.floor(main.css * main.dpr) - 1);
 
   await scrollBody(page, 900);
   await expect(peek).toHaveCount(1);

@@ -18,7 +18,7 @@ const LATE_FONT = "/usr/share/fonts/opentype/unifont/unifont_jp.otf";
 
 // 盤のcanvasの中身を文字列で取り出す（描き直しの有無を比べるため）
 async function boardPixels(page) {
-  return page.locator("canvas[width='342']").evaluate((c) => c.toDataURL());
+  return page.locator("[data-main-board]").evaluate((c) => c.toDataURL());
 }
 
 test("あとから届いたフォントで盤の駒が描き直される", async ({ page }) => {
@@ -53,7 +53,7 @@ test("あとから届いたフォントで盤の駒が描き直される", async
   await page.getByText("居飛車", { exact: true }).first().click();
   await page.waitForURL(/\/node\//);
   await page.getByText(/タップして盤面を追加/).click();
-  await expect(page.locator("canvas[width='342']")).toBeVisible();
+  await expect(page.locator("[data-main-board]")).toBeVisible();
   await page.waitForTimeout(400);
 
   // ── ① フォントが届く前：フォールバックで描かれている ──

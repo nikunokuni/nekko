@@ -99,6 +99,9 @@ function drawPiece(ctx, cx, cy, cellSize, pieceKey, highlighted) {
   ctx.shadowColor = 'transparent';
 
   const fontSize = cellSize * 0.46;
+  // 太さは bold（=700）。index.html のフォント読み込みに 700 を含めていないと、
+  // ブラウザは持っている中で一番近い 600 で代用してしまい、指定だけ bold で
+  // 見た目は中太のまま、という状態になる（実際そうなっていた）
   ctx.font = `bold ${fontSize}px 'Noto Serif JP',serif`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   const ty = cy + h * 0.06;
@@ -106,12 +109,16 @@ function drawPiece(ctx, cx, cy, cellSize, pieceKey, highlighted) {
   // 成駒の朱色は特に沈む。白で縁取ると、どの濃さの木目の上でも字形が浮く。
   // lineJoin を round にするのは、明朝体のとがった画（はね・払い）で
   // 既定の miter が針のように飛び出し、小さい盤では字が汚れて見えるため
+  //
+  // 太さは以前の半分（成駒 8%・通常 6%）。strokeText は字の輪郭線を中心に
+  // 内側へも太るので、白が厚いほど画そのものを食って字が痩せる。
+  // 駒を太字にしたぶん食われる量も増え、太字にした意味が消えていた
   ctx.strokeStyle = '#fff'; ctx.lineJoin = 'round';
   if (promoted) {
-    ctx.lineWidth = fontSize * 0.16;
+    ctx.lineWidth = fontSize * 0.08;
     ctx.strokeText(label, cx, ty); ctx.fillStyle = '#b00000'; ctx.fillText(label, cx, ty);
   } else {
-    ctx.lineWidth = fontSize * 0.12;
+    ctx.lineWidth = fontSize * 0.06;
     ctx.strokeText(label, cx, ty); ctx.fillStyle = '#1a0800'; ctx.fillText(label, cx, ty);
   }
   ctx.restore();
@@ -580,7 +587,11 @@ export default function ShogiBoard({
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas || !dispBoard) return;
-    drawBoardTo(canvas.getContext('2d'), {
+    // 貼り付け用のミニ盤と同じく、実解像度で描く（hiDpiContext）。
+    // 素の getContext だと絵の画素数が CSS の 342px のままなので、高精細画面
+    // （スマホは2〜3倍）では 1/2〜1/3 の絵を引き伸ばすことになり、駒の文字がにじむ。
+    // マスが大きいぶんミニ盤ほど致命的ではないが、同じ絵なのに片方だけ甘い状態だった
+    drawBoardTo(hiDpiContext(canvas, COLS * CELL, ROWS * CELL), {
       board: dispBoard, stamps, cell: CELL,
       selected:   playSnap ? null : selected,
       arrowStart: playSnap ? null : arrowStart,
@@ -665,8 +676,11 @@ export default function ShogiBoard({
     if (readOnly || !board || playbackIdx !== null) return;
     const canvas = canvasRef.current; if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const col = Math.floor((e.clientX - rect.left) * (canvas.width  / rect.width)  / CELL);
-    const row = Math.floor((e.clientY - rect.top)  * (canvas.height / rect.height) / CELL);
+    // 見た目の大きさ（rect）→ 描画に使った座標（CELL基準の 342px）へ直してからマスを求める。
+    // canvas.width で割ってはいけない：あちらは実画素数で、高精細画面では dpr 倍あるため
+    // 押した位置が右下へずれる（画面の端では盤の外と判定されて反応しなくなる）
+    const col = Math.floor((e.clientX - rect.left) * ((COLS * CELL) / rect.width)  / CELL);
+    const row = Math.floor((e.clientY - rect.top)  * ((ROWS * CELL) / rect.height) / CELL);
     if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return;
 
     if (tool === 'stamp') {
@@ -924,8 +938,12 @@ export default function ShogiBoard({
 
         {/* 将棋盤 Canvas：帯を除いた残り幅いっぱい（正方形を保つため高さは指定しない）。
             alignSelf:'flex-start' で盤だけ縦に引き伸ばさず、駒台の帯のほうを盤の高さに合わせる。
-            駒の種類が多くて帯が盤より長くなったときは、帯の側がこの行の高さを決める */}
-        <canvas ref={canvasRef} width={W} height={H}
+            駒の種類が多くて帯が盤より長くなったときは、帯の側がこの行の高さを決める。
+
+            width/height 属性は初回描画までの縦横比を決めるためだけのもので、
+            実際の画素数は draw() の hiDpiContext が dpr 倍に付け替える（縦横比は変わらない）。
+            テストから指すときは canvas[width='342'] ではなく data-main-board を使うこと */}
+        <canvas ref={canvasRef} width={W} height={H} data-main-board
           onClick={handleClick} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}
           style={{ display:'block', borderRadius:4, cursor: (readOnly || playbackIdx !== null) ? 'default' : 'pointer',
             flex:'1 1 0', minWidth:0, maxWidth:W, alignSelf:'flex-start',
