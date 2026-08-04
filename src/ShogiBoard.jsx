@@ -183,19 +183,41 @@ function drawBoardTo(ctx, { board, stamps = [], cell, selected = null, arrowStar
   }
 }
 
+// ── Canvas の解像度合わせ ─────────────────────────
+// canvas は width/height 属性が「実際に絵を持つ画素数」で、CSS の幅高さは引き伸ばし先でしかない。
+// 属性を CSS と同じ数にすると、高精細画面（スマホは2〜3倍）では 1/2〜1/3 の絵を拡大することになり、
+// 駒の文字が真っ先ににじむ。マスが小さい貼り付け盤では、それだけで読めなくなる。
+// 属性を devicePixelRatio 倍にして描画側を同じ倍率で scale すれば、
+// 描画コードは CSS ピクセルのまま書けて、絵だけが実解像度になる。
+const MAX_DPR = 3;  // 4倍以上は見た目が変わらないのに画素数が16倍になる。3で頭打ちにする
+const getDpr = () => Math.min(window.devicePixelRatio || 1, MAX_DPR);
+
+// 実解像度で描ける ctx を返す。cssW/cssH は見た目の大きさ（＝描画時に使う座標系）
+function hiDpiContext(canvas, cssW, cssH) {
+  const dpr = getDpr();
+  const w = Math.round(cssW * dpr), h = Math.round(cssH * dpr);
+  // 同じ大きさへの再代入でも canvas の中身は消えるので、変わったときだけ触る
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return ctx;
+}
+
 // ── 持ち駒UIパーツ ────────────────────────────────
 const HAND_ORDER = ['r','b','g','s','n','l','p'];
 
 // 持ち駒スプライトのキャッシュ。駒種・先後・選択・枚数が同じなら描画結果（オフスクリーンcanvas）を再利用する。
 // グラデーション・五角形パス・影の描画はコストが高いため、組み合わせごとに一度だけ描いて使い回す。
+// dpr もキーに含める：拡大率が違えば画素数が違う別物になるため（外部モニタへ移すと変わる）
 const handPieceCache = new Map();
-function getHandPieceSprite(pieceKey, isSelected, count) {
-  const cacheKey = `${pieceKey}|${isSelected ? 1 : 0}|${count}`;
+function getHandPieceSprite(pieceKey, isSelected, count, dpr) {
+  const cacheKey = `${pieceKey}|${isSelected ? 1 : 0}|${count}|${dpr}`;
   let off = handPieceCache.get(cacheKey);
   if (off) return off;
   off = document.createElement('canvas');
-  off.width = 32; off.height = 32;
+  off.width = 32 * dpr; off.height = 32 * dpr;
   const ctx = off.getContext('2d');
+  ctx.scale(dpr, dpr);
   drawPiece(ctx, 16, 17, 32, pieceKey, isSelected);
   if (count > 1) {
     ctx.font = `bold 9px 'Noto Serif JP',serif`;
@@ -206,19 +228,21 @@ function getHandPieceSprite(pieceKey, isSelected, count) {
   return off;
 }
 
-// size は見た目の大きさ（CSS）だけを変える。スプライトは32pxのまま縮小して描くので、
+// size は見た目の大きさ（CSS）だけを変える。スプライトは32px相当のまま縮小して描くので、
 // 貼り付け用のミニ盤でもキャッシュを共有できる（種類×先後×選択×枚数の分だけで済む）
 function HandPiece({ k, count, isSente, isSelected, onClick, readOnly, boardSelected, size = 32 }) {
   const ref = useRef(null);
+  const dpr = getDpr();
   useEffect(() => {
     const canvas = ref.current; if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, 32, 32);
-    ctx.drawImage(getHandPieceSprite(isSente ? k : k.toUpperCase(), isSelected, count), 0, 0);
-  }, [k, isSente, isSelected, count]);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // スプライトは 32×dpr 画素で持っているので、そのまま等倍で貼る（ここで縮めない）
+    ctx.drawImage(getHandPieceSprite(isSente ? k : k.toUpperCase(), isSelected, count, dpr), 0, 0);
+  }, [k, isSente, isSelected, count, dpr]);
   return (
     // 盤上の駒を選択中は、ここをタップしても駒選択せずエリアのクリック（=持ち駒へ移動）に委ねる
-    <canvas ref={ref} width={32} height={32} onClick={() => { if (readOnly || boardSelected) return; onClick(); }}
+    <canvas ref={ref} width={32 * dpr} height={32 * dpr} onClick={() => { if (readOnly || boardSelected) return; onClick(); }}
       style={{ width: size, height: size, flexShrink: 0,
         cursor: readOnly ? 'default' : 'pointer', borderRadius: 4,
         border: isSelected ? '1.5px solid #a07840' : '1.5px solid transparent',
@@ -231,27 +255,44 @@ function HandPiece({ k, count, isSente, isSelected, onClick, readOnly, boardSele
 //   相手の持ち駒・盤・自分の持ち駒の3つだけを縮めて描く。
 //   道具・棋譜ナビ・ヒント文は載せない：載せると「ここでも操作できる」に見えるが、
 //   実際に編集できるのは本体の盤だけなので、押しても何も起きない道具が並ぶことになる。
-const PEEK_CELL  = 20;   // 盤は 20×9 = 180px。本体(342px)の半分強で、駒はまだ読める
-const PEEK_COL_W = 30;
+//
+// マスの大きさは固定せず、貼り付け帯に残っている幅から決める。
+// 固定していた頃は 20px（駒の文字が9px）で、狭い端末に合わせたぶん普通の端末では
+// 左右が余っているのに文字だけ小さい、という状態だった。
+// 上限を設けるのは、貼り付け盤が画面上部を覆う道具だから：大きくするほど
+// 「局面を見ながら下のメモを読む」という目的そのものが潰れる。
+const PEEK_CELL_MIN = 20;
+const PEEK_CELL_MAX = 24;  // 盤は 24×9 = 216px（駒の文字は11px）。これ以上は下のメモが隠れる
+const PEEK_COL_W    = 32;
+const PEEK_GAP      = 4;
+const PEEK_PAD_X    = 16;  // 貼り付け帯の左右パディング合計（StickyBoardPeek の style と揃える）
 
-function BoardPeek({ board, stamps, handSente, handGote }) {
+function peekCellSize(availWidth) {
+  const room = (availWidth || 0) - PEEK_PAD_X - PEEK_COL_W * 2 - PEEK_GAP * 2;
+  return Math.max(PEEK_CELL_MIN, Math.min(PEEK_CELL_MAX, Math.floor(room / COLS)));
+}
+
+function BoardPeek({ board, stamps, handSente, handGote, availWidth }) {
   const ref = useRef(null);
+  const cell = peekCellSize(availWidth);
+  const S = COLS * cell;
   useEffect(() => {
     const canvas = ref.current; if (!canvas || !board) return;
-    drawBoardTo(canvas.getContext('2d'), { board, stamps, cell: PEEK_CELL });
-  }, [board, stamps]);
+    drawBoardTo(hiDpiContext(canvas, S, S), { board, stamps, cell });
+  }, [board, stamps, cell, S]);
   if (!board) return null;
-  const S = COLS * PEEK_CELL;
   return (
-    <div style={{ display:'flex', alignItems:'stretch', gap:4,
-      width: S + PEEK_COL_W * 2 + 8, margin:'0 auto' }}>
+    <div style={{ display:'flex', alignItems:'stretch', gap:PEEK_GAP,
+      width: S + PEEK_COL_W * 2 + PEEK_GAP * 2, margin:'0 auto' }}>
       <HandArea hand={handGote} isSente={false} readOnly
-        colW={PEEK_COL_W} pieceSize={22} labelSize="0.5rem" />
-      <canvas ref={ref} width={S} height={S}
-        style={{ display:'block', borderRadius:4, alignSelf:'flex-start',
+        colW={PEEK_COL_W} pieceSize={22} labelSize="0.5625rem" />
+      {/* 幅高さは style で指定する。width/height 属性のほうは hiDpiContext が
+          devicePixelRatio 倍の画素数に付け替えるので、見た目の大きさには使えない */}
+      <canvas ref={ref} data-peek-board
+        style={{ display:'block', width:S, height:S, borderRadius:4, alignSelf:'flex-start',
           boxShadow:'0 2px 8px rgba(0,0,0,0.3)' }} />
       <HandArea hand={handSente} isSente={true} readOnly
-        colW={PEEK_COL_W} pieceSize={22} labelSize="0.5rem" />
+        colW={PEEK_COL_W} pieceSize={22} labelSize="0.5625rem" />
     </div>
   );
 }
@@ -309,11 +350,12 @@ function StickyBoardPeek({ anchorRef, board, stamps, handSente, handGote }) {
     // pointerEvents:'none' にすると、盤を押したつもりで裏の入力欄に文字が入る
     <div data-board-peek style={{
       position:'fixed', top:pin.top, left:pin.left, width:pin.width, zIndex:45,
-      padding:'6px 8px 8px', background:'#faf4e8', userSelect:'none',
+      padding:`6px ${PEEK_PAD_X / 2}px 8px`, background:'#faf4e8', userSelect:'none',
       borderBottom:'0.5px solid rgba(26,15,0,0.15)',
       boxShadow:'0 4px 10px rgba(26,15,0,0.12)',
     }}>
-      <BoardPeek board={board} stamps={stamps} handSente={handSente} handGote={handGote} />
+      <BoardPeek board={board} stamps={stamps} handSente={handSente} handGote={handGote}
+        availWidth={pin.width} />
     </div>,
     document.body
   );

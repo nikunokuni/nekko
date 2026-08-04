@@ -48,6 +48,19 @@ test("スクロールで盤が流れると、縮小した盤が上端に貼り�
   // 本体の盤（286px）より確実に小さいこと。ここが縮まないと画面の半分を占める
   expect(peekBox.height).toBeLessThan(260);
 
+  // 実解像度で描けていること。canvas は width/height 属性がそのまま画素数なので、
+  // 見た目の大きさと同じ数にすると高精細画面（スマホは2〜3倍）では拡大表示になり、
+  // マスの小さい貼り付け盤では駒の文字が真っ先ににじんで読めなくなる（実際にそうなっていた）
+  const res = await peek.locator("[data-peek-board]").evaluate((c) => ({
+    pixels: c.width,
+    css: c.getBoundingClientRect().width,
+    dpr: Math.min(window.devicePixelRatio || 1, 3),
+  }));
+  expect(res.dpr).toBeGreaterThan(1); // 等倍の端末で試すと素通りしてしまうので、前提を明示しておく
+  expect(res.pixels).toBeGreaterThanOrEqual(Math.floor(res.css * res.dpr) - 1);
+  // 盤そのものも、文字が読める大きさ（1マス20px＝9マスで180px）を下回らないこと
+  expect(res.css).toBeGreaterThanOrEqual(180);
+
   // 相手・自分の持ち駒も一緒に貼り付いている（局面は駒台まで見えて初めて分かる）
   await expect(peek.getByText("相手の持ち駒")).toBeVisible();
   await expect(peek.getByText("自分の持ち駒")).toBeVisible();
