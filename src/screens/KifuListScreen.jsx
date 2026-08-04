@@ -5,7 +5,7 @@
 //   棋譜（kifus テーブル）の一覧・インポート・手入力・再生・削除を行う。
 //   ノードへの取り込みはノード編集画面側（KifuPickerModal）から行う。
 // ══════════════════════════════════════════════════════════════════
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { T, MODAL_OVERLAY_STYLE, MODAL_SHEET_STYLE, parseTags } from "../theme";
 import { InputField, SectionLabel, ModalActionButtons, ConfirmDeleteModal, KifuPreviewBoard, TagPickerField } from "../components/uiParts";
 import ShogiBoard from "../ShogiBoard";
@@ -722,15 +722,44 @@ function KifuFactsTable({ kifu, onSetSide }) {
   );
 }
 
+// 再生位置の呼び名。0手目は「第0手」ではなく初期局面と呼ぶ（盤の再生ナビと同じ言い方）
+const plyLabel = (i) => (i === 0 ? "初期局面" : `第${i}手`);
+
 function KifuPreviewModal({ kifu, onClose, onSetSide, trees = [], onSendToInbox }) {
-  // 送り先のツリーを選ぶ状態。ツリーが1つでも選ばせる（誤爆を避ける）
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [sending,    setSending]    = useState(false);
+  // ツリーへ送るまでの段階。null=未着手 / "range"=どこまでかを聞いている / "tree"=送り先を選んでいる。
+  // 範囲→ツリーの順にしているのは、範囲の始点が「ボタンを押した時に見ていた局面」で決まるため。
+  // 先にツリーを選ばせると、選んでいる間に盤を触られて始点が動いてしまう
+  const [step,    setStep]    = useState(null);
+  const [range,   setRange]   = useState(null);  // { start, end } 確定した切り取り範囲
+  const [sending, setSending] = useState(false);
+  // 盤がいま映している手数（null = 再生していない＝最終局面を表示中）
+  const [viewPly, setViewPly] = useState(null);
+  // 盤へ渡す通知。毎レンダー作り直すと盤の useEffect が回り続けるので固定する
+  const handlePlaybackIdxChange = useCallback((idx) => setViewPly(idx), []);
+
+  const snaps     = kifu.snapshots || [];
+  const moveCount = Math.max(0, snaps.length - 1);
+
+  // 始点はボタンを押した時点で凍らせる。以降は終点を選ぶために盤を動かすので、
+  // 表示中の手数（viewPly）をそのまま始点として読み続けると始点まで一緒に動いてしまう
+  const [start, setStart] = useState(0);
+
+  const beginSend = () => {
+    // 「その時に見ていた盤面」から切り取る。再生していないとき（null）だけは、
+    // 見えている最終局面を始点にすると手が1つも入らないので、棋譜まるごと＝初期局面からにする
+    const s = viewPly ?? 0;
+    setStart(s);
+    // 1局面しかない／最終手を見ていた場合は切り取る余地がないので、範囲は聞かずに送り先へ進む
+    if (s >= moveCount) { setRange({ start: 0, end: moveCount }); setStep("tree"); return; }
+    setStep("range");
+  };
+
+  const chooseEnd = (end) => { setRange({ start, end }); setStep("tree"); };
 
   const send = async (treeId) => {
     if (sending) return;
     setSending(true);
-    await onSendToInbox?.(treeId, kifu);
+    await onSendToInbox?.(treeId, kifu, range);
     setSending(false);
   };
 
@@ -767,9 +796,9 @@ function KifuPreviewModal({ kifu, onClose, onSetSide, trees = [], onSendToInbox 
             置き場所を決めるのは後で良い、という前提で「とりあえず」へ入れる */}
         {onSendToInbox && trees.length > 0 && (
           <div style={{ marginBottom: 14 }}>
-            {!pickerOpen ? (
+            {step === null ? (
               <button
-                onClick={() => setPickerOpen(true)}
+                onClick={beginSend}
                 style={{
                   display: "flex", alignItems: "center", gap: 6, width: "100%",
                   padding: "9px 12px", borderRadius: T.radius.md,
@@ -780,9 +809,72 @@ function KifuPreviewModal({ kifu, onClose, onSetSide, trees = [], onSendToInbox 
                 <i className="ti ti-git-branch" style={{ fontSize: "0.875rem" }} />
                 ツリーの「とりあえず」に入れる
               </button>
+            ) : step === "range" ? (
+              /* ── ①どこまで入れるか ──
+                 始点は押した時に見ていた局面で固定し、終点だけを聞く。
+                 「ここから・ここまで」の2回選ばせると、見ていた局面をもう一度
+                 選び直す手間になるうえ、選び忘れたまま止まりやすい */
+              <div>
+                <SectionLabel style={{ marginBottom: 6 }}>どこまで入れますか</SectionLabel>
+                <div style={{ fontSize: T.fontSize.base, color: T.ink, fontFamily: T.fontSerif, marginBottom: 8 }}>
+                  {plyLabel(start)}から
+                  <span style={{ color: T.inkFaint, fontSize: T.fontSize.sm }}>
+                    {viewPly === null ? "（棋譜のはじめから）" : "（さっき見ていた局面）"}
+                  </span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {/* 下の盤を動かしてから押す。ラベルは再生位置に追従する */}
+                  <button
+                    onClick={() => chooseEnd(viewPly)}
+                    disabled={viewPly === null || viewPly <= start}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 6, width: "100%",
+                      padding: "9px 12px", borderRadius: T.radius.sm,
+                      border: `0.5px solid ${T.gold}`, background: T.goldBg,
+                      color: viewPly === null || viewPly <= start ? T.gray : T.ink,
+                      cursor: viewPly === null || viewPly <= start ? "default" : "pointer",
+                      fontSize: T.fontSize.base, fontFamily: T.fontSerif,
+                    }}
+                  >
+                    <i className="ti ti-scissors" style={{ fontSize: "0.875rem" }} />
+                    {viewPly === null || viewPly <= start
+                      ? "いま見ている局面まで（盤を進めてください）"
+                      : `いま見ている局面（${plyLabel(viewPly)}）まで`}
+                  </button>
+                  <button
+                    onClick={() => chooseEnd(moveCount)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 6, width: "100%",
+                      padding: "9px 12px", borderRadius: T.radius.sm,
+                      border: `0.5px solid ${T.inkLine}`, background: T.cream,
+                      color: T.ink, cursor: "pointer", fontSize: T.fontSize.base, fontFamily: T.fontSerif,
+                    }}
+                  >
+                    <i className="ti ti-player-skip-forward" style={{ fontSize: "0.875rem" }} />
+                    最後（{plyLabel(moveCount)}）まで
+                  </button>
+                  <button
+                    onClick={() => setStep(null)}
+                    style={{
+                      alignSelf: "flex-start", padding: "4px 2px", background: "none", border: "none",
+                      color: T.inkFaint, cursor: "pointer", fontSize: T.fontSize.sm, fontFamily: T.fontSerif,
+                    }}
+                  >やめる</button>
+                </div>
+                <div style={{ marginTop: 6, fontSize: T.fontSize.sm, color: T.inkFaint, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
+                  下の盤で終わりの局面まで進めてから「いま見ている局面まで」を押します。
+                  選んだ範囲だけを切り取ってノードにします。
+                </div>
+              </div>
             ) : (
+              /* ── ②どのツリーへ入れるか ── */
               <div>
                 <SectionLabel style={{ marginBottom: 6 }}>どのツリーに入れますか</SectionLabel>
+                {range && (
+                  <div style={{ marginBottom: 6, fontSize: T.fontSize.sm, color: T.inkMid, fontFamily: T.fontSerif }}>
+                    切り取る範囲：{plyLabel(range.start)}〜{plyLabel(range.end)}
+                  </div>
+                )}
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   {trees.map((t) => (
                     <div
@@ -803,14 +895,14 @@ function KifuPreviewModal({ kifu, onClose, onSetSide, trees = [], onSendToInbox 
                   ))}
                 </div>
                 <div style={{ marginTop: 6, fontSize: T.fontSize.sm, color: T.inkFaint, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
-                  この棋譜からノードを作り、選んだツリーの「とりあえず」に入れます。置き場所は後から動かせます。
+                  切り取った範囲からノードを作り、選んだツリーの「とりあえず」に入れます。置き場所は後から動かせます。
                 </div>
               </div>
             )}
           </div>
         )}
 
-        <KifuPreviewBoard snapshots={kifu.snapshots} />
+        <KifuPreviewBoard snapshots={kifu.snapshots} onPlaybackIdxChange={handlePlaybackIdxChange} />
       </div>
     </div>
   );

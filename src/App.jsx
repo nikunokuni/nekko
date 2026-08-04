@@ -186,21 +186,40 @@ export default function App() {
   // ── 棋譜からノードを作って「とりあえず」に入れる ──
   // 棋譜を見ていて「これは残しておきたい」と思ったときに、置き場所を決めずに
   // ツリーへ送れるようにする。整理は後から通常のつなぎ替えで行う。
-  const handleSendKifuToInbox = async (treeId, kifu) => {
+  //
+  // range = { start, end }（手数）が来たらその区間だけを切り取る。1局を丸ごと入れても
+  // 見返すときにまた同じ所まで再生することになるので、残したい所だけを持たせる。
+  // range 無し（未指定）は棋譜全体。
+  const handleSendKifuToInbox = async (treeId, kifu, range) => {
     if (!session) return false;
     const inbox = await ensureInboxNode(treeId, session.user.id);
     if (!inbox) { alert("「とりあえず」を用意できませんでした。もう一度お試しください。"); return false; }
 
-    const snaps = kifu.snapshots || [];
+    const all   = kifu.snapshots || [];
+    // 範囲は呼び出し側の都合で棋譜の外へはみ出しうるので、ここで棋譜の中へ収める
+    const start = Math.max(0, Math.min(range?.start ?? 0, all.length - 1));
+    const end   = Math.max(start, Math.min(range?.end ?? all.length - 1, all.length - 1));
+    const snaps = all.slice(start, end + 1);
     const last  = snaps[snaps.length - 1];
+    // 切り取りが1局面だけになったら棋譜は持たせない
+    // （1局面の棋譜は「全0手」となり、再生UIだけが残ってしまうため）
+    const hasKifu  = snaps.length > 1;
+    // 一部だけを切り取ったことは名前で分かるようにする。
+    // ノード一覧では盤面を開かないと中身が見えないので、名前が同じだと元の棋譜と見分けがつかない
+    const partial  = start > 0 || end < all.length - 1;
+    const baseName = kifu.name || "棋譜から作成";
     const { data: newNode, error } = await createNode({
       treeId, userId: session.user.id, parentId: inbox.id,
-      label: kifu.name || "棋譜から作成", status: "todo",
+      label: partial ? `${baseName}（${start === 0 ? "初期局面" : `第${start}手`}〜第${end}手）` : baseName,
+      status: "todo",
       board:     last?.board ?? null,
       handSente: last?.handSente,
       handGote:  last?.handGote,
-      kifu: snaps, kifuImported: snaps.length > 1,
-      // 棋譜から読み取った戦法をそのままタグに入れておく（分岐の候補の照合にも効く）
+      kifu: hasKifu ? snaps : [], kifuImported: hasKifu,
+      branchFromMoveIndex: start,
+      // 棋譜から読み取った戦法をそのままタグに入れておく（分岐の候補の照合にも効く）。
+      // 戦法は対局全体から読み取ったものなので、途中を切り取っても付け替えない
+      // （その区間だけを見て戦法を判定し直すと、序盤を外した切り取りで「不明」になってしまう）
       situation:  kifu.features?.oppStrategy ? [kifu.features.oppStrategy] : [],
       myApproach: kifu.features?.myStrategy  ? [kifu.features.myStrategy]  : [],
     });

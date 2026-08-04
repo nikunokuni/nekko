@@ -462,11 +462,14 @@ function StickyBoardPeek({ anchorRef, board, stamps, handSente, handGote }) {
 }
 
 // ── 棋譜ナビボタン ────────────────────────────────
-function NavBtn({ onClick, disabled, icon }) {
+// label は読み上げ用の名前。絵しか無いので付けないと「ボタン」としか読まれず、
+// E2E からも指せない（アイコンフォントは ::before で字を差し込むため title では足りない）
+function NavBtn({ onClick, disabled, icon, label }) {
   return (
     <button
       onClick={onClick}
       disabled={disabled}
+      aria-label={label}
       style={{
         width:32, height:32, flexShrink:0, borderRadius:6, border:'0.5px solid rgba(26,15,0,0.18)',
         background:'#faf4e8', cursor: disabled ? 'default' : 'pointer',
@@ -530,6 +533,12 @@ export default function ShogiBoard({
   allowBranch = false,      // true: 棋譜インポート由来のノードで「この局面で分岐」を表示
   onBranchFromHere,         // (snapshot) => void
   onBranchRange,            // (startIdx, endIdx) => void 範囲を選んで棋譜ごと切り出し
+  // (idx|null) => void 再生位置が動くたびに知らせる。null = 再生していない（通常表示）。
+  //   盤の外に「いま見ている局面」を使う導線があるときだけ渡す
+  //   （棋譜プレビューの「どこまで切り取るか」）。
+  //   再生位置そのものを props で持たせる（制御コンポーネント化）ことはしない：
+  //   再生は盤の中だけで完結する閲覧操作で、全呼び出し元に状態を持たせる理由がない
+  onPlaybackIdxChange,
   // true: スクロールで盤が上へ流れたら、縮小した「見るだけの盤」を画面上端に貼り付ける。
   //   局面を見ながら下のメモや子ノードを読み書きするための機能なので、それが要る画面
   //   （ノード編集・公開ツリー）だけ on にする。棋譜入力モーダルは盤がすでに一番上にあり不要
@@ -598,6 +607,10 @@ export default function ShogiBoard({
   useEffect(() => { setHandSente(hSenteProp); }, [handSentePropStr]); // eslint-disable-line
   const handGotePropStr = JSON.stringify(hGoteProp);
   useEffect(() => { setHandGote(hGoteProp); }, [handGotePropStr]); // eslint-disable-line
+
+  // 再生位置を外へ知らせる。呼び出し元が毎レンダー新しい関数を渡しても、
+  // 送るのは同じ値なので受け取り側の setState はそこで止まる（React が同値で打ち切る）
+  useEffect(() => { onPlaybackIdxChange?.(playbackIdx); }, [playbackIdx, onPlaybackIdxChange]);
 
   // 再生中に表示する盤面・持ち駒（kifu スナップショットを参照）
   const playSnap    = playbackIdx !== null ? kifuProp[playbackIdx] : null;
@@ -1015,11 +1028,11 @@ export default function ShogiBoard({
 
           {/* 通常表示(null)は「最終手の位置」とみなして前後移動を対称にする */}
           {/* 最初に移動 |< */}
-          <NavBtn icon="ti-player-skip-back" disabled={cur === 0}
+          <NavBtn icon="ti-player-skip-back" label="最初の局面へ" disabled={cur === 0}
             onClick={() => setPlaybackIdx(0)} />
 
           {/* 一手前に戻る < */}
-          <NavBtn icon="ti-chevron-left" disabled={cur === 0}
+          <NavBtn icon="ti-chevron-left" label="一手もどる" disabled={cur === 0}
             onClick={() => setPlaybackIdx(Math.max(0, cur - 1))} />
 
           {/* 手数表示 */}
@@ -1033,11 +1046,11 @@ export default function ShogiBoard({
           </div>
 
           {/* 一手進む > */}
-          <NavBtn icon="ti-chevron-right" disabled={cur === moveCount}
+          <NavBtn icon="ti-chevron-right" label="一手すすむ" disabled={cur === moveCount}
             onClick={() => setPlaybackIdx(Math.min(moveCount, cur + 1))} />
 
           {/* 最後に移動 >| */}
-          <NavBtn icon="ti-player-skip-forward" disabled={cur === moveCount}
+          <NavBtn icon="ti-player-skip-forward" label="最後の局面へ" disabled={cur === moveCount}
             onClick={() => setPlaybackIdx(moveCount)} />
 
           {/* 再生中は「編集にもどる」で再生モードを終了し、盤面編集に戻れる。

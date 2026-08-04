@@ -49,3 +49,37 @@ test("棋譜プレビューに「ツリーへ送る」と先後の選択が出�
 
   expect(errors).toEqual([]);
 });
+
+// 「とりあえず」へ送るときは、押した時に見ていた局面を始点として固定し、
+// 終点だけを聞く。始点まで一緒に動いてしまう（viewPly をそのまま読む）実装に
+// 戻すと、範囲が「第5手〜第5手」になってこのテストが落ちる。
+test("棋譜プレビューから範囲を切り取って「とりあえず」へ送れる", async ({ page }) => {
+  const errors = watchForAppErrors(page);
+  await login(page);
+  await createTree(page, "送り先ツリー");
+  await page.goto("/");
+
+  await importKifuAndOpenPreview(page);
+
+  // 第3手まで進めてから押す（＝始点は第3手で固定される）
+  await page.getByRole("button", { name: "最初の局面へ" }).click();
+  for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "一手すすむ" }).click();
+
+  await page.getByRole("button", { name: /とりあえず.*に入れる/ }).click();
+  await expect(page.getByText("どこまで入れますか")).toBeVisible();
+  await expect(page.getByText("第3手から")).toBeVisible();
+
+  // 終点を選ぶために盤を進める。始点は動かない
+  for (let i = 0; i < 2; i++) await page.getByRole("button", { name: "一手すすむ" }).click();
+  await page.getByRole("button", { name: /いま見ている局面（第5手）まで/ }).click();
+
+  await expect(page.getByText("切り取る範囲：第3手〜第5手")).toBeVisible();
+  await page.getByText("送り先ツリー").last().click();
+
+  // ノード詳細へ遷移し、切り取った範囲だけを持つノードができている
+  await page.waitForURL(/\/node\//);
+  await expect(page.getByText(/（第3手〜第5手）/).first()).toBeVisible();
+  await expect(page.getByText(/全2手/).first()).toBeVisible();
+
+  expect(errors).toEqual([]);
+});

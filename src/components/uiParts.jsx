@@ -190,7 +190,9 @@ export function ConfirmDeleteModal({ title, message, onClose, onConfirm }) {
 // KifuPreviewBoard: 棋譜の閲覧専用プレビュー（最終局面＋再生ナビ）
 //   棋譜ライブラリのプレビューとノードへの取り込みモーダルで共用する
 // ──────────────────────────────────────────
-export function KifuPreviewBoard({ snapshots }) {
+// onPlaybackIdxChange: 再生位置が動いたら知らせる。プレビュー側の
+//   「どこまで切り取るか」が、いま見ている手数を必要とするため
+export function KifuPreviewBoard({ snapshots, onPlaybackIdxChange }) {
   const snaps = snapshots || [];
   const last  = snaps.length > 0 ? snaps[snaps.length - 1] : null;
   if (!last) {
@@ -206,6 +208,7 @@ export function KifuPreviewBoard({ snapshots }) {
       handSente={last.handSente}
       handGote={last.handGote}
       kifu={snaps}
+      onPlaybackIdxChange={onPlaybackIdxChange}
       readOnly
     />
   );
