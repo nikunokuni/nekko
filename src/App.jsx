@@ -567,7 +567,7 @@ export default function App() {
             onMemoSave={handleMemoSave}/>
         )}
         {screen==="node" && activeTree && activeNodeId && activeTree.nodes[activeNodeId] && (
-          <NodeDetail tree={activeTree} nodeId={activeNodeId} userId={session.user.id}
+          <NodeDetail tree={activeTree} trees={myTrees} nodeId={activeNodeId} userId={session.user.id}
             onBack={() => navigate(`/tree/${activeTree.id}`)} onNodeSelect={handleNodeSelect}
             onNewNode={handleNewNode} onUpdate={handleNodeUpdate}
             onDeleteNode={handleDeleteNode} onSetMergeParents={handleSetMergeParents}

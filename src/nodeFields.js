@@ -25,20 +25,24 @@ const emptyHand = () => ({ p: 0, l: 0, n: 0, s: 0, g: 0, b: 0, r: 0 });
 //   def      … 既定値。作成時に値が無いとき／読み込み時に NULL だったときに使う。
 //               関数を書くと呼ばれる（配列・オブジェクトを共有しないため）
 //   noPatch  … true なら updateNode では変更できない（作成時にだけ決まる項目）
+//   structural … true なら「中身」ではなく、ツリー上の位置・つながりを表す項目。
+//                他のノードの中身を呼び出すとき（nodeContentPatch）に写さない
 export const NODE_FIELDS = [
   { key: "label",       column: "label",        def: "" },
   { key: "status",      column: "status",       def: "todo" },
-  { key: "parentId",    column: "parent_id",    def: null },
+  { key: "parentId",    column: "parent_id",    def: null, structural: true },
   { key: "board",       column: "board",        def: null },
   { key: "boardHidden", column: "board_hidden", def: false },
-  { key: "sortOrder",   column: "sort_order",   def: 0 },
+  { key: "sortOrder",   column: "sort_order",   def: 0, structural: true },
   { key: "stamps",      column: "stamps",       def: () => [] },
   { key: "memo",        column: "memo",         def: "" },
   // ルートと「とりあえず」の別は作成時に決まる。あとから付け替えるものではない
   { key: "isRoot",      column: "is_root",      def: false, noPatch: true },
   { key: "isInbox",     column: "is_inbox",     def: false, noPatch: true },
-  { key: "isMergeTarget",  column: "is_merge_target",  def: false },
-  { key: "mergeParentIds", column: "merge_parent_ids", def: () => [] },
+  // 合流（追加の親子リンク）はツリーのつながりそのものなので、中身と一緒に写さない。
+  // 写すと、別のツリーのノードIDが merge_parent_ids に入って線が引けなくなる
+  { key: "isMergeTarget",  column: "is_merge_target",  def: false, structural: true },
+  { key: "mergeParentIds", column: "merge_parent_ids", def: () => [], structural: true },
   { key: "handSente",   column: "hand_sente",   def: emptyHand },
   { key: "handGote",    column: "hand_gote",    def: emptyHand },
   { key: "kifu",        column: "kifu",         def: () => [] },
@@ -86,3 +90,8 @@ export const nodeToInsertRow = mapper.toInsertRow;
 /** updateNode のパッチ（camelCase）→ update する行（snake_case）。
  *  台帳に無いキー・noPatch の項目は黙って捨てる（打ち間違いでDBを壊さないため）。 */
 export const nodePatchToRow = mapper.patchToRow;
+
+/** 別のノードの中身を、このノードへ丸ごと写すためのパッチ（「呼び出し」機能）。
+ *  写るのは中身だけで、親子・合流・並び順といったツリー上の位置は動かない。
+ *  上書きなので、写し元が空の項目も既定値で明示的に含める。 */
+export const nodeContentPatch = mapper.contentPatch;

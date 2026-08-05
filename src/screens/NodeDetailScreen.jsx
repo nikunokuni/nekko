@@ -4,7 +4,7 @@
 // ══════════════════════════════════════════════════════════════════
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
-  StatusChip, MergeTag, SummaryTag, Divider, BackBtn,
+  StatusChip, MergeTag, SummaryTag, Divider, BackBtn, MiniBoard,
 } from "../components";
 import { orderedChildIds } from "../treeOps";
 import {
@@ -13,7 +13,8 @@ import {
 import { recordAction, getCustomTagsByGroup, addCustomTag, getCommentCustomTags, addCommentCustomTag, isTsuikaVisible } from "../rewards";
 import { T, INPUT_STYLE, MODAL_OVERLAY_STYLE, MODAL_SHEET_STYLE, cloneBoard, parseTags } from "../theme";
 import { SectionLabel, BoardSection, MergeLinkList, LinkPicker, TagPickerField, KifuPreviewBoard, IconRating } from "../components/uiParts";
-import { fetchMyKifus, fetchKifu, fetchKifusForAnalysis, kifuRowToKifu } from "../db";
+import { fetchMyKifus, fetchKifu, fetchKifusForAnalysis, kifuRowToKifu, fetchAllMyNodes, fetchNode, nodeRowToNode } from "../db";
+import { nodeContentPatch } from "../nodeFields";
 import { toAnalysisGame } from "../kifuAnalyze";
 import { branchCandidates, candidateToNodeFields } from "../kifuBranching";
 import { showToast } from "../toast";
@@ -179,6 +180,177 @@ function KifuPickerModal({ userId, nodeTags = [], hasExistingKifu, onClose, onIm
   );
 }
 
+// ──────────────────────────────────────────
+// NodeRecallModal: 他のノードの中身を呼び出して、今のノードへ写す
+//   一覧（全ツリー横断・軽い列だけ）→ タップで確認 → 写す。
+//
+//   写るのは**中身だけ**で、親子・合流・並び順は動かない（nodeFields.js の
+//   structural 印）。位置まで写すと、別のツリーのノードIDが親として入り、
+//   マップに線が引けなくなる。
+//
+//   一覧に検索欄を置いているのは、ノードが増えると名前だけでは見つからないため
+//   （ノード名は「次の一手」になりがちで、あとから探しにくい。ノード検索画面と同じ問題）。
+// ──────────────────────────────────────────
+function NodeRecallModal({ userId, trees = [], currentNodeId, currentLabel, onClose, onRecall }) {
+  const [nodes,   setNodes]   = useState(null); // null = 読み込み中
+  const [query,   setQuery]   = useState("");
+  const [picked,  setPicked]  = useState(null); // 確認中のノード（一覧の軽い行）
+  const [running, setRunning] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchAllMyNodes(userId).then(({ data, error }) => {
+      if (cancelled) return;
+      if (error) {
+        // 読み込みの失敗は画面に何も出ないので、やり直す手段を添える
+        showToast("ノード一覧の取得に失敗しました。通信環境を確認してください。");
+        setNodes([]);
+        return;
+      }
+      // 自分自身は呼び出しても何も起きないので候補から外す。
+      // 「とりあえず」（置き場）も外す ― 中身を持たせる場所ではないので、
+      // 候補に並べても選ぶ理由が無く、ツリーの数だけ一覧に混ざるだけになる
+      setNodes((data || []).filter((n) => n.id !== currentNodeId && !n.is_inbox));
+    });
+    return () => { cancelled = true; };
+  }, [userId, currentNodeId]);
+
+  const treeName = useMemo(() => {
+    const m = new Map();
+    (trees || []).forEach((t) => m.set(t.id, t.name));
+    return m;
+  }, [trees]);
+
+  const results = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return nodes || [];
+    return (nodes || []).filter((n) => [
+      n.label, n.memo,
+      ...(n.situation || []), ...(n.my_approach || []),
+      treeName.get(n.tree_id) || "",
+    ].join(" ").toLowerCase().includes(q));
+  }, [nodes, query, treeName]);
+
+  const handleRecall = async () => {
+    if (!picked || running) return;
+    setRunning(true);
+    const ok = await onRecall(picked);
+    setRunning(false);
+    if (ok) onClose();
+  };
+
+  return (
+    <div style={MODAL_OVERLAY_STYLE} onClick={onClose}>
+      <div style={{ ...MODAL_SHEET_STYLE, maxHeight: "90%", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+          {picked && (
+            <button onClick={() => setPicked(null)} aria-label="一覧へ戻る"
+              style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.125rem", padding: 2, lineHeight: 1 }}>
+              <i className="ti ti-chevron-left" />
+            </button>
+          )}
+          <div style={{ flex: 1, fontFamily: T.fontTitle, fontSize: T.fontSize.h, color: T.ink }}>
+            {picked ? "この中身を呼び出しますか" : "どのノードを呼び出しますか"}
+          </div>
+          <button onClick={onClose} aria-label="閉じる"
+            style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: "1.125rem", padding: 2 }}>
+            <i className="ti ti-x" />
+          </button>
+        </div>
+
+        {!picked ? (
+          <>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="ノード名・メモ・戦法名・ツリー名で検索"
+              style={{ ...INPUT_STYLE, marginBottom: 10 }}
+            />
+            {nodes === null ? (
+              <div style={{ padding: "24px 0", textAlign: "center", color: T.inkFaint, fontSize: T.fontSize.base }}>
+                読み込み中...
+              </div>
+            ) : results.length === 0 ? (
+              <div style={{ padding: "24px 0", textAlign: "center", color: T.inkFaint, fontSize: T.fontSize.base, lineHeight: 1.8 }}>
+                {nodes.length === 0
+                  ? "呼び出せるノードがまだありません"
+                  : "条件に合うノードがありません"}
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {results.map((n) => (
+                  <button
+                    key={n.id}
+                    onClick={() => setPicked(n)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left",
+                      padding: "9px 12px", borderRadius: T.radius.sm,
+                      border: `0.5px solid ${T.inkLine}`, background: T.cream, cursor: "pointer",
+                      fontFamily: T.fontSerif,
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: T.fontSize.sm, color: T.gold, marginBottom: 2 }}>
+                        <i className="ti ti-plant" style={{ fontSize: "0.625rem", marginRight: 3 }} />
+                        {treeName.get(n.tree_id) || "（不明なツリー）"}
+                      </div>
+                      <div style={{ fontSize: T.fontSize.base, color: T.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {n.label}
+                      </div>
+                      {n.memo && (
+                        <div style={{ fontSize: T.fontSize.sm, color: T.inkMid, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {n.memo}
+                        </div>
+                      )}
+                    </div>
+                    {n.board && !n.board_hidden && <MiniBoard board={n.board} size={64} />}
+                    <i className="ti ti-chevron-right" style={{ fontSize: "0.875rem", color: T.gray, flexShrink: 0 }} />
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <div style={{ padding: "10px 12px", borderRadius: T.radius.sm, border: `0.5px solid ${T.inkLine}`, background: T.cream }}>
+              <div style={{ fontSize: T.fontSize.sm, color: T.gold, marginBottom: 2, fontFamily: T.fontSerif }}>
+                <i className="ti ti-plant" style={{ fontSize: "0.625rem", marginRight: 3 }} />
+                {treeName.get(picked.tree_id) || "（不明なツリー）"}
+              </div>
+              <div style={{ fontSize: T.fontSize.lg, color: T.ink, fontFamily: T.fontSerif }}>{picked.label}</div>
+            </div>
+
+            {/* 取り消す道が無い操作なので、何が消えるのかを名指しで出す。
+                「上書きされます」だけだと、どのノードのどこが消えるのか読み取れない */}
+            <div style={{ marginTop: 10, fontSize: T.fontSize.sm, color: T.brown, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
+              <i className="ti ti-alert-triangle" style={{ fontSize: "0.75rem", marginRight: 3 }} />
+              いま開いている「{currentLabel}」の中身（ノード名・盤面・棋譜・メモ・タグなど）は
+              すべて消えて、呼び出したノードの中身に置き換わります。元に戻せません。
+              <br />
+              親子・合流・並び順は今のままです。
+            </div>
+
+            <button
+              onClick={handleRecall}
+              disabled={running}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                width: "100%", marginTop: 12, padding: "11px 12px", borderRadius: T.radius.lg,
+                border: "none", background: running ? T.gray : T.gold, color: T.cream,
+                fontSize: T.fontSize.lg, fontWeight: 600, cursor: running ? "default" : "pointer",
+                fontFamily: T.fontSerif,
+              }}
+            >
+              <i className="ti ti-file-import" style={{ fontSize: "0.875rem" }} />
+              {running ? "呼び出し中..." : "このノードに呼び出す"}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── セクション見出し ──────────────────────────────
 function SectionHeader({ icon, children, dataOnboard }) {
   return (
@@ -196,7 +368,7 @@ function SectionDivider() {
 // ══════════════════════════════════════════════════════════════════
 // NodeDetail: ノード詳細編集画面
 // ══════════════════════════════════════════════════════════════════
-export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNode, onUpdate, onDeleteNode, onSetMergeParents, onReparentNode, onBranchFromKifu, onBranchRangeFromKifu, onBoardFirstShown }) {
+export function NodeDetail({ tree, trees = [], nodeId, userId, onBack, onNodeSelect, onNewNode, onUpdate, onDeleteNode, onSetMergeParents, onReparentNode, onBranchFromKifu, onBranchRangeFromKifu, onBoardFirstShown }) {
   const node = tree.nodes[nodeId];
 
   const [label,        setLabel]        = useState("");
@@ -244,6 +416,7 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
   const [boardSnapshot,          setBoardSnapshot]          = useState(null);
   const [addOpen,                setAddOpen]                = useState(false);
   const [kifuPickerOpen,         setKifuPickerOpen]         = useState(false);
+  const [recallOpen,             setRecallOpen]             = useState(false);
   const [branchTipOpen,          setBranchTipOpen]          = useState(false);
 
   // デバウンス付き自動保存（ノード名・メモ・タグなど、入力ごとに即時送信したくないフィールド用）
@@ -293,34 +466,46 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
     saveTimer.current = setTimeout(flushSave, 800);
   };
 
+  /** ノードの値を入力欄（ローカルstate）へ流し込む。
+   *  画面を開いたときのリセットと、他のノードの中身を呼び出したときの
+   *  差し替えで同じ処理を使う。片方だけ足すと、呼び出した項目のうち
+   *  1つだけ画面に出ない（保存はされている）という気づけない壊れ方をする。
+   *  ※ ここでは pendingPatch を触らない。呼び出し側が保存の前後を決める */
+  const applyNodeToForm = useCallback((n) => {
+    if (!n) return;
+    setLabel(n.label || "");
+    setSituation((n.situation || []).join("、"));
+    setMyApproach((n.myApproach || []).join("、"));
+    setOrientation(n.orientation || "");
+    setMemo(n.memo || "");
+    setStatus(n.status || "wip");
+    setUsageLevel(n.usageLevel || 2);
+    setWinRate(n.winRate ?? null);
+    setLikeLevel(n.likeLevel ?? null);
+    setCommentTags((n.commentTags || []).join("、"));
+    setAim(n.aim || "");
+    setCaution(n.caution || "");
+    setNextStudy(n.nextStudy || "");
+    setWhenToUse(n.whenToUse || "");
+    setOpeningFocus(n.openingFocus || "");
+    setSummary(n.summary || "");
+    setPositionOpen(!n.isSummary);
+    setBoardVisible(!!n.board && !n.boardHidden);
+    setBoardData(n.board || null);
+    setStamps(n.stamps || []);
+    setTurn(n.turn || null);
+    setEvalSign((n.evaluation ?? 0) < 0 ? "-" : "+");
+    setEvalValue(n.evaluation != null ? String(Math.abs(n.evaluation)) : "");
+    setHandSente(n.handSente || {p:0,l:0,n:0,s:0,g:0,b:0,r:0});
+    setHandGote(n.handGote  || {p:0,l:0,n:0,s:0,g:0,b:0,r:0});
+  }, []);
+
   // nodeId が変わったらフォームをリセット
   useEffect(() => {
     if (node) {
-      setLabel(node.label || "");
-      setSituation((node.situation || []).join("、"));
-      setMyApproach((node.myApproach || []).join("、"));
-      setOrientation(node.orientation || "");
-      setMemo(node.memo || "");
-      setStatus(node.status || "wip");
-      setUsageLevel(node.usageLevel || 2);
-      setWinRate(node.winRate ?? null);
-      setLikeLevel(node.likeLevel ?? null);
-      setCommentTags((node.commentTags || []).join("、"));
-      setAim(node.aim || "");
-      setCaution(node.caution || "");
-      setNextStudy(node.nextStudy || "");
-      setWhenToUse(node.whenToUse || "");
-      setOpeningFocus(node.openingFocus || "");
-      setSummary(node.summary || "");
-      setPositionOpen(!node.isSummary);
-      setBoardVisible(!!node.board && !node.boardHidden);
-      setBoardData(node.board || null);
-      setStamps(node.stamps || []);
-      setTurn(node.turn || null);
-      setEvalSign((node.evaluation ?? 0) < 0 ? "-" : "+");
-      setEvalValue(node.evaluation != null ? String(Math.abs(node.evaluation)) : "");
-      setHandSente(node.handSente || {p:0,l:0,n:0,s:0,g:0,b:0,r:0});
-      setHandGote(node.handGote  || {p:0,l:0,n:0,s:0,g:0,b:0,r:0});
+      applyNodeToForm(node);
+      // 合流はノードの中身ではなくツリーのつながりなので、呼び出しでは動かない。
+      // 画面を開いたときだけ、合流があれば親ノードの詳細を開いておく
       setParentDetailsOpen((node.mergeParentIds || []).length > 0);
       if (node.label === "新しいノード") {
         labelInputRef.current?.focus();
@@ -657,6 +842,44 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
     showToast("棋譜を取り込みました");
   };
 
+  // ── 他のノードの中身を呼び出す（上書き）──────────────
+  // 中身だけを写し、ツリー上の位置（親子・合流・並び順）は動かさない。
+  // 写す項目は nodeFields.js の台帳から作る（nodeContentPatch）ので、
+  // 項目を足したときにここへ書き足す必要はない。
+  //
+  // 一覧は軽い列しか読んでいないので、写す直前に全列で取り直す。
+  // 一覧に kifu や aim まで載せると、ノードが増えるほど一覧が重くなる。
+  const handleRecallNode = async (pickedRow) => {
+    const { data, error } = await fetchNode(pickedRow.id);
+    if (error || !data) {
+      showToast("呼び出しに失敗しました");
+      return false;
+    }
+    const patch = nodeContentPatch(nodeRowToNode(data));
+    // 入力中の内容が呼び出しの後に飛んでくると、写した中身を古い値で塗り替えてしまう
+    dropPendingBoardKeys();
+    if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null; }
+    pendingPatch.current = {};
+
+    const ok = await onUpdate(nodeId, patch);
+    if (ok === false) return false;
+    applyNodeToForm(patch);
+    // 盤面の「元に戻す」の戻り先も呼び出し後に合わせる。
+    // 合わせないと、盤面だけ呼び出し前に戻って他の項目は呼び出したまま、という
+    // どちらでもないノードが作れてしまう
+    setBoardSnapshot({
+      boardVisible: !!patch.board && !patch.boardHidden,
+      boardHidden:  !!patch.boardHidden,
+      boardData:    patch.board ? cloneBoard(patch.board) : null,
+      stamps:       patch.stamps || [],
+      handSente:    patch.handSente,
+      handGote:     patch.handGote,
+      kifu:         patch.kifu || [],
+    });
+    showToast("呼び出しました");
+    return true;
+  };
+
   // ── 合流（追加の親子リンク）操作 ──────────────────
   // モデル: 子ノードが mergeParentIds に「追加の親」を持つ。
   //   ・親 → 子（mergeChildren）も同じデータから算出できる（双方向参照）
@@ -762,6 +985,27 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
           )}
         </div>
         {node.isMergeTarget && <MergeTag />}
+        {/* 他のノードの中身を呼び出す。「まとめる」と同じくノードそのものを
+            作り変える操作なので、下の入力欄には混ぜず名前の隣に置く。
+            ルートと「とりあえず」に出さないのは、どちらも名前と役割が決まっている
+            置き場で、中身を差し替えるとツリー名や置き場が消えてしまうため */}
+        {!node.isRoot && !node.isInbox && (
+          <button
+            onClick={() => setRecallOpen(true)}
+            // アイコンフォントが ::before で文字を差し込むので aria-label で名前を固定する
+            aria-label="呼び出し"
+            style={{
+              flexShrink: 0,
+              display: "inline-flex", alignItems: "center", gap: 5,
+              padding: "5px 10px", borderRadius: T.radius.xl, cursor: "pointer",
+              fontFamily: T.fontSerif, fontSize: T.fontSize.sm,
+              border: `0.5px dashed ${T.inkLine}`, background: "transparent", color: T.inkMid,
+            }}
+          >
+            <i className="ti ti-file-import" style={{ fontSize: "0.8125rem" }} />
+            呼び出し
+          </button>
+        )}
         {/* まとめノードのトグル。ノード名と同じ高さの右端に置く。
             ノードの性格を決める切り替えなので、下の入力欄に混ぜず名前の隣に出す。
             ルートは畳めない（ツリー全体が消えるため）のでトグルを出さず、
@@ -1570,6 +1814,18 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
           hasExistingKifu={(node.kifu || []).length > 0}
           onClose={() => setKifuPickerOpen(false)}
           onImport={handleImportKifu}
+        />
+      )}
+
+      {/* 他のノードの中身を呼び出すモーダル */}
+      {recallOpen && (
+        <NodeRecallModal
+          userId={userId}
+          trees={trees}
+          currentNodeId={nodeId}
+          currentLabel={node.label || "このノード"}
+          onClose={() => setRecallOpen(false)}
+          onRecall={handleRecallNode}
         />
       )}
 

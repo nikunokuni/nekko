@@ -123,6 +123,8 @@ if (!start || Math.hypot(...) > 10) return;
 ```js
 { key: "whenToUse", column: "when_to_use", def: "" },
 // 作成時にだけ決まり、あとから変えない項目は noPatch: true
+// ツリー上の位置・つながりを表す項目（親子・合流・並び順）は structural: true
+//   ―― ノードの「呼び出し」（他のノードの中身を写す）で写さない印
 ```
 
 やることは **①台帳に1行 ②migration を1本 ③画面に入力欄** の3つだけ。

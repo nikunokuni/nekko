@@ -147,15 +147,26 @@ export async function fetchNodes(treeId) {
 
 /** 全ツリー横断のノード検索用に、自分の全ノードを取得する。
  *  盤面サムネイル用に board は含めるが、kifu / stamps は重いので含めない。
- *  ルートはツリー名と同一のため除外する（ツリー自体は一覧から探せる）。 */
+ *  ルートはツリー名と同一のため除外する（ツリー自体は一覧から探せる）。
+ *  is_inbox を読むのは「呼び出し」の候補から置き場を外すため（中身が無く、
+ *  呼び出しても意味が無い）。検索画面では今までどおり置き場も並ぶ。 */
 export async function fetchAllMyNodes(userId) {
   const result = await supabase
     .from("nodes")
-    .select("id, tree_id, label, status, memo, situation, my_approach, orientation, win_rate, like_level, usage_level, board, board_hidden, created_at")
+    .select("id, tree_id, label, status, memo, situation, my_approach, orientation, win_rate, like_level, usage_level, board, board_hidden, is_inbox, created_at")
     .eq("user_id", userId)
     .eq("is_root", false)
     .order("created_at", { ascending: false });
   if (result.error) console.error("fetchAllMyNodes error:", result.error);
+  return result;
+}
+
+/** ノードを1件、全列で取得する（他のノードの中身を「呼び出す」ときに使う）。
+ *  一覧（fetchAllMyNodes）は軽い列しか読んでいないので、写す直前にここで取り直す。
+ *  一覧に kifu や aim まで載せると、ノードが増えるほど一覧の取得が重くなる。 */
+export async function fetchNode(nodeId) {
+  const result = await supabase.from("nodes").select("*").eq("id", nodeId).single();
+  if (result.error) console.error("fetchNode error:", result.error);
   return result;
 }
 

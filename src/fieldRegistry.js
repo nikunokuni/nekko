@@ -17,6 +17,8 @@
 //     noPatch  … true なら更新（update）では変更できない。作成時にだけ決まる項目
 //     noInsert … true なら作成（insert）で送らない。DB か呼び出し側が入れる項目
 //     heavy    … true なら「一覧では読まない重い列」。columnList() が外す
+//     structural … true なら「中身」ではなく「ツリー上の位置・つながり」を表す項目。
+//                  contentPatch() が外す（別のノードから中身を写しても位置は動かさない）
 // ══════════════════════════════════════════════════
 
 const defaultOf = (f) => (typeof f.def === "function" ? f.def() : f.def);
@@ -53,6 +55,21 @@ export function createFieldMapper(FIELDS) {
         if (Object.hasOwn(patch, f.key)) row[f.column] = patch[f.key];
       }
       return row;
+    },
+
+    /** 別のオブジェクトの「中身」を丸ごと写すためのパッチを作る。
+     *  structural（ツリー上の位置・つながり）と noPatch（作成時にだけ決まる項目）は外す。
+     *  上書きなので、写し元で空の項目も既定値で**明示的に**含める
+     *  ―― 含めないと、その項目だけ写し先の古い値が残って混ざったノードになる。
+     *  写す項目を手で並べないのは、台帳に1行足したときに書き足し忘れると
+     *  その項目だけ静かに写らないため（画面は壊れないので気づけない）。 */
+    contentPatch(source) {
+      const patch = {};
+      for (const f of FIELDS) {
+        if (f.noPatch || f.structural) continue;
+        patch[f.key] = source?.[f.key] ?? defaultOf(f);
+      }
+      return patch;
     },
 
     /** select に渡す列名の並び。
