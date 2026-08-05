@@ -207,7 +207,9 @@ export const BOARD_TEMPLATES = [
 export const TSUIKA_ITEMS = [
   { key: "merge",        label: "合流",         icon: "ti-arrow-merge" },
   { key: "commentTags",  label: "一言コメント", icon: "ti-message-2" },
-  { key: "boardPeek",    label: "ミニ盤面",     icon: "ti-pin" },
+  // ミニ盤面だけは括弧の説明を残す。名前だけでは何が起きるか分からず、
+  // ノード編集画面にも「ミニ盤面」という見出しが無いので照らし合わせられない
+  { key: "boardPeek",    label: "ミニ盤面（スクロール中も盤を上に出す）", icon: "ti-pin" },
   { key: "evaluation",   label: "評価値",       icon: "ti-chart-line" },
   { key: "orientation",  label: "志向",         icon: "ti-compass" },
   { key: "openingFocus", label: "序盤の意識",   icon: "ti-flag" },

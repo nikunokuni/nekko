@@ -91,7 +91,7 @@ test("まとめタブにまとめノードが並ぶ", async ({ page }) => {
   // まとめ本文を書く
   await page.getByText("居飛車", { exact: true }).first().click();
   await page.waitForURL(/\/node\//);
-  const summaryBox = page.getByPlaceholder("例：この戦型は角道を止めるかどうかで方針が変わる", { exact: false });
+  const summaryBox = page.getByPlaceholder("戦型全体の考え方の方針");
   await summaryBox.fill("急戦には位を取らせない");
   await summaryBox.blur();
   await page.waitForTimeout(600);

@@ -244,6 +244,7 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
   const [boardSnapshot,          setBoardSnapshot]          = useState(null);
   const [addOpen,                setAddOpen]                = useState(false);
   const [kifuPickerOpen,         setKifuPickerOpen]         = useState(false);
+  const [branchTipOpen,          setBranchTipOpen]          = useState(false);
 
   // デバウンス付き自動保存（ノード名・メモ・タグなど、入力ごとに即時送信したくないフィールド用）
   const pendingPatch = useRef({});
@@ -893,14 +894,14 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
           <div style={{ padding: "0 16px 12px" }}>
             <SectionLabel style={{ marginBottom: 5 }}>
               <i className="ti ti-bookmark" style={{ fontSize: "0.75rem", color: T.gold, marginRight: 4 }} />
-              {node.isRoot ? "まとめ（このツリー全体の考え方）" : "まとめ（この戦型の考え方）"}
+              まとめ
             </SectionLabel>
             <textarea
               value={summary}
               onChange={(e) => { setSummary(e.target.value); scheduleSave({ summary: e.target.value }); }}
               onBlur={(e)  => { e.target.style.borderColor = T.inkLine; flushSave(); }}
               onFocus={(e) => (e.target.style.borderColor = T.gold)}
-              placeholder="例：この戦型は角道を止めるかどうかで方針が変わる。止めるなら美濃を優先し、待ってから動く。止めないなら…"
+              placeholder="戦型全体の考え方の方針"
               rows={6}
               style={{ width: "100%", border: `0.5px solid ${T.inkLine}`, borderRadius: T.radius.sm, padding: "10px 12px", fontSize: T.fontSize.base, color: T.ink, background: T.cream, resize: "none", fontFamily: T.fontSerif, lineHeight: 1.7, outline: "none", boxSizing: "border-box" }}
             />
@@ -1103,11 +1104,6 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
               style={node.isRoot ? { ...INPUT_STYLE, color: T.inkMid, background: T.goldLight } : INPUT_STYLE}
               onFocus={(e) => (e.target.style.borderColor = T.gold)}
             />
-            {node.isRoot && (
-              <div style={{ fontSize: T.fontSize.sm, color: T.inkFaint, marginTop: 4, fontFamily: T.fontSerif }}>
-                ツリー名と連動しています（ツリー一覧の「編集」から変更できます）
-              </div>
-            )}
           </div>
           <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
             {/* 未定（todo）にも戻せるよう3ステータスすべてを選択肢にする */}
@@ -1260,7 +1256,7 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
               onChange={(e) => { setOpeningFocus(e.target.value); scheduleSave({ openingFocus: e.target.value }); }}
               onBlur={(e) => { e.target.style.borderColor = T.inkLine; flushSave(); }}
               onFocus={(e) => (e.target.style.borderColor = T.gold)}
-              placeholder="この局面に持っていくために、序盤で意識すべきこと"
+              placeholder="例：銀は68で保留"
               rows={2}
               style={{ width: "100%", border: `0.5px solid ${T.inkLine}`, borderRadius: T.radius.sm, padding: "8px 12px", fontSize: T.fontSize.base, color: T.ink, background: T.cream, resize: "none", fontFamily: T.fontSerif, lineHeight: 1.7, outline: "none", boxSizing: "border-box" }}
             />
@@ -1329,9 +1325,9 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
             一言コメントはメモ直下（きほん）へ移動済みで、ここは研究時に書く3欄のみ */}
         {tsuikaShow.studyMemo && <>
         {[
-            { label: "ここでの狙い",   value: aim,       set: setAim,       key: "aim",       placeholder: "じっくり研究するときに：この局面で目指すこと" },
-            { label: "気を付けること", value: caution,   set: setCaution,   key: "caution",   placeholder: "じっくり研究するときに：ミスしやすい点・落とし穴" },
-            { label: "次に調べること", value: nextStudy, set: setNextStudy, key: "nextStudy", placeholder: "次の研究への宿題・深掘りしたい手順" },
+            { label: "ここでの狙い",   value: aim,       set: setAim,       key: "aim",       placeholder: "例：飛車を振りなおす" },
+            { label: "気を付けること", value: caution,   set: setCaution,   key: "caution",   placeholder: "例：角を打ち込む隙を作らない" },
+            { label: "次に調べること", value: nextStudy, set: setNextStudy, key: "nextStudy", placeholder: "次の研究・深掘りしたい手順" },
           ].map(({ label, value, set, key, placeholder }) => (
             <div key={key} style={{ padding: "0 16px 10px" }}>
               <SectionLabel style={{ marginBottom: 5 }}>{label}</SectionLabel>
@@ -1423,15 +1419,16 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
               </div>
             )}
 
-            {/* ── 分岐のコツ（子ノードがまだ無いときだけ）──
-                分岐で手が止まるのは「自分の指し手」を並べようとしたときなので、
-                その一点だけをここで伝える。詳しい説明は使い方トーストに置く */}
-            {children.length === 0 && (
-              <div style={{ display: "flex", gap: 6, padding: "2px 4px", fontSize: T.fontSize.sm, color: T.inkFaint, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
-                <i className="ti ti-bulb" style={{ marginTop: 3, flexShrink: 0 }} />
-                <span>分岐は「相手がどう来たか」で分けると迷いません。自分の指し手はこの枝の中身になります。</span>
-              </div>
-            )}
+            {/* ── 分岐のコツ ──
+                読みたい人だけが読めるよう、本文は畳んでボタンにする（利用規約と同じ考え方）。
+                常に文章が出ていると、毎回読み飛ばす行が分岐ボタンの下に居座ることになる。
+                子ノードの有無で出し分けない：迷うのは2つ目以降を足すときも同じ */}
+            <button
+              onClick={() => setBranchTipOpen(true)}
+              style={{ alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", marginTop: 2, borderRadius: T.radius.xl, border: `0.5px solid ${T.inkLine}`, background: "none", cursor: "pointer", color: T.inkFaint, fontSize: T.fontSize.sm, fontFamily: T.fontSerif }}
+            >
+              <i className="ti ti-bulb" style={{ fontSize: "0.75rem" }} />ヒント
+            </button>
 
             {/* ── 実戦で当たった相手から選ぶ ──
                 ここが「補助」の本体。押さなければ何も起きず、棋譜も読まない */}
@@ -1574,6 +1571,31 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
           onClose={() => setKifuPickerOpen(false)}
           onImport={handleImportKifu}
         />
+      )}
+
+      {/* 分岐のコツ。子ノードの「ヒント」から開く */}
+      {branchTipOpen && (
+        <div style={MODAL_OVERLAY_STYLE} onClick={() => setBranchTipOpen(false)}>
+          <div style={MODAL_SHEET_STYLE} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="分岐のコツ">
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+              <div style={{ flex: 1, fontFamily: T.fontTitle, fontSize: T.fontSize.h, color: T.ink }}>分岐のコツ</div>
+              <button
+                onClick={() => setBranchTipOpen(false)}
+                aria-label="閉じる"
+                style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: "1.125rem", padding: 2 }}
+              >
+                <i className="ti ti-x" />
+              </button>
+            </div>
+            {/* 分岐で手が止まるのは「自分の指し手」を並べようとしたとき。
+                その一点を先に置き、あとの2つは作り進めてから効いてくる話 */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, fontSize: T.fontSize.base, color: T.inkMid, fontFamily: T.fontSerif, lineHeight: 1.9 }}>
+              <div>分岐は<b>相手がどう来たか</b>で分けると迷いません。自分の指し手は、その枝の中身になります。</div>
+              <div>相手の選択肢が4つ以上に割れたら、まだ<b>ひとつ上でまとめられる</b>かもしれません。</div>
+              <div>上から順に埋めるより、<b>実戦で困ったところ</b>から作るほうが続きます。</div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
