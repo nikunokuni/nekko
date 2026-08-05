@@ -16,6 +16,7 @@ import { SectionLabel, BoardSection, MergeLinkList, LinkPicker, TagPickerField, 
 import { fetchMyKifus, fetchKifu, fetchKifusForAnalysis, kifuRowToKifu } from "../db";
 import { toAnalysisGame } from "../kifuAnalyze";
 import { branchCandidates, candidateToNodeFields } from "../kifuBranching";
+import { showToast } from "../toast";
 
 // ──────────────────────────────────────────
 // KifuPickerModal: 棋譜ライブラリから1件選んでノードに取り込む
@@ -60,7 +61,8 @@ function KifuPickerModal({ userId, nodeTags = [], hasExistingKifu, onClose, onIm
     const { data, error } = await fetchKifu(kifu.id);
     setFetching(false);
     if (error || !data) {
-      alert("棋譜の読み込みに失敗しました。もう一度お試しください。");
+      showToast("棋譜の読み込みに失敗しました。通信環境を確認してください。",
+        { action: { label: "もう一度読む", onClick: () => handlePick(kifu) } });
       return;
     }
     setSelected(kifuRowToKifu(data));

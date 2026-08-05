@@ -8,6 +8,15 @@ import {
   fetchMyTrees, fetchPublicTrees, fetchNodes, buildTreeFromNodes,
   countUserNodes, fetchMyLikedTreeIds,
 } from "../db";
+import { showToast } from "../toast";
+
+// 読み込みの失敗だけは「伝えるだけ」で終われない。
+// 保存の失敗と違って画面には何も出ておらず、利用者から見ると
+// 空の一覧が出たまま固まっているのと区別がつかないため、
+// その場でやり直せる手段（もう一度読む）を必ず添える。
+function showLoadError(message, retry) {
+  showToast(message, { action: { label: "もう一度読む", onClick: retry } });
+}
 
 export function useTreeData(session) {
   const [myTrees,       setMyTrees]       = useState([]);
@@ -22,13 +31,13 @@ export function useTreeData(session) {
   const loadMyTrees = useCallback(async () => {
     if (!session) return;
     const { data, error } = await fetchMyTrees(session.user.id);
-    if (error) { alert("ツリー一覧の取得に失敗しました。通信環境を確認してください。"); return; }
+    if (error) { showLoadError("ツリー一覧の取得に失敗しました。通信環境を確認してください。", loadMyTrees); return; }
     setMyTrees(data || []);
   }, [session]);
 
   const loadPublicTrees = useCallback(async () => {
     const { data, error } = await fetchPublicTrees();
-    if (error) { alert("公開ツリーの取得に失敗しました。通信環境を確認してください。"); return; }
+    if (error) { showLoadError("公開ツリーの取得に失敗しました。通信環境を確認してください。", loadPublicTrees); return; }
     setPubTrees(data || []);
     if (session?.user?.id) {
       setLikedTreeIds(await fetchMyLikedTreeIds(session.user.id));
@@ -44,18 +53,18 @@ export function useTreeData(session) {
       let treeRow = [...myTrees, ...pubTrees].find(t => t.id === treeId);
       if (!treeRow && session?.user?.id) {
         const { data, error } = await fetchMyTrees(session.user.id);
-        if (error) { alert("ツリーの取得に失敗しました。通信環境を確認してください。"); return null; }
+        if (error) { showLoadError("ツリーの取得に失敗しました。通信環境を確認してください。", () => loadTree(treeId)); return null; }
         treeRow = (data || []).find(t => t.id === treeId);
       }
       if (!treeRow) {
         const { data: pubData, error: pubError } = await fetchPublicTrees();
-        if (pubError) { alert("ツリーの取得に失敗しました。通信環境を確認してください。"); return null; }
+        if (pubError) { showLoadError("ツリーの取得に失敗しました。通信環境を確認してください。", () => loadTree(treeId)); return null; }
         treeRow = (pubData || []).find(t => t.id === treeId);
       }
       if (!treeRow) return null;
 
       const { data: nodes, error: nodesError } = await fetchNodes(treeId);
-      if (nodesError) { alert("ツリーの取得に失敗しました。通信環境を確認してください。"); return null; }
+      if (nodesError) { showLoadError("ツリーの取得に失敗しました。通信環境を確認してください。", () => loadTree(treeId)); return null; }
       const assembled = buildTreeFromNodes(treeRow, nodes || []);
       setActiveTree(assembled);
       return assembled;

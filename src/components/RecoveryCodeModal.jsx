@@ -31,6 +31,8 @@ export function RecoveryCodeModal({ code, onClose }) {
         document.body.removeChild(ta);
         setCopied(true);
       } catch {
+        // ここも alert のまま。控え損ねるとアカウントを取り戻せなくなるうえ、
+        // 「手動で控える」という次の行動を必ず読んでもらう必要がある
         alert("コピーできませんでした。コードを手動で控えてください。");
       }
     }

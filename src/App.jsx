@@ -33,6 +33,7 @@ import { RecoveryCodeModal } from "./components/RecoveryCodeModal";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { usePwaUpdate } from "./hooks/usePwaUpdate";
 import { useOnboarding, OnboardingLayer } from "./onboarding";
+import { showToast, ToastLayer } from "./toast";
 
 export default function App() {
   const navigate = useNavigate();
@@ -137,7 +138,7 @@ export default function App() {
     const { data, error } = await createTree({ userId: session.user.id, name, tags });
     if (error || !data) {
       console.error("createTree error:", error);
-      alert("ツリーの作成に失敗しました。もう一度お試しください。");
+      showToast("ツリーの作成に失敗しました。もう一度お試しください。");
       return;
     }
 
@@ -148,7 +149,7 @@ export default function App() {
     });
     if (nodeError) {
       console.error("createNode error:", nodeError);
-      alert("ツリーの作成に失敗しました。もう一度お試しください。");
+      showToast("ツリーの作成に失敗しました。もう一度お試しください。");
     }
 
     // 相手の戦法（居飛車 / 振り飛車）の子ノードを2つ自動作成する（並行実行で往復を短縮）。
@@ -193,7 +194,7 @@ export default function App() {
   const handleSendKifuToInbox = async (treeId, kifu, range) => {
     if (!session) return false;
     const inbox = await ensureInboxNode(treeId, session.user.id);
-    if (!inbox) { alert("「とりあえず」を用意できませんでした。もう一度お試しください。"); return false; }
+    if (!inbox) { showToast("「とりあえず」を用意できませんでした。もう一度お試しください。"); return false; }
 
     const all   = kifu.snapshots || [];
     // 範囲は呼び出し側の都合で棋譜の外へはみ出しうるので、ここで棋譜の中へ収める
@@ -223,7 +224,7 @@ export default function App() {
       situation:  kifu.features?.oppStrategy ? [kifu.features.oppStrategy] : [],
       myApproach: kifu.features?.myStrategy  ? [kifu.features.myStrategy]  : [],
     });
-    if (error || !newNode) { alert("ノードの作成に失敗しました。もう一度お試しください。"); return false; }
+    if (error || !newNode) { showToast("ノードの作成に失敗しました。もう一度お試しください。"); return false; }
 
     refreshNodeCount();
     await loadMyTrees();
@@ -233,14 +234,14 @@ export default function App() {
 
   const handleDeleteTree = async (treeId) => {
     const { error } = await deleteTree(treeId);
-    if (error) { alert("削除に失敗しました。もう一度お試しください。"); return; }
+    if (error) { showToast("削除に失敗しました。もう一度お試しください。"); return; }
     await loadMyTrees();
     refreshNodeCount(); // ツリーと一緒に消えたノード分をトロフィーの数値に反映する
   };
 
   const handleEditTree = async (treeId, patch) => {
     const { error } = await updateTree(treeId, patch);
-    if (error) { alert("保存に失敗しました。もう一度お試しください。"); return; }
+    if (error) { showToast("保存に失敗しました。もう一度お試しください。"); return; }
 
     // ルートノード名はツリー名と常に同一に保つ（ルート名はツリー名からのみ変更できる仕様）。
     // ツリー名が変わったときだけ、ルートノードのラベルも追従させる。
@@ -261,7 +262,7 @@ export default function App() {
 
   const handleMemoSave = async (treeId, memo) => {
     const { error } = await updateTree(treeId, { quick_memo: memo });
-    if (error) { alert("メモの保存に失敗しました。もう一度お試しください。"); return; }
+    if (error) { showToast("メモの保存に失敗しました。もう一度お試しください。"); return; }
     setMyTrees((prev) => prev.map((t) => t.id === treeId ? { ...t, quick_memo: memo } : t));
     setActiveTree((prev) => prev && prev.id === treeId ? { ...prev, quickMemo: memo } : prev);
   };
@@ -290,7 +291,7 @@ export default function App() {
   // 保存の成否を返す（呼び出し側が失敗時に表示を元に戻せるように）
   const handleNodeUpdate = async (nodeId, patch) => {
     const { error } = await updateNode(nodeId, patch);
-    if (error) { alert("保存に失敗しました。もう一度お試しください。"); return false; }
+    if (error) { showToast("保存に失敗しました。もう一度お試しください。"); return false; }
 
     // 戦法タグが変わった場合のみ、ツリー全体のタグを再計算する。
     // タグは updater の外（closureのactiveTree）で1回だけ算出し、副作用（DB保存・別state更新）も
@@ -322,7 +323,7 @@ export default function App() {
     // sort_order が旧親時代のままだとリロード時に並び順が変わって位置が跳ねてしまう。
     const sortOrder = nextSortOrder(activeTree, newParentId);
     const { error } = await updateNode(nodeId, { parentId: newParentId, sortOrder });
-    if (error) { alert("移動に失敗しました。もう一度お試しください。"); return; }
+    if (error) { showToast("移動に失敗しました。もう一度お試しください。"); return; }
     setActiveTree((prev) => reparentTree(prev, nodeId, newParentId, sortOrder));
   };
 
@@ -346,7 +347,7 @@ export default function App() {
       mergeParentIds,
       isMergeTarget: mergeParentIds.length > 0,
     });
-    if (error) { alert("保存に失敗しました。もう一度お試しください。"); return; }
+    if (error) { showToast("保存に失敗しました。もう一度お試しください。"); return; }
     setActiveTree((prev) => setMergeParentsTree(prev, nodeId, mergeParentIds));
   };
 
@@ -363,7 +364,7 @@ export default function App() {
       sortOrder: nextSortOrder(activeTree, parentId),
       ...extraFields,
     });
-    if (!newNode) { alert("ノードの追加に失敗しました。もう一度お試しください。"); return; }
+    if (!newNode) { showToast("ノードの追加に失敗しました。もう一度お試しください。"); return; }
     // 全件再フェッチせず、作成ノードをローカルツリーへマージ（ネットワーク往復を削減）
     setActiveTree(prev => addNode(prev, nodeRowToNode(newNode)));
     setNodeCount(c => c + 1);
@@ -383,7 +384,7 @@ export default function App() {
       sortOrder: nextSortOrder(activeTree, parentNodeId),
       ...extraFields,
     });
-    if (!newNode) { alert("分岐ノードの追加に失敗しました。もう一度お試しください。"); return; }
+    if (!newNode) { showToast("分岐ノードの追加に失敗しました。もう一度お試しください。"); return; }
     // 全件再フェッチせず、作成ノードをローカルツリーへマージ（ネットワーク往復を削減）
     setActiveTree(prev => addNode(prev, nodeRowToNode(newNode)));
     setNodeCount(c => c + 1);
@@ -454,14 +455,14 @@ export default function App() {
       refreshNodeCount();
     } catch (e) {
       console.error("ノード削除失敗", e);
-      alert("ノードの削除に失敗しました。もう一度お試しください。");
+      showToast("ノードの削除に失敗しました。もう一度お試しください。");
     }
   };
 
   // ── 公開ツリーのプレビュー（閲覧専用でマップ・ノードの中身を見る）──
   const handleOpenPublicTree = async (treeId) => {
     const tree = await loadTree(treeId);
-    if (!tree) { alert("ツリーの読み込みに失敗しました。もう一度お試しください。"); return; }
+    if (!tree) { showToast("ツリーの読み込みに失敗しました。もう一度お試しください。"); return; }
     navigate(`/tree/${treeId}/preview`);
   };
 
@@ -473,7 +474,7 @@ export default function App() {
     const { data: newTreeId, error } = await copyTree(pubTreeId, pubTreeRow.name + "（コピー）");
     if (error || !newTreeId) {
       console.error("copyTree error:", error);
-      alert("コピーに失敗しました。もう一度お試しください。");
+      showToast("コピーに失敗しました。もう一度お試しください。");
       return;
     }
 
@@ -494,6 +495,8 @@ export default function App() {
     <>
       {needRefresh && <UpdateBanner onUpdate={applyUpdate} />}
       <AuthScreen onAuth={handleAuth}/>
+      {/* ログイン前にも失敗の知らせは要る（ここにも置かないと無音で失敗する） */}
+      <ToastLayer />
     </>
   );
 
@@ -506,6 +509,10 @@ export default function App() {
 
       {/* 初回オンボーディング（使い方トースト＋指さし。実装は onboarding.jsx） */}
       <OnboardingLayer onboard={onboard} fingerPos={fingerPos} onAdvance={advanceOnboard} />
+
+      {/* 失敗の知らせ（押させないトースト。実装は toast.jsx）。
+          アプリ内に1つだけ置く ―― 2つ置くと同じ知らせが二重に出る */}
+      <ToastLayer />
 
       {/* リカバリーコードの保存案内（発行直後のみ・全画面。ラベル＋コードのみ表示） */}
       {recoveryCode && (

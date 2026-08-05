@@ -208,7 +208,10 @@ export function analyzeSwingTiming(games) {
   const out = {};
   for (const timing of ["先発", "対応"]) {
     const subset = games.filter((g) => g.features?.swingTiming === timing);
-    if (subset.length) out[timing] = summarize(subset);
+    // gameIds を添えるのは、画面がこの行から実戦へ掘り下げられるようにするため。
+    // groupBy が返す行と同じ形にそろえておかないと、同じ見た目の行なのに
+    // 押せるものと押せないものが混ざる
+    if (subset.length) out[timing] = { ...summarize(subset), gameIds: subset.map((g) => g.id) };
   }
   return out;
 }

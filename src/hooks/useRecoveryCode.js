@@ -39,6 +39,10 @@ export function useRecoveryCode(session) {
       if (code) setNewCode(code);
       return !!code;
     } catch {
+      // ここだけは alert のまま（消えるトーストにしない）。
+      // 再発行に失敗すると、古いコードが無効になったのか残っているのかが
+      // 利用者には分からない。見落とすとアカウントを取り戻せなくなるので、
+      // 一度は必ず目を通してもらう必要がある
       alert("リカバリーコードの発行に失敗しました。通信環境を確認してください。");
       return false;
     }

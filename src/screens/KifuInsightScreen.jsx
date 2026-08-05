@@ -16,6 +16,7 @@ import {
 import { analyzeKifu, recomputeFeatures, resolveMySide, toAnalysisGame } from "../kifuAnalyze";
 import { analyzeGames, analyzeSwingTiming, groupBy, BRANCH_VIEWS } from "../kifuStats";
 import { getKifuPlayerNames } from "../rewards";
+import { showToast } from "../toast";
 import { outcomeLabel, formatDate } from "./kifu/shared";
 import { KifuPreviewModal } from "./kifu/KifuPreviewModal";
 
@@ -226,7 +227,11 @@ export function KifuInsight({ userId, trees = [], onBack, onGoSettings, onSendTo
     setPreviewLoading(true);
     const { data } = await fetchKifu(kifu.id);
     setPreviewLoading(false);
-    if (!data) { setBackfillMsg("棋譜の読み込みに失敗しました。もう一度お試しください"); return; }
+    if (!data) {
+      showToast("棋譜の読み込みに失敗しました。通信環境を確認してください。",
+        { action: { label: "もう一度読む", onClick: () => openKifu(kifu) } });
+      return;
+    }
     setPreviewKifu(kifuRowToKifu(data));
   };
 
@@ -542,7 +547,11 @@ export function KifuInsight({ userId, trees = [], onBack, onGoSettings, onSendTo
                   <GroupRow
                     key={k}
                     group={{ ...timing[k], key: k, label: k === "先発" ? "自分から決めた" : "相手を見てから決めた" }}
-                  />
+                    open={openKey === `timing:${k}`}
+                    onToggle={() => toggleOpen(`timing:${k}`)}
+                  >
+                    <DrilldownList gameIds={timing[k].gameIds} kifuById={kifuById} onOpen={openKifu} />
+                  </GroupRow>
                 ))}
               </Section>
             )}

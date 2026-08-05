@@ -21,6 +21,7 @@ import { ImportKifuModal } from "./kifu/ImportKifuModal";
 import { RecordKifuModal } from "./kifu/RecordKifuModal";
 import { KifuPreviewModal } from "./kifu/KifuPreviewModal";
 import { EditKifuModal } from "./kifu/EditKifuModal";
+import { showToast } from "../toast";
 
 
 
@@ -232,7 +233,7 @@ export function KifuList({ userId, trees = [], onBack, onInsight, onGoSettings, 
       snapshots: kifu.snapshots, mySide: side, handicap: kifu.handicap,
     });
     const { error } = await updateKifu(kifu.id, { mySide: side, features });
-    if (error) { alert("保存に失敗しました。もう一度お試しください。"); return; }
+    if (error) { showToast("保存に失敗しました。もう一度お試しください。"); return; }
     const patch = { mySide: side, features };
     setKifus((prev) => prev.map((k) => (k.id === kifu.id ? { ...k, ...patch } : k)));
     setPreviewTarget((t) => (t && t.id === kifu.id ? { ...t, ...patch } : t));
@@ -245,7 +246,10 @@ export function KifuList({ userId, trees = [], onBack, onInsight, onGoSettings, 
     const { data, error } = await fetchKifu(kifu.id);
     setPreviewLoading(false);
     if (error || !data) {
-      alert("棋譜の読み込みに失敗しました。もう一度お試しください。");
+      // 読み込みの失敗は、押した棋譜が開かないまま何も起きないように見える。
+      // その場でやり直せる手段を添える
+      showToast("棋譜の読み込みに失敗しました。通信環境を確認してください。",
+        { action: { label: "もう一度読む", onClick: () => handleOpen(kifu) } });
       return;
     }
     setPreviewTarget(kifuRowToKifu(data));
@@ -253,13 +257,13 @@ export function KifuList({ userId, trees = [], onBack, onInsight, onGoSettings, 
 
   const handleEdit = async (kifuId, patch) => {
     const { error } = await updateKifu(kifuId, patch);
-    if (error) { alert("保存に失敗しました。もう一度お試しください。"); return; }
+    if (error) { showToast("保存に失敗しました。もう一度お試しください。"); return; }
     setKifus((prev) => prev.map((k) => (k.id === kifuId ? { ...k, ...patch } : k)));
   };
 
   const handleDelete = async (kifuId) => {
     const { error } = await deleteKifu(kifuId);
-    if (error) { alert("削除に失敗しました。もう一度お試しください。"); return; }
+    if (error) { showToast("削除に失敗しました。もう一度お試しください。"); return; }
     setKifus((prev) => prev.filter((k) => k.id !== kifuId));
   };
 

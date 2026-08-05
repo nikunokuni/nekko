@@ -207,6 +207,13 @@ const many = (n, outcome, features) => Array.from({ length: n }, () => g(outcome
     JSON.stringify(Object.keys(out)));
   check("該当が無い側はキーごと出さない（0局を『勝率0%』と読ませないため）",
     analyzeSwingTiming(many(3, "win", { swingTiming: "先発" }))["対応"] === undefined);
+
+  // 画面はこの行からも実戦へ掘り下げる。groupBy が返す行と同じ形（gameIds を持つ）に
+  // そろえておかないと、同じ見た目の行なのに押せるものと押せないものが混ざる
+  check("groupBy の行と同じく gameIds を持ち、中身が集計対象と一致する",
+    out["先発"].gameIds.length === 3 && out["対応"].gameIds.length === 2
+      && new Set([...out["先発"].gameIds, ...out["対応"].gameIds]).size === 5,
+    JSON.stringify({ 先発: out["先発"].gameIds, 対応: out["対応"].gameIds }));
 }
 
 // ══════════════════════════════════════════════════
