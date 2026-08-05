@@ -468,7 +468,7 @@ export function KifuInsight({ userId, trees = [], onBack, onGoSettings, onSendTo
 
             <Section
               title="分岐を探す"
-              description="どの観点で分けるかを選ぶと、その分かれ方で並べ替わります。差が出ている観点が、そのまま分岐を作る場所の候補になります。"
+              description="観点を選ぶと、その分かれ方で並びます。差が大きい観点が分岐の候補です。"
             >
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
                 {BRANCH_VIEWS.map((v) => (
@@ -505,7 +505,7 @@ export function KifuInsight({ userId, trees = [], onBack, onGoSettings, onSendTo
 
             <Section
               title="よく勝てる"
-              description="全体の勝率より確実に高い戦型だけを出しています（少ない局数のまぐれを除くため、勝率ではなく信頼区間で判定）。"
+              description="全体の勝率より確実に高い戦型だけ（まぐれを除くため信頼区間で判定）。"
             >
               {strong.length === 0
                 ? EMPTY(`${minGames}局以上ためた戦型のうち、全体より確実に勝てていると言えるものはまだありません`)
@@ -522,7 +522,7 @@ export function KifuInsight({ userId, trees = [], onBack, onGoSettings, onSendTo
 
             <Section
               title="よく負ける"
-              description="全体の勝率より確実に低い戦型を、取りこぼしている局数の多い順に並べています。上から直すのが効率的です。"
+              description="全体の勝率より確実に低い戦型を、取りこぼしの多い順に並べています。"
             >
               {weak.length === 0
                 ? EMPTY(`${minGames}局以上ためた戦型のうち、全体より確実に負けていると言えるものはまだありません`)
@@ -541,7 +541,7 @@ export function KifuInsight({ userId, trees = [], onBack, onGoSettings, onSendTo
             {(timing["先発"] || timing["対応"]) && (
               <Section
                 title="自分から決める / 相手に合わせる"
-                description="飛車を振った順番から、自分から戦型を決めた対局と、相手の戦型を見てから合わせた対局を比べています。"
+                description="自分から決めた対局と、相手を見てから合わせた対局の比較（飛車を振った順番で判定）。"
               >
                 {["先発", "対応"].map((k) => timing[k] && (
                   <GroupRow

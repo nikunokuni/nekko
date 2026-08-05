@@ -78,7 +78,7 @@ function KifuFactsTable({ kifu, onSetSide }) {
       {!f && (
         <div style={{ marginTop: 6, fontSize: T.fontSize.sm, color: T.grayText, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
           あなたがどちら側か決まっていないため、戦法・囲いは判定していません。
-          上の「あなた」であなたの名前を選ぶと、その名前を覚えて他の棋譜にも適用されます。
+          上の「あなた」で名前を選ぶと、次からは自動で判定します。
         </div>
       )}
     </div>
@@ -240,8 +240,7 @@ export function KifuPreviewModal({ kifu, onClose, onSetSide, trees = [], onSendT
                   <CancelButton onClick={() => setStep(null)} />
                 </div>
                 <div style={{ marginTop: 6, fontSize: T.fontSize.sm, color: T.inkFaint, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
-                  下の盤で終わりの局面まで進めてから「いま見ている局面まで」を押します。
-                  選んだ範囲だけを切り取ってノードにします。
+                  下の盤を終わりの局面まで進めてから押します。選んだ範囲だけを切り取ります。
                 </div>
               </div>
             ) : (
@@ -274,7 +273,7 @@ export function KifuPreviewModal({ kifu, onClose, onSetSide, trees = [], onSendT
                   <CancelButton onClick={() => { setStep(null); setRange(null); }} />
                 </div>
                 <div style={{ marginTop: 6, fontSize: T.fontSize.sm, color: T.inkFaint, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
-                  切り取った範囲からノードを作り、選んだツリーの「とりあえず」に入れます。置き場所は後から動かせます。
+                  切り取った範囲をノードにして、ツリーの「とりあえず」に入れます。
                 </div>
               </div>
             )}

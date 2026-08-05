@@ -92,10 +92,12 @@ export function RecordKifuModal({ onClose, onSave, customTags, onAddCustomTag })
     else setError("保存できませんでした。もう一度お試しください");
   };
 
-  // 保存できない理由（先に出会うものから1つだけ出す）
+  // 保存できない理由（先に出会うものから1つだけ出す）。
+  // 自分の側をここで必ず聞くのは、あとから棋譜だけ見ても思い出せない項目のため
+  // （画面には理由を書かない。押せない理由さえ分かれば操作は進む）
   const blocker =
     !snapshots       ? "盤に並べて「記録を終わる」を押すと保存できます"
-    : !mySide        ? "「あなたはどちら」を選ぶと保存できます。あとから思い出せない項目なので、ここで聞いています"
+    : !mySide        ? "「あなたはどちら」を選ぶと保存できます"
     : !name.trim()   ? "棋譜の名前を入れてください"
     : null;
 
@@ -227,7 +229,7 @@ export function RecordKifuModal({ onClose, onSave, customTags, onAddCustomTag })
           <textarea
             value={memo}
             onChange={(e) => setMemo(e.target.value)}
-            placeholder="例：序盤で角道を止める形にした／終盤の寄せが分からなかった"
+            placeholder="例：終盤の寄せが分からなかった"
             rows={3}
             aria-label="メモ（自由記入）"
             style={{

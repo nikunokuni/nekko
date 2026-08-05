@@ -48,7 +48,7 @@ export function EditKifuModal({ kifu, onClose, onSave, customTags, onAddCustomTa
           <textarea
             value={memo}
             onChange={(e) => setMemo(e.target.value)}
-            placeholder="例：序盤で角道を止める形にした／終盤の寄せが分からなかった"
+            placeholder="例：終盤の寄せが分からなかった"
             rows={3}
             aria-label="メモ（自由記入）"
             style={{

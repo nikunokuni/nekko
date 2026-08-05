@@ -367,7 +367,7 @@ export function ImportKifuModal({ onClose, onImportMany, customTags, onAddCustom
             background: T.goldLight, fontSize: T.fontSize.sm, color: T.brown,
             fontFamily: T.fontSerif, lineHeight: 1.7,
           }}>
-            {unresolved}件であなたがどちらか分かりません。一度あなたの名前を選べば、同じ名前の棋譜はまとめて判定されます。
+            {unresolved}件であなたがどちらか分かりません。名前を一度選べば、次からは自動で判定します。
             <div style={{ marginTop: 4, color: T.inkMid }}>
               将棋アプリごとに名前が違う場合は、
               {onGoSettings
