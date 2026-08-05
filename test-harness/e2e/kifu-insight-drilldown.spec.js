@@ -61,7 +61,9 @@ test("傾向の行から実戦をたどり、ツリーの「とりあえず」�
   // ── もう一度たどって、実際にツリーへ入れる ──
   await page.getByRole("button", { name: /ツリーの「とりあえず」に入れる/ }).click();
   await page.getByRole("button", { name: /最後（第20手）まで/ }).click();
-  await page.getByText("対抗形", { exact: true }).click();
+  // ツリーは名前で指す。「対抗形」は読み取った戦型としても画面に出るので、
+  // 文字ではなくボタンとして指す（同じ将棋用語が別の意味で並ぶことがある）
+  await page.getByRole("button", { name: "対抗形" }).click();
 
   // 作られたノードの画面へ移動する（「とりあえず」に入れたまま迷子にならない）
   await page.waitForURL(/\/tree\/[0-9a-f-]+\/node\/[0-9a-f-]+$/);

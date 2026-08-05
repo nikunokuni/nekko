@@ -6,7 +6,8 @@
 // 「傾向」がそれらしい顔をしたまま嘘をつく。
 //   ・母数が足りない粒度を採用しないこと（＝2局2勝が上位に来ないこと）
 //   ・ウィルソン区間が 0〜1 に収まり、母数が増えるほど狭くなること
-import { wilson, groupBy, bestGranularity, analyzeGames, analyzeSwingTiming, LEVELS, BRANCH_VIEWS } from "../src/kifuStats.js";
+import { wilson, groupBy, bestGranularity, analyzeGames, analyzeSwingTiming, LEVELS, BRANCH_VIEWS, NEEDS_REANALYSIS } from "../src/kifuStats.js";
+import { FEATURES_VERSION } from "../src/kifuFeatures.js";
 
 let pass = 0, fail = 0;
 function check(name, cond, detail = "") {
@@ -22,6 +23,7 @@ const g = (outcome, features = {}) => ({
   side: "sente",
   outcome,
   features: {
+    v: FEATURES_VERSION,
     oppStrategy: "四間飛車", myStrategy: "居飛車",
     myCastle: null, oppCastle: null,
     moveCount: 100,
@@ -222,8 +224,14 @@ const many = (n, outcome, features) => Array.from({ length: n }, () => g(outcome
 // ══════════════════════════════════════════════════
 {
   const sample = [
-    g("win",  { oppStrategy: "四間飛車", myStrategy: "居飛車", myCastle: { name: "舟囲い", completeness: 1 }, oppCastle: { name: "美濃囲い", completeness: 1 }, swingTiming: "対応", bishopExchanged: true }),
-    g("lose", { oppStrategy: "中飛車",   myStrategy: "振り飛車", myCastle: { name: "美濃囲い", completeness: 0.5 }, oppCastle: { name: "舟囲い", completeness: 1 }, swingTiming: "先発", bishopExchanged: false }),
+    g("win",  { oppStrategy: "四間飛車", myStrategy: "居飛車", formation: "対抗形",
+                myCastle: { name: "舟囲い", completeness: 1 }, oppCastle: { name: "美濃囲い", completeness: 1 },
+                swingTiming: "対応", bishopExchanged: true,
+                attackFirst: "自分から仕掛けた", myReswingPly: null, oppReswingPly: 44 }),
+    g("lose", { oppStrategy: "中飛車",   myStrategy: "三間飛車", formation: "相振り飛車",
+                myCastle: { name: "美濃囲い", completeness: 0.5 }, oppCastle: { name: "舟囲い", completeness: 1 },
+                swingTiming: "先発", bishopExchanged: false,
+                attackFirst: "相手から仕掛けられた", myReswingPly: null, oppReswingPly: null }),
   ];
   const broken = BRANCH_VIEWS.filter((v) => {
     const rows = groupBy(sample, v.dims);
@@ -232,6 +240,19 @@ const many = (n, outcome, features) => Array.from({ length: n }, () => g(outcome
   });
   check("すべての観点が実際に集計できる（軸名の打ち間違いが無い）",
     broken.length === 0, broken.map((v) => v.key).join(", "));
+
+  // 特徴の作り方を変えたあと、まだ作り直していない棋譜が既定値に落ちないこと。
+  // 「振り直しなし」「角交換なし」として混ざると、計算していないだけの対局が
+  // 事実として数字に入り、勝率が静かにずれる（画面はふつうに表示される）
+  const old = [{ ...g("win", {}), features: { v: 1, oppStrategy: "四間飛車", myStrategy: "居飛車", myCastle: null, oppCastle: null, moveCount: 100 } }];
+  for (const key of ["formation", "attackFirst", "reswing", "bishopExchange"]) {
+    const v = BRANCH_VIEWS.find((x) => x.key === key);
+    check(`古い解析結果は「${NEEDS_REANALYSIS}」に寄る（${key}）`,
+      groupBy(old, v.dims)[0].label === NEEDS_REANALYSIS, groupBy(old, v.dims)[0].label);
+  }
+  // 逆に、作り方を変えていない軸は古い解析結果でもそのまま集計できる
+  check("古くても戦法・囲いの軸はそのまま集計できる",
+    groupBy(old, ["oppStrategy"])[0].label === "四間飛車");
 }
 
 console.log(`\n=== ${pass}/${pass + fail} passed ===`);

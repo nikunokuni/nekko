@@ -2,7 +2,10 @@
 //   実行: node test-harness/kifuAnalysis.test.mjs
 
 import { importKifuText, parseKifuMeta, isEvenGame } from "../src/kifuParser.js";
-import { extractGameFeatures, detectCastle, detectMilestones } from "../src/kifuFeatures.js";
+import {
+  extractGameFeatures, detectCastle, detectMilestones,
+  formationClass, detectBreakPoint, findBishopExchangePly, FEATURES_VERSION,
+} from "../src/kifuFeatures.js";
 import { branchCandidates, candidateToNodeFields } from "../src/kifuBranching.js";
 import { analyzeGames, analyzeSwingTiming, wilson, groupBy, BRANCH_VIEWS } from "../src/kifuStats.js";
 import { resolveMySide, outcomeFor, resultFromOutcome, analyzeKifu, toAnalysisGame } from "../src/kifuAnalyze.js";
@@ -120,6 +123,8 @@ check("飛車を振った手数", f1.swingPly, 5);
 check("振り方（先発/対応）", f1.swingTiming, "先発");
 check("振りの早さ", f1.swingSpeed, "早い");
 check("角交換", f1.bishopExchanged, false);
+check("戦型の大分類（振り飛車 vs 居飛車）", f1.formation, "対抗形");
+check("飛車の振り直しはしていない", f1.myReswingPly, null);
 
 // 後手視点でも同じ棋譜を読めること（自分＝後手のとき）
 const f1g = extractGameFeatures(r1.snapshots, "gote");
@@ -164,6 +169,39 @@ const KIF_YOKOFU = `手合割：平手
   check("飛車が3四まで出ても居飛車と判定する", f.myStrategy, "居飛車");
   check("後手も居飛車のまま", f.oppStrategy, "居飛車");
   check("前へ出ただけの手は「振った」と数えない", f.swingPly, null);
+}
+
+// ══════════════════════════════════════════════════
+// 戦型の大分類 ― 相居飛車 / 対抗形 / 相振り飛車
+//   「相手の戦法＝四間飛車」だけで括ると、自分が居飛車で受けた対抗形と、
+//   自分も振った相振り飛車が同じ数字に混ざる。この二つは別の将棋なので、
+//   まとめた勝率を読んでも次の一手につながらない。
+// ══════════════════════════════════════════════════
+console.log("\n── 戦型の大分類 ──");
+{
+  // 先手＝四間飛車 / 後手も四間飛車（8二飛→4二飛）＝相振り飛車
+  const KIF_AIFURI = `手合割：平手
+先手：にく
+後手：たろう
+手数----指手---------消費時間--
+   1 ７六歩(77)   ( 0:01/00:00:01)
+   2 ３四歩(33)   ( 0:01/00:00:01)
+   3 ６八飛(28)   ( 0:01/00:00:02)
+   4 ４二飛(82)   ( 0:01/00:00:02)
+   5 ４八玉(59)   ( 0:01/00:00:03)
+   6 ６二玉(51)   ( 0:01/00:00:03)
+   7 投了         ( 0:01/00:00:04)
+`;
+  const f = extractGameFeatures(importKifuText(KIF_AIFURI).snapshots, "sente");
+  check("双方が振り飛車なら相振り飛車", f.formation, "相振り飛車");
+  check("相振りでも自分の戦法はそのまま", f.myStrategy, "四間飛車");
+  check("相振りでも相手の戦法はそのまま", f.oppStrategy, "四間飛車");
+
+  const fy = extractGameFeatures(importKifuText(KIF_YOKOFU).snapshots, "sente");
+  check("双方が居飛車なら相居飛車", fy.formation, "相居飛車");
+  // 右四間飛車は飛車を右側に据えたまま戦う居飛車なので、対抗形にしない
+  check("右四間飛車は居飛車として数える", formationClass("右四間飛車", "居飛車"), "相居飛車");
+  check("戦法が読めなければ大分類も出さない", formationClass("不明", "居飛車"), "不明");
 }
 
 // 片美濃（金1枚）は「美濃囲いの67%」ではなく片美濃として名前が付くこと
@@ -234,6 +272,136 @@ console.log("\n── 囲いの判定 ──");
   // 5八玉→5二玉 / 3八金→7二金 / 4八銀→6二銀 / 7八金→3二金
   const gote = build([[5, 2, "K"], [7, 2, "G"], [6, 2, "S"], [3, 2, "G"]]);
   check("後手の中住まいも判定できる", detectCastle(gote, "gote").name, "中住まい");
+}
+
+// ══════════════════════════════════════════════════
+// 仕掛け ― 飛車先の歩交換と本当の仕掛けを分ける
+//   「最初に駒を取った手」をそのまま仕掛けにすると、居飛車が当たり前に行う
+//   飛車先の歩交換まで戦いの始まりになる。しかも歩を取り合ったとき動いたのは
+//   突き捨てた側であって、取った側ではない。ここが崩れても画面は落ちず、
+//   「攻めているのに勝てない／受けると崩れる」という自己分析が丸ごと裏返る。
+// ══════════════════════════════════════════════════
+console.log("\n── 仕掛け ──");
+
+// 棒銀の突破。9手目に2四で歩を取り合うが、取り返すのは銀なので仕掛け。
+// 仕掛けの手は取り合いの手(14)ではなく、歩を突き捨てた13手目
+const KIF_BOGIN = `手合割：平手
+先手：にく
+後手：たろう
+手数----指手---------消費時間--
+   1 ２六歩(27)   ( 0:01/00:00:01)
+   2 ３四歩(33)   ( 0:01/00:00:01)
+   3 ２五歩(26)   ( 0:01/00:00:02)
+   4 ８四歩(83)   ( 0:01/00:00:02)
+   5 ３八銀(39)   ( 0:01/00:00:03)
+   6 ８五歩(84)   ( 0:01/00:00:03)
+   7 ２七銀(38)   ( 0:01/00:00:04)
+   8 ３二金(41)   ( 0:01/00:00:04)
+   9 ２六銀(27)   ( 0:01/00:00:05)
+  10 ７四歩(73)   ( 0:01/00:00:05)
+  11 ３五銀(26)   ( 0:01/00:00:06)
+  12 ７三桂(81)   ( 0:01/00:00:06)
+  13 ２四歩(25)   ( 0:01/00:00:07)
+  14 同　歩(23)   ( 0:01/00:00:07)
+  15 同　銀(35)   ( 0:01/00:00:08)
+  16 投了         ( 0:01/00:00:08)
+`;
+{
+  const bogin = detectBreakPoint(importKifuText(KIF_BOGIN).snapshots);
+  check("取り返すのが銀なら仕掛け（棒銀の突破）", bogin, { ply: 13, side: "sente" });
+
+  // 横歩取りは9〜14手目で双方が飛車先の歩を交換するが、どちらも駒組み。
+  // 戦いが始まるのは横歩を取った15手目
+  const yoko = detectBreakPoint(importKifuText(KIF_YOKOFU).snapshots);
+  check("飛車で取り返す歩交換は仕掛けに数えない", yoko, { ply: 15, side: "sente" });
+
+  const fb = extractGameFeatures(importKifuText(KIF_BOGIN).snapshots, "gote");
+  check("後手から見れば仕掛けられた側", fb.attackFirst, "相手から仕掛けられた");
+  check("先手から見れば仕掛けた側",
+    extractGameFeatures(importKifuText(KIF_BOGIN).snapshots, "sente").attackFirst, "自分から仕掛けた");
+  check("駒がぶつからない将棋には仕掛けが無い",
+    extractGameFeatures(r1.snapshots, "sente").attackFirst, null);
+}
+
+// ══════════════════════════════════════════════════
+// 角交換 ― 「序盤に角を交換した将棋か」を見る
+//   盤上から角が2枚消えたかどうかで見ると、中盤の捌き合いで角が入れ替わった
+//   将棋まで「角交換あり」になり、ほとんどの対局が片側に寄って軸が死ぬ。
+// ══════════════════════════════════════════════════
+console.log("\n── 角交換 ──");
+{
+  const head = `手合割：平手
+先手：にく
+後手：たろう
+手数----指手---------消費時間--
+   1 ７六歩(77)   ( 0:01/00:00:01)
+   2 ３四歩(33)   ( 0:01/00:00:01)
+`;
+  const exchanged = `${head}   3 ２二角成(88)  ( 0:01/00:00:02)
+   4 同　銀(31)   ( 0:01/00:00:02)
+   5 投了         ( 0:01/00:00:03)
+`;
+  check("角が角を取り、取り返されて角交換成立",
+    findBishopExchangePly(importKifuText(exchanged).snapshots), 4);
+
+  // 取り返されなければ角交換ではなく「角得」。狙いも囲いの選び方も変わらない
+  const grabbed = `${head}   3 ２二角成(88)  ( 0:01/00:00:02)
+   4 ８四歩(83)   ( 0:01/00:00:02)
+   5 投了         ( 0:01/00:00:03)
+`;
+  check("取り返されなければ角交換ではない",
+    findBishopExchangePly(importKifuText(grabbed).snapshots), null);
+  check("角の只取りは仕掛けに数える",
+    detectBreakPoint(importKifuText(grabbed).snapshots), { ply: 3, side: "sente" });
+
+  // 中盤（30手より後）の角交換は戦型としての角交換ではない。
+  // 手数を稼ぐだけの玉の往復を挟んで、同じ角交換を31手目に起こす
+  const shuffle = [];
+  for (let i = 0; i < 14; i++) {
+    shuffle.push(i % 2 === 0 ? "４八玉(59)" : "５九玉(48)");
+    shuffle.push(i % 2 === 0 ? "６二玉(51)" : "５一玉(62)");
+  }
+  const late = head
+    + shuffle.map((mv, i) => `  ${i + 3} ${mv}\n`).join("")
+    + "  31 ２二角成(88)\n  32 同　銀(31)\n";
+  check("中盤の角交換は角交換型に数えない",
+    findBishopExchangePly(importKifuText(late).snapshots), null);
+}
+
+// ══════════════════════════════════════════════════
+// 飛車の振り直し
+//   戦法は1回目に振った筋で決まる。最後に据えた筋を採ると、振り直した将棋が
+//   丸ごと振り直し後の戦法になり、最初にぶつかった戦型が数字から消える。
+// ══════════════════════════════════════════════════
+console.log("\n── 飛車の振り直し ──");
+{
+  // 3手目に四間飛車、9手目に三間飛車へ振り直す
+  const KIF_RESWING = `手合割：平手
+先手：にく
+後手：たろう
+手数----指手---------消費時間--
+   1 ７六歩(77)   ( 0:01/00:00:01)
+   2 ３四歩(33)   ( 0:01/00:00:01)
+   3 ６八飛(28)   ( 0:01/00:00:02)
+   4 ８四歩(83)   ( 0:01/00:00:02)
+   5 ４八玉(59)   ( 0:01/00:00:03)
+   6 ８五歩(84)   ( 0:01/00:00:03)
+   7 ３八玉(48)   ( 0:01/00:00:04)
+   8 ６二銀(71)   ( 0:01/00:00:04)
+   9 ７八飛(68)   ( 0:01/00:00:05)
+  10 投了         ( 0:01/00:00:05)
+`;
+  const r = importKifuText(KIF_RESWING);
+  const f = extractGameFeatures(r.snapshots, "sente");
+  check("戦法は1回目に振った筋で決まる", f.myStrategy, "四間飛車");
+  check("振り直した手数を持つ", f.myReswingPly, 9);
+  check("飛車を振った手は1回目のまま", f.swingPly, 3);
+  check("相手が振っていなければ相手の振り直しも無い", f.oppReswingPly, null);
+
+  const fg = extractGameFeatures(r.snapshots, "gote");
+  check("後手から見れば相手の振り直し", fg.oppReswingPly, 9);
+  check("節目に振り直しが出る",
+    detectMilestones(r.snapshots).find((m) => m.label === "先手が飛車を振り直す")?.ply, 9);
 }
 
 console.log("\n── 自分の側の判定 ──");
@@ -342,8 +510,9 @@ console.log("\n── 棋譜の節目 ──");
   // 横歩取りの棋譜は9手目(2四歩)で歩を取り合い、そのあと角交換はしない
   const r = importKifuText(KIF_YOKOFU);
   const ms = detectMilestones(r.snapshots);
-  const shikake = ms.find((m) => m.label === "仕掛け");
-  check("最初に駒を取った手を仕掛けとする", shikake?.ply, 10);
+  const shikake = ms.find((m) => m.label.endsWith("の仕掛け"));
+  check("仕掛けは横歩を取った15手目（9〜14手目の歩交換は駒組み）", shikake?.ply, 15);
+  check("仕掛けた側も出す", shikake?.label, "先手の仕掛け");
   check("相居飛車では戦型が決まる印を出さない",
     ms.some((m) => m.label === "戦型が決まる"), false);
 
@@ -360,10 +529,13 @@ console.log("\n── 分岐を探す観点 ──");
   const g = (over) => ({
     id: String(Math.random()), outcome: "win", side: "sente",
     features: {
+      v: FEATURES_VERSION,
       myStrategy: "四間飛車", oppStrategy: "居飛車", moveCount: 100,
+      formation: "対抗形",
       myCastle: { name: "美濃囲い", completeness: 1 },
       oppCastle: { name: "舟囲い", completeness: 1 },
       swingTiming: "先発", bishopExchanged: false,
+      attackFirst: "自分から仕掛けた", myReswingPly: null, oppReswingPly: null,
       ...over,
     },
   });
@@ -373,6 +545,10 @@ console.log("\n── 分岐を探す観点 ──");
     g({ myCastle: { name: "美濃囲い", completeness: 0.5 } }),
     g({ swingTiming: "対応" }),
     g({ swingTiming: null }),
+    g({ formation: "相振り飛車", myStrategy: "三間飛車" }),
+    g({ attackFirst: "相手から仕掛けられた" }),
+    g({ oppReswingPly: 38 }),
+    g({ myReswingPly: 42 }),
   ];
   const by = (key) => {
     const v = BRANCH_VIEWS.find((x) => x.key === key);
@@ -382,6 +558,11 @@ console.log("\n── 分岐を探す観点 ──");
   check("囲いが間に合ったかで分かれる", by("castleDone"), ["囲いが間に合った", "囲いが間に合わなかった"]);
   check("自分から決めたかで分かれる", by("swingTiming"),
     ["居飛車のまま", "相手を見てから決めた", "自分から決めた"].sort());
+  check("戦型の大分類で分かれる", by("formation"), ["対抗形", "相振り飛車"].sort());
+  check("先に仕掛けたのはどちらかで分かれる", by("attackFirst"),
+    ["自分から仕掛けた", "相手から仕掛けられた"].sort());
+  check("飛車の振り直しで分かれる", by("reswing"),
+    ["振り直しなし", "自分が振り直した", "相手が振り直した"].sort());
   check("相手の戦法では分かれない（全部同じ）", by("oppStrategy"), ["居飛車"]);
   check("観点はすべて集計できる", BRANCH_VIEWS.every((v) => groupBy(games, v.dims).length > 0), true);
 }

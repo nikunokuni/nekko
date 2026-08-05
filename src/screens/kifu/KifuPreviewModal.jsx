@@ -5,6 +5,7 @@
 import { useCallback, useState } from "react";
 import { T, MODAL_OVERLAY_STYLE, MODAL_SHEET_STYLE } from "../../theme";
 import { SectionLabel, KifuPreviewBoard } from "../../components/uiParts";
+import { FEATURES_VERSION } from "../../kifuFeatures";
 import { outcomeLabel } from "./shared";
 
 // ──────────────────────────────────────────
@@ -23,6 +24,16 @@ function KifuFactsTable({ kifu, onSetSide }) {
     if (!c) return "―";
     if (c.completeness > 0 && c.completeness < 1) return `${c.name}（組みかけ）`;
     return c.name;
+  };
+  // 特徴の作り方を変えたあとの古い解析結果には、新しい項目が入っていない。
+  // 「なし」と出すと計算していないだけの対局が事実に見えるので、そう書かない
+  // （傾向画面の「まとめて解析する」で作り直せる）
+  const fresh = (value) => (f?.v === FEATURES_VERSION ? value : "―（再解析が必要）");
+  const reswing = (x) => {
+    const parts = [];
+    if (x.myReswingPly)  parts.push(`自分が${x.myReswingPly}手目`);
+    if (x.oppReswingPly) parts.push(`相手が${x.oppReswingPly}手目`);
+    return parts.length ? parts.join(" / ") : "なし";
   };
 
   // 先後が決まっていない棋譜は、ここで名前を選んで直せるようにする。
@@ -51,12 +62,15 @@ function KifuFactsTable({ kifu, onSetSide }) {
     ["結果",   outcome ? outcome.text : "読み取れていません"],
     ...(kifu.handicap && kifu.handicap !== "平手" ? [["手合割", `${kifu.handicap}（駒落ちは集計対象外）`]] : []),
     ...(f ? [
+      ["戦型",       fresh(f.formation)],
       ["自分の戦法", f.myStrategy],
       ["相手の戦法", f.oppStrategy],
       ["自分の囲い", castle(f.myCastle)],
       ["相手の囲い", castle(f.oppCastle)],
-      ["角交換",     f.bishopExchanged ? "あり" : "なし"],
+      ["角交換",     fresh(f.bishopExchangePly ? `${f.bishopExchangePly}手目で成立` : "なし")],
+      ["仕掛け",     fresh(f.breakPly ? `${f.breakPly}手目（${f.attackFirst}）` : "駒がぶつかっていません")],
       ["飛車を振った手", f.swingPly ? `${f.swingPly}手目（${f.swingSpeed}・${f.swingTiming === "先発" ? "自分から決めた" : "相手を見てから決めた"}）` : "振っていません（居飛車）"],
+      ["飛車の振り直し", fresh(reswing(f))],
     ] : []),
   ];
 
@@ -253,22 +267,25 @@ export function KifuPreviewModal({ kifu, onClose, onSetSide, trees = [], onSendT
                   </div>
                 )}
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {/* 押せるものは button で作る。div のままだとキーボードや読み上げから
+                      たどれず、名前も付かないので E2E からも「ツリー名の文字」でしか
+                      指せない（画面の他の場所に同じ将棋用語が出た瞬間に指せなくなる） */}
                   {trees.map((t) => (
-                    <div
+                    <button
                       key={t.id}
                       onClick={() => send(t.id)}
                       style={{
-                        display: "flex", alignItems: "center", gap: 8,
-                        padding: "9px 12px", borderRadius: T.radius.sm,
+                        display: "flex", alignItems: "center", gap: 8, width: "100%",
+                        padding: "9px 12px", borderRadius: T.radius.sm, textAlign: "left",
                         border: `0.5px solid ${T.inkLine}`, background: T.cream,
                         cursor: sending ? "default" : "pointer", opacity: sending ? 0.6 : 1,
-                        fontSize: T.fontSize.base, color: T.ink,
+                        fontSize: T.fontSize.base, color: T.ink, fontFamily: T.fontSerif,
                       }}
                     >
                       <i className="ti ti-plant-2" style={{ fontSize: "0.875rem", color: T.gold, flexShrink: 0 }} />
                       <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</span>
                       <i className="ti ti-chevron-right" style={{ fontSize: "0.8125rem", color: T.gray }} />
-                    </div>
+                    </button>
                   ))}
                   <CancelButton onClick={() => { setStep(null); setRange(null); }} />
                 </div>

@@ -14,6 +14,7 @@ import {
   fetchKifuSnapshotsMany, fetchKifu, updateKifu, kifuRowToKifu, ANALYSIS_GAME_LIMIT,
 } from "../db";
 import { analyzeKifu, recomputeFeatures, resolveMySide, toAnalysisGame } from "../kifuAnalyze";
+import { FEATURES_VERSION } from "../kifuFeatures";
 import { analyzeGames, analyzeSwingTiming, groupBy, BRANCH_VIEWS } from "../kifuStats";
 import { getKifuPlayerNames } from "../rewards";
 import { showToast } from "../toast";
@@ -222,6 +223,15 @@ export function KifuInsight({ userId, trees = [], onBack, onGoSettings, onSendTo
   const kifuById = useMemo(() => new Map(kifus.map((k) => [k.id, k])), [kifus]);
   const toggleOpen = (key) => setOpenKey((prev) => (prev === key ? null : key));
 
+  // 特徴の作り方を変えたあと、まだ作り直していない棋譜。
+  // 古い解析結果には新しい項目が入っておらず、既定値に落とすと
+  // 「計算していないだけ」の対局が事実として数字に混ざるため、作り直すまで
+  // 新しい観点では「再解析が必要」にまとまる（kifuStats.js の NEEDS_REANALYSIS）
+  const staleIds = useMemo(
+    () => kifus.filter((k) => k.mySide && k.features && k.features.v !== FEATURES_VERSION).map((k) => k.id),
+    [kifus],
+  );
+
   const openKifu = async (kifu) => {
     if (previewLoading) return;
     setPreviewLoading(true);
@@ -236,17 +246,20 @@ export function KifuInsight({ userId, trees = [], onBack, onGoSettings, onSendTo
   };
 
 
-  // ── 棋譜の解析（未解析の解析 ＋ 先後の再判定を1つにまとめたもの）──
+  // ── 棋譜の解析（未解析の解析 ＋ 先後の再判定 ＋ 古い特徴の作り直し）──
   // 利用者からは「解析されていない棋譜がある」という1つの状態にしか見えないので、
-  // ボタンも1つにする。中では次の2段階を順に行う。
+  // ボタンも1つにする。中では次の3段階を順に行う。
   //   ① meta_parsed=false … 原文（source_text）から対局者名・勝敗・戦型を読む
   //   ② my_side=null      … 登録済みの対局者名と照合して先後を決め、戦型を計算する
+  //   ③ features.v が古い … 特徴の作り方を変えたあとの棋譜を計算し直す
   // ②があるので、棋譜を取り込んだ「あとから」名前を登録しても後追いで埋められる。
+  // ③が無いと、古い定義で出した数字と新しい定義で出した数字が同じ表に並ぶ。
+  // 画面は崩れず勝率だけが静かに変わるので、目でもE2Eでも見つけられない。
   const runAnalysis = async () => {
     if (backfilling) return;
     setBackfilling(true);
     setBackfillMsg("");
-    let parsed = 0, sided = 0;
+    let parsed = 0, sided = 0, refreshed = 0;
     try {
       // ① 未解析の棋譜を原文から解析する。
       //    原文と盤面は重いので20件ずつ取っては書き戻す。
@@ -295,9 +308,27 @@ export function KifuInsight({ userId, trees = [], onBack, onGoSettings, onSendTo
         }
       }
 
+      // ③ 特徴が古い棋譜を計算し直す。対象は画面が既に読み込んでいる行から拾う
+      //    （傾向に載っているのはこの範囲だけなので、これ以上取りに行く必要がない）。
+      if (staleIds.length > 0) {
+        const snapshotsById = await fetchKifuSnapshotsMany(staleIds);
+        for (const id of staleIds) {
+          const k = kifuById.get(id);
+          const features = recomputeFeatures({
+            snapshots: snapshotsById.get(id) || [], mySide: k?.mySide, handicap: k?.handicap,
+          });
+          if (!features) continue;
+          const { error: upErr } = await updateKifu(id, { features });
+          if (upErr) continue;
+          refreshed++;
+          setBackfillMsg(`${refreshed}件の特徴を作り直しました…`);
+        }
+      }
+
       const parts = [];
       if (parsed) parts.push(`${parsed}件を解析`);
       if (sided)  parts.push(`${sided}件の先後を判定`);
+      if (refreshed) parts.push(`${refreshed}件の特徴を作り直し`);
       setBackfillMsg(parts.length === 0
         ? (playerNames.length === 0
             ? "先に設定で「棋譜での自分の名前」を登録してください"
@@ -378,7 +409,7 @@ export function KifuInsight({ userId, trees = [], onBack, onGoSettings, onSendTo
             {/* ── 解析が必要な棋譜がある場合 ──
                 「原文が未解析」も「先後が未確定」も、利用者から見れば
                  同じ『まだ集計に載っていない』状態なので、1つの案内にまとめる */}
-            {(needMeta > 0 || excluded.noSide > 0) && (
+            {(needMeta > 0 || excluded.noSide > 0 || staleIds.length > 0) && (
               <div style={{
                 marginBottom: 16, padding: "12px 14px", borderRadius: T.radius.md,
                 border: `0.5px solid ${T.inkLine}`, fontSize: T.fontSize.base,
@@ -386,6 +417,7 @@ export function KifuInsight({ userId, trees = [], onBack, onGoSettings, onSendTo
               }}>
                 {needMeta > 0 && <div>対局情報が未解析の棋譜が{needMeta}件あります。取り込み直さなくても、保存してある原文から読み直せます。</div>}
                 {excluded.noSide > 0 && <div>あなたがどちら側か決まっていない棋譜が{excluded.noSide}件あります。登録済みの名前と照らし合わせて判定できます。</div>}
+                {staleIds.length > 0 && <div>読み取り方を新しくしたため、特徴が古いままの棋譜が{staleIds.length}件あります。作り直すまで「戦型の大分類」「先に仕掛けたのはどちらか」「飛車を振り直したか」「角交換になったか」には出てきません。</div>}
                 <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                   <button onClick={runAnalysis} disabled={backfilling} style={{
                     padding: "6px 14px", borderRadius: T.radius.md,

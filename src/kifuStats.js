@@ -9,6 +9,12 @@
 //   生の勝率をそのまま並べると「2局2勝＝勝率100%」が上位に来て
 //   ランキングが意味を失うため、順位付けにはウィルソン信頼区間を使う。
 // ══════════════════════════════════════════════════
+import { FEATURES_VERSION } from "./kifuFeatures.js";
+
+// 特徴の作り方を変えたあと、まだ再解析していない棋譜に付ける値。
+// 既定値（「振り直しなし」など）に落とすと、計算していないだけの対局が
+// 事実として数字に混ざる。画面には「再解析が必要」と出て、まとめて解析し直せる。
+export const NEEDS_REANALYSIS = "再解析が必要";
 
 // ── 集計の粒度（粗い順）──────────────────────────
 //   先手／後手は集計軸ではなく絞り込み（filter）で扱う。
@@ -44,16 +50,30 @@ export function wilson(wins, draws, total) {
 // 特徴オブジェクトから、集計軸の値を取り出す
 function dimValue(game, dim) {
   const f = game.features;
+  // FEATURES_VERSION より古い解析結果にしか無い軸は、値を作らずに知らせる
+  const fresh = (value) => (f.v === FEATURES_VERSION ? value : NEEDS_REANALYSIS);
   switch (dim) {
     case "oppStrategy": return f.oppStrategy;
     case "myStrategy":  return f.myStrategy;
     case "myCastle":    return f.myCastle?.name || "不明";
     case "oppCastle":   return f.oppCastle?.name || "不明";
+    // 相居飛車／対抗形／相振り飛車。同じ「相手＝四間飛車」でも、
+    // 自分が居飛車で受けたのか自分も振ったのかで別の将棋になる
+    case "formation":   return fresh(f.formation || "不明");
     // 飛車を振っていない対局は「先発／対応」の区別が無いので居飛車としてまとめる
     case "swingTiming": return f.swingTiming === "先発" ? "自分から決めた"
                              : f.swingTiming === "対応" ? "相手を見てから決めた"
                              : "居飛車のまま";
-    case "bishopExchange": return f.bishopExchanged ? "角交換あり" : "角交換なし";
+    case "bishopExchange": return fresh(f.bishopExchanged ? "角交換あり" : "角交換なし");
+    // 攻めたのか受けたのか。直したいところが正反対になる分かれ目
+    case "attackFirst": return fresh(f.attackFirst || "駒がぶつからなかった");
+    // 振り直しは「用意してきた作戦が通らなかった」印。相手に振り直させたなら
+    // 相手の最初の攻めは受け止められている
+    case "reswing": return fresh(
+      f.myReswingPly && f.oppReswingPly ? "両方が振り直した"
+      : f.myReswingPly  ? "自分が振り直した"
+      : f.oppReswingPly ? "相手が振り直した"
+      : "振り直しなし");
     // 囲いが組み上がる前に戦いになったかどうか。級位者の負け筋を切り分ける軸
     case "castleDone": return f.myCastle?.completeness === 1 ? "囲いが間に合った" : "囲いが間に合わなかった";
     default:            return "不明";
@@ -67,19 +87,32 @@ function dimValue(game, dim) {
 //
 //   軸は基本的に1つだけにする。2つ以上かけ合わせると、少ない棋譜では
 //   すべてのグループが1局ずつになって、かえって分かれ目が見えなくなる。
+//   先頭が既定の観点。ツリーの枝は「相手が何で来たか」で分けるものなので、
+//   最初に見せるのは相手の戦法にする（大分類はそれを読むための下地であって、
+//   そのまま枝になる分かれ目ではない）。
 export const BRANCH_VIEWS = [
   { key: "oppStrategy", label: "相手の戦法",
     hint: "いちばん基本の分かれ目。まずはここから枝を分ける", dims: ["oppStrategy"] },
+  { key: "formation", label: "戦型の大分類",
+    hint: "相居飛車・対抗形・相振り飛車。同じ「四間飛車が相手」でも、こちらが居飛車か振り飛車かで別の将棋になる",
+    dims: ["formation"] },
   { key: "oppCastle", label: "相手の囲い",
     hint: "同じ戦法でも、囲いが違えば攻め方が変わる", dims: ["oppCastle"] },
+  { key: "attackFirst", label: "先に仕掛けたのはどちらか",
+    hint: "自分から動いた将棋と、受けて立った将棋。負けが片側に寄っていれば、鍛えるのは攻めか受けかが決まる",
+    dims: ["attackFirst"] },
+  { key: "reswing", label: "飛車を振り直したか",
+    hint: "相手に振り直させたなら、相手が用意してきた最初の攻めは受け止められている",
+    dims: ["reswing"] },
+  { key: "bishopExchange", label: "角交換になったか",
+    hint: "序盤で角を交換した将棋。打ち込みの隙が問題になるので、囲いの選び方から変わる",
+    dims: ["bishopExchange"] },
   { key: "myCastle", label: "自分の囲い",
     hint: "自分がどう囲ったか。囲いを選び分けているなら分かれ目になる", dims: ["myCastle"] },
   { key: "castleDone", label: "囲いが間に合ったか",
     hint: "囲い切る前に戦いになった将棋を切り出す", dims: ["castleDone"] },
   { key: "swingTiming", label: "自分から決めたか",
     hint: "自分から戦型を決めた将棋と、相手を見てから合わせた将棋", dims: ["swingTiming"] },
-  { key: "bishopExchange", label: "角交換になったか",
-    hint: "角交換の有無で、狙いも囲いの選び方も変わる", dims: ["bishopExchange"] },
   { key: "matchup", label: "相手の戦法 × 自分の戦法",
     hint: "自分の作戦も変えているなら、組み合わせで見る", dims: ["oppStrategy", "myStrategy"] },
 ];

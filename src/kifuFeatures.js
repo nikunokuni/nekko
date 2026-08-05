@@ -13,6 +13,13 @@
 //     小文字 = 先手 / 大文字 = 後手 / '+' 付き = 成り駒
 // ══════════════════════════════════════════════════
 
+// 特徴の作り方を変えたら上げる。古い解析結果と新しい解析結果は数字の意味が
+// 違うので、混ぜて集計すると「静かに間違った傾向」が出る。集計側はこの番号を見て
+// 古い棋譜を「再解析が必要」に落とし、傾向画面から作り直せるようにしている。
+//   1 … 最初の版
+//   2 … 仕掛け／角交換の定義を見直し、戦型の大分類と飛車の振り直しを追加
+export const FEATURES_VERSION = 2;
+
 // ── 座標ユーティリティ ────────────────────────────
 const at = (board, file, rank) => board?.[rank - 1]?.[9 - file] ?? ' ';
 
@@ -31,6 +38,57 @@ function isPiece(board, side, file, rank, type) {
   const cell = at(board, f, r);
   if (!cell || cell === ' ') return false;
   return side === "sente" ? cell === type : cell === type.toUpperCase();
+}
+
+// ══════════════════════════════════════════════════
+// 指し手の復元（盤面の差分から）
+// ══════════════════════════════════════════════════
+//   スナップショットは盤面と持ち駒しか持っていない（kifuParser.js が
+//   board / handSente / handGote だけを積む。再生に要らないものは保存しない）。
+//   「どの駒がどこで何を取ったか」が要る判定は、前後の盤面の差分から復元する。
+//   平手専用（駒落ちは集計対象外）なので、奇数手＝先手・偶数手＝後手で決まる。
+
+const opposite  = (side) => (side === "sente" ? "gote" : "sente");
+const sideOfPly = (ply)  => (ply % 2 === 1 ? "sente" : "gote");
+
+// そのマスの駒が指定側のものか（成り駒も同じ側として数える）
+function ownedBy(cell, side) {
+  if (!cell || cell === ' ') return false;
+  const base = cell.replace('+', '');
+  return side === "sente" ? base === base.toLowerCase() : base === base.toUpperCase();
+}
+
+/**
+ * ply 手目の指し手を、その前後の盤面の差分から復元する。
+ * 変化したマスのうち「指した側の駒が新しく現れたマス」が移動先。
+ * 移動元は空白になるだけなので、現れたほうだけ見れば手が特定できる。
+ * @returns {{side, row, col, piece, captured}|null}
+ *   piece    … 指した駒の駒種（成りは落として小文字。'b' なら角・馬）
+ *   captured … 取った駒の駒種。取っていなければ null
+ */
+function moveAt(snapshots, ply) {
+  const prev = snapshots[ply - 1]?.board;
+  const next = snapshots[ply]?.board;
+  if (!prev || !next) return null;
+  const side = sideOfPly(ply);
+  for (let row = 0; row < 9; row++) {
+    for (let col = 0; col < 9; col++) {
+      const before = prev[row][col], after = next[row][col];
+      if (before === after || !ownedBy(after, side)) continue;
+      return {
+        side, row, col,
+        piece: after.replace('+', '').toLowerCase(),
+        captured: ownedBy(before, opposite(side)) ? before.replace('+', '').toLowerCase() : null,
+      };
+    }
+  }
+  return null;
+}
+
+// ply 手目が「同じマスで取り返した手」なら、その手を返す
+function recaptureAt(snapshots, ply, row, col) {
+  const back = moveAt(snapshots, ply);
+  return back && back.row === row && back.col === col && back.captured ? back : null;
 }
 
 // ══════════════════════════════════════════════════
@@ -88,6 +146,32 @@ export function rookFileInCamp(board, side) {
 export function strategyFromRookFile(file) {
   if (file == null) return "不明";
   return STRATEGY_BY_FILE[file] || "その他";
+}
+
+// 居飛車系の戦法。右四間飛車は飛車を右側に据えたまま戦う居飛車の一種なので、
+// 筋が2筋でなくても振り飛車には数えない
+const STATIC_ROOK_STRATEGIES = new Set(["居飛車", "右四間飛車"]);
+
+/**
+ * 自分と相手の戦法から、戦型の大分類を出す。
+ *
+ * 「相手の戦法＝四間飛車」だけで括ると、自分が居飛車で受けて立った対抗形と、
+ * 自分も振った相振り飛車が同じ数字に混ざる。この二つは囲いも狙いも終盤の
+ * 入り方も別物なので、まとめた勝率は読んでも次の一手につながらない
+ * （振り飛車党が相振りだけ大きく負け越している、という実際に多い形が見えない）。
+ *
+ * 「相手の戦法 × 自分の戦法」でも分かれはするが、値の組み合わせが増えるぶん
+ * 母数が細る。大分類なら値が3つしかないので、級位者の棋譜数でも数字が立つ。
+ * @returns {"相居飛車"|"対抗形"|"相振り飛車"|"不明"}
+ */
+export function formationClass(myStrategy, oppStrategy) {
+  const kind = (s) => (!s || s === "不明" || s === "その他") ? null
+    : STATIC_ROOK_STRATEGIES.has(s) ? "static" : "ranging";
+  const mine = kind(myStrategy), opp = kind(oppStrategy);
+  if (!mine || !opp) return "不明";
+  if (mine === "static"  && opp === "static")  return "相居飛車";
+  if (mine === "ranging" && opp === "ranging") return "相振り飛車";
+  return "対抗形";
 }
 
 // ══════════════════════════════════════════════════
@@ -182,7 +266,34 @@ export function detectCastle(board, side) {
 // ══════════════════════════════════════════════════
 // 角交換
 // ══════════════════════════════════════════════════
-/** 盤上から角が2枚とも消えていれば角交換済みとみなす */
+// 戦型としての角交換が起きるのはここまで。角換わり・角交換振り飛車の角交換は
+// 序盤の駒組みの一部として起こる。これより後ろで角が入れ替わるのは中盤の
+// 捌き合いであって、狙いも囲いの選び方も変わらない。
+const BISHOP_EXCHANGE_PLY = 30;
+
+/**
+ * 序盤で角交換が成立した手数を返す（成立しなければ null）。
+ *
+ * 「角が角を取り、次の手でそのマスを取り返された」という往復だけを角交換と数える。
+ * 盤上から角が2枚消えたかどうかで見ると、角と銀を刺し違えた将棋や、
+ * 片方が角を只で取った将棋まで「角交換あり」に入ってしまい、
+ * 「角交換型の将棋か」という問いの答えにならない。
+ */
+export function findBishopExchangePly(snapshots) {
+  if (!Array.isArray(snapshots)) return null;
+  const last = snapshots.length - 1;
+  for (let i = 1; i <= Math.min(BISHOP_EXCHANGE_PLY, last); i++) {
+    const mv = moveAt(snapshots, i);
+    if (!mv || mv.piece !== "b" || mv.captured !== "b") continue;
+    const back = recaptureAt(snapshots, i + 1, mv.row, mv.col);
+    // 取り返した駒が角（＝馬を取り返した）とは限らないので、取り返しの有無だけ見る
+    if (back) return i + 1;
+  }
+  return null;
+}
+
+/** 盤上から角が2枚とも消えていれば角交換済みとみなす（局面ごとの表示用）。
+ *  対局全体の「角交換型かどうか」には使わない（上の findBishopExchangePly を使う）。 */
 export function isBishopExchanged(board) {
   for (const row of board) {
     for (const cell of row) {
@@ -216,29 +327,35 @@ const STRATEGY_SETTLE_PLY = 40;
 const CASTLE_OBSERVE_PLY  = 80;
 // この手数までに飛車を振っていれば「早い」（自分から戦型を決めにいった目安）
 const EARLY_SWING_PLY     = 20;
+// 飛車の振り直しをどこまで見るか。戦型が決まる40手より長く取るのは、
+// 「相手の最初の攻めを受け止めてから振り直す」形を拾うため（これが振り直しの本体）。
+// かといって上限を外すと、終盤に飛車が自陣へ戻ってくる手まで振り直しに数えてしまう。
+const RESWING_OBSERVE_PLY = 60;
 
-// 序盤のあいだに飛車が自陣で最後に据えられた筋を返す。
-// 途中で前線へ出ても、出る前の筋がその対局の戦法を表す。
-// 一度も自陣を離れなければ定位置のまま＝居飛車。
-function settledRookFile(snapshots, side, limit) {
-  let settled = ROOK_HOME_FILE;
-  for (let i = 0; i <= limit; i++) {
-    const f = rookFileInCamp(snapshots[i]?.board, side);
-    if (f != null) settled = f;
-  }
-  return settled;
-}
-
-// 飛車が定位置の筋を離れた最初の手数を返す（振らなければ null）。
-// 前線へ出ただけの手（2六飛・3四飛など）を「振った」と数えないよう、
-// 自陣にいるあいだの筋だけを見る。
-function findSwingPly(snapshots, side, limit) {
+/**
+ * 自陣の飛車が据えられた筋の移り変わりを返す。
+ *
+ * 前線へ出ただけの手（2六飛・3四飛など）を「振った」と数えないよう、
+ * 自陣にいるあいだの筋だけを見る（`rookFileInCamp`）。前へ出て同じ筋へ戻る手は
+ * 筋が変わらないので記録されない。
+ * @returns {Array<{ply, file}>} 定位置(2筋)から筋が変わった順。居飛車のままなら空
+ */
+export function rookSwingHistory(snapshots, side, limit) {
+  const out = [];
+  let current = ROOK_HOME_FILE;
   for (let i = 1; i <= limit; i++) {
     const f = rookFileInCamp(snapshots[i]?.board, side);
-    if (f != null && f !== ROOK_HOME_FILE) return i;
+    if (f == null || f === current) continue;
+    current = f;
+    out.push({ ply: i, file: f });
   }
-  return null;
+  return out;
 }
+
+// その対局の戦法は「1回目に振った筋」で決まる。最後に据えた筋を採ると、
+// 四間飛車から三間飛車へ振り直した将棋が丸ごと「三間飛車」になり、
+// 最初にぶつかった戦型（＝相手が対策を立ててきた形）が数字から消える。
+function firstSwing(history) { return history.length ? history[0] : null; }
 
 // 観測範囲でもっとも完成度の高かった囲いを採る。
 // 終局間際は囲いが崩されているため、最終局面だけを見ると判定を誤る。
@@ -260,6 +377,54 @@ function bestCastle(snapshots, side, limit) {
   return best;
 }
 
+// ══════════════════════════════════════════════════
+// 仕掛け（戦いが始まった手）
+// ══════════════════════════════════════════════════
+/**
+ * 仕掛けの手と、仕掛けた側を返す（駒がぶつからなければ null）。
+ *
+ * 「最初に駒を取った手」をそのまま仕掛けとすると、居飛車が当たり前に行う
+ * 飛車先の歩交換（▲2四歩△同歩▲同飛）まで仕掛けになる。これは駒組みの一部で、
+ * 戦いの始まりではない。しかも歩を取り合ったとき、動いたのは歩を突き捨てて
+ * 相手に取らせた側であって、取った側ではない。
+ *
+ * そこで次のように決める。
+ *   ・角交換の取り合いは数えない（角交換は別の特徴として持っている）
+ *   ・歩を歩で取り、次の手で同じマスを**飛車が**取り返したら飛車先の歩交換として
+ *     数えない。取り返したのが銀・香なら棒銀や端攻めの突破なので仕掛けに数える
+ *     （▲2四歩△同歩▲同飛は駒組み、▲2四歩△同歩▲同銀は仕掛け）
+ *   ・残った最初の駒取りが「歩を歩で取った手」なら、仕掛けたのは取られた側
+ *     （突き捨てた側）。それ以外の駒を取った手は、取った側が仕掛けたと見る
+ *
+ * @returns {{ply, side}|null} ply は突き捨ての手（分からなければ取り合いの手）
+ */
+export function detectBreakPoint(snapshots) {
+  if (!Array.isArray(snapshots)) return null;
+  const last = snapshots.length - 1;
+  let skipUntil = 0;
+
+  for (let i = 1; i <= last; i++) {
+    if (i <= skipUntil) continue;
+    const mv = moveAt(snapshots, i);
+    if (!mv || !mv.captured) continue;
+    const back = recaptureAt(snapshots, i + 1, mv.row, mv.col);
+
+    // 角交換の往復は丸ごと飛ばす（只取りは飛ばさない。大事件なので仕掛けに数える）
+    if (mv.piece === "b" && mv.captured === "b" && back) { skipUntil = i + 1; continue; }
+    // 飛車先の歩交換の往復
+    if (mv.piece === "p" && mv.captured === "p" && back?.piece === "r") { skipUntil = i + 1; continue; }
+
+    const pawnTrade = mv.piece === "p" && mv.captured === "p";
+    const side = pawnTrade ? opposite(mv.side) : mv.side;
+    // 突き捨てが直前の手なら、そちらを仕掛けの手数とする。
+    // 前から置いてあった歩を取っただけなら、取り合いの手を境目にする
+    const push = pawnTrade ? moveAt(snapshots, i - 1) : null;
+    const onPush = push && push.piece === "p" && push.row === mv.row && push.col === mv.col;
+    return { ply: onPush ? i - 1 : i, side };
+  }
+  return null;
+}
+
 /**
  * 1局分の棋譜から、集計キーに使う特徴をまとめて取り出す。
  * @param {Array} snapshots 盤面スナップショット配列（[0] が初期局面）
@@ -267,35 +432,56 @@ function bestCastle(snapshots, side, limit) {
  */
 export function extractGameFeatures(snapshots, mySide) {
   if (!Array.isArray(snapshots) || snapshots.length < 2 || !mySide) return null;
-  const oppSide  = mySide === "sente" ? "gote" : "sente";
+  const oppSide  = opposite(mySide);
   const lastPly  = snapshots.length - 1;
-  const settlePly = Math.min(STRATEGY_SETTLE_PLY, lastPly);
-  const castlePly = Math.min(CASTLE_OBSERVE_PLY,  lastPly);
+  const settlePly = Math.min(STRATEGY_SETTLE_PLY,  lastPly);
+  const castlePly = Math.min(CASTLE_OBSERVE_PLY,   lastPly);
+  const swingPlyLimit = Math.min(RESWING_OBSERVE_PLY, lastPly);
 
-  const myFile  = settledRookFile(snapshots, mySide,  settlePly);
-  const oppFile = settledRookFile(snapshots, oppSide, settlePly);
+  // 戦型は40手までの1回目の振りで決め、振り直しはそれより長く見る。
+  // 同じ履歴から両方を読むので、戦法と振り直しの数え方がずれない
+  const myHistory  = rookSwingHistory(snapshots, mySide,  swingPlyLimit);
+  const oppHistory = rookSwingHistory(snapshots, oppSide, swingPlyLimit);
+  const inSettle = (h) => h.filter((s) => s.ply <= settlePly);
 
-  const mySwing  = findSwingPly(snapshots, mySide,  settlePly);
-  const oppSwing = findSwingPly(snapshots, oppSide, settlePly);
+  const mySwing  = firstSwing(inSettle(myHistory));
+  const oppSwing = firstSwing(inSettle(oppHistory));
 
   // 「先発」＝自分から戦型を決めた / 「対応」＝相手の戦型を見てから合わせた。
   // 同じ四間飛車でも、この二つは狙いがまったく違うため特徴として分けて持つ。
   // （相手の右四間飛車を受けるために振る、といったケースを取りこぼさない）
   let swingTiming = null;
-  if (mySwing != null) {
-    swingTiming = (oppSwing == null || mySwing < oppSwing) ? "先発" : "対応";
+  if (mySwing) {
+    swingTiming = (!oppSwing || mySwing.ply < oppSwing.ply) ? "先発" : "対応";
   }
 
+  const myStrategy  = strategyFromRookFile(mySwing  ? mySwing.file  : ROOK_HOME_FILE);
+  const oppStrategy = strategyFromRookFile(oppSwing ? oppSwing.file : ROOK_HOME_FILE);
+  const breakPoint  = detectBreakPoint(snapshots);
+  const bishopPly   = findBishopExchangePly(snapshots);
+
   return {
+    v: FEATURES_VERSION,
     moveCount:   lastPly,
-    myStrategy:  strategyFromRookFile(myFile),
-    oppStrategy: strategyFromRookFile(oppFile),
+    myStrategy,
+    oppStrategy,
+    formation:   formationClass(myStrategy, oppStrategy),
     myCastle:    bestCastle(snapshots, mySide,  castlePly),
     oppCastle:   bestCastle(snapshots, oppSide, castlePly),
-    bishopExchanged: isBishopExchanged(snapshots[Math.min(60, lastPly)].board),
-    swingPly:    mySwing,
+    bishopExchangePly: bishopPly,
+    bishopExchanged:   bishopPly != null,
+    swingPly:    mySwing?.ply ?? null,
     swingTiming,
-    swingSpeed:  mySwing == null ? null : (mySwing <= EARLY_SWING_PLY ? "早い" : "遅い"),
+    swingSpeed:  !mySwing ? null : (mySwing.ply <= EARLY_SWING_PLY ? "早い" : "遅い"),
+    // 2回目以降の振りが振り直し。相手に振り直させたということは、
+    // 相手が最初に用意してきた攻めは受け止められている
+    myReswingPly:  myHistory[1]?.ply  ?? null,
+    oppReswingPly: oppHistory[1]?.ply ?? null,
+    breakPly:  breakPoint?.ply ?? null,
+    // 仕掛けたのが自分か相手か。受けに回ると崩れるのか、攻め切れないのかは
+    // 直したいところが正反対なので、勝率を分けて見られるようにする
+    attackFirst: !breakPoint ? null
+      : breakPoint.side === mySide ? "自分から仕掛けた" : "相手から仕掛けられた",
   };
 }
 
@@ -307,11 +493,7 @@ export function extractGameFeatures(snapshots, mySide) {
 //   その境目を機械で拾って印を出す。
 //   ここはエンジンなしで盤面だけから決まるものに限る。
 
-// 持ち駒の合計。増えた手＝駒を取った手
-function handTotal(snapshot) {
-  const sum = (h) => Object.values(h || {}).reduce((a, b) => a + (b || 0), 0);
-  return sum(snapshot?.handSente) + sum(snapshot?.handGote);
-}
+const SIDE_LABEL = { sente: "先手", gote: "後手" };
 
 /**
  * 棋譜から節目の手数を拾う。
@@ -322,29 +504,33 @@ export function detectMilestones(snapshots) {
   const last = snapshots.length - 1;
   const out = [];
 
-  // ── 仕掛け（最初に駒を取った手）──
-  // 序盤の駒組みと戦いの境目。範囲切り出しの区切りとして一番使いやすい
-  for (let i = 1; i <= last; i++) {
-    if (handTotal(snapshots[i]) > handTotal(snapshots[i - 1])) {
-      out.push({ ply: i, label: "仕掛け" });
-      break;
-    }
-  }
+  // ── 仕掛け ──
+  // 序盤の駒組みと戦いの境目。範囲切り出しの区切りとして一番使いやすい。
+  // 飛車先の歩交換は境目にならない（駒組みの途中で切れてしまう）ので、
+  // detectBreakPoint と同じ見かたで拾う
+  const breakPoint = detectBreakPoint(snapshots);
+  if (breakPoint) out.push({ ply: breakPoint.ply, label: `${SIDE_LABEL[breakPoint.side]}の仕掛け` });
 
   // ── 角交換が成立した手 ──
-  for (let i = 1; i <= last; i++) {
-    if (isBishopExchanged(snapshots[i].board) && !isBishopExchanged(snapshots[i - 1].board)) {
-      out.push({ ply: i, label: "角交換" });
-      break;
-    }
-  }
+  const bishopPly = findBishopExchangePly(snapshots);
+  if (bishopPly) out.push({ ply: bishopPly, label: "角交換" });
 
   // ── 戦型が決まった手（後から飛車を振ったほうに合わせる）──
   // どちらも振らなければ相居飛車なので節目にしない
-  const swings = ["sente", "gote"]
-    .map((side) => findSwingPly(snapshots, side, Math.min(STRATEGY_SETTLE_PLY, last)))
+  const settleLimit = Math.min(STRATEGY_SETTLE_PLY, last);
+  const histories = ["sente", "gote"].map((side) => ({
+    side, history: rookSwingHistory(snapshots, side, Math.min(RESWING_OBSERVE_PLY, last)),
+  }));
+  const swings = histories
+    .map(({ history }) => firstSwing(history.filter((s) => s.ply <= settleLimit))?.ply)
     .filter((p) => p != null);
   if (swings.length) out.push({ ply: Math.max(...swings), label: "戦型が決まる" });
+
+  // ── 飛車を振り直した手 ──
+  // 最初の攻めを受け止めたあと作戦を組み替えた場所。研究したい所が変わる境目
+  for (const { side, history } of histories) {
+    if (history[1]) out.push({ ply: history[1].ply, label: `${SIDE_LABEL[side]}が飛車を振り直す` });
+  }
 
   // ── 囲いが完成した手（先後それぞれ最初に組み上がった手）──
   for (const side of ["sente", "gote"]) {
