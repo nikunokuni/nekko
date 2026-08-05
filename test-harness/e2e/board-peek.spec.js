@@ -114,20 +114,19 @@ test("×で閉じるとその場だけ消え、盤を通り直すとまた貼り
   expect(errors).toEqual([]);
 });
 
-test("設定でミニ盤面をOFFにすると、スクロールしても貼り付かない", async ({ page }) => {
+test("表示する項目でミニ盤面をOFFにすると、スクロールしても貼り付かない", async ({ page }) => {
   const errors = watchForAppErrors(page);
   await login(page);
+  await openNodeWithBoard(page, "設定OFFテスト");
 
-  // 設定 →「ノード編集画面に表示する項目」→ ミニ盤面 をOFF
-  await page.goto("/settings");
-  await page.getByText("ノード編集画面に表示する項目").click();
+  // 「ついか」見出しの歯車 →「表示する項目」→ ミニ盤面 をOFF
+  // （以前は設定画面の中にあった。ノード編集画面から出ずに切り替えられる）
+  await page.getByRole("button", { name: "表示する項目を選ぶ" }).click();
   const sw = page.getByRole("switch", { name: /ミニ盤面/ });
   await expect(sw).toHaveAttribute("aria-checked", "true"); // 既定はON
   await sw.click();
   await expect(sw).toHaveAttribute("aria-checked", "false");
-
-  await page.goto("/");
-  await openNodeWithBoard(page, "設定OFFテスト");
+  await page.getByRole("button", { name: "閉じる" }).click();
 
   // 盤そのものは今までどおり出る（消すのは貼り付けだけ）
   await expect(page.locator("[data-main-board]")).toBeVisible();

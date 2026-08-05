@@ -1,10 +1,9 @@
 // ══════════════════════════════════════════════════════════════════
 // SettingsScreen.jsx  ―  設定画面
 // ══════════════════════════════════════════════════════════════════
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { T } from "../theme";
-import { TSUIKA_ITEMS } from "../data";
-import { isTsuikaVisible, setTsuikaVisible, getKifuPlayerNames, setKifuPlayerNames } from "../rewards";
+import { getKifuPlayerNames, setKifuPlayerNames } from "../rewards";
 import { APP_VERSION, BUILD_TIME } from "../version";
 
 // ビルド時刻を「YYYY.MM.DD」表記に整形（未設定の開発環境では空文字）
@@ -14,33 +13,6 @@ function formatBuildDate(iso) {
   if (Number.isNaN(d.getTime())) return "";
   const p = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}.${p(d.getMonth() + 1)}.${p(d.getDate())}`;
-}
-
-// ── Toggle: ON/OFFスイッチ（ついか項目の表示設定で使用）──
-function Toggle({ on, onChange, label }) {
-  return (
-    <div
-      onClick={onChange}
-      role="switch"
-      aria-checked={on}
-      // 見た目だけのスイッチなので、隣の項目名を名前として与える。
-      // 無いと読み上げでは「スイッチ」としか読まれず、どの項目のものか分からない
-      // （E2Eからも項目名で指せるようになる）
-      aria-label={label}
-      style={{
-        width: 40, height: 22, borderRadius: 11, flexShrink: 0,
-        background: on ? T.gold : "rgba(26,15,0,0.15)",
-        position: "relative", cursor: "pointer", transition: "background 0.15s",
-      }}
-    >
-      <div style={{
-        position: "absolute", top: 2, left: on ? 20 : 2,
-        width: 18, height: 18, borderRadius: "50%",
-        background: T.cream, transition: "left 0.15s",
-        boxShadow: "0 1px 3px rgba(26,15,0,0.25)",
-      }} />
-    </div>
-  );
 }
 
 const FONT_SCALE_OPTIONS = [
@@ -106,22 +78,6 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOn
     setPlayerNames(saved.join("、"));
   };
 
-  // 表示項目カスタマイズも普段は触らないため、アコーディオンで隠す（デフォルト閉じる）
-  const [tsuikaOpen, setTsuikaOpen] = useState(false);
-  // 「ついか」項目の表示設定（rewards のキャッシュを初期値に、切替時は両方更新）
-  const [tsuikaVis, setTsuikaVis] = useState(() =>
-    Object.fromEntries(TSUIKA_ITEMS.map((it) => [it.key, isTsuikaVisible(it.key)]))
-  );
-  // リロード直後は profiles のハイドレートより先にこの画面がマウントされることが
-  // あるため、profile（username）が届いた時点で保存済みの表示設定を読み直す
-  useEffect(() => {
-    setTsuikaVis(Object.fromEntries(TSUIKA_ITEMS.map((it) => [it.key, isTsuikaVisible(it.key)])));
-  }, [username]);
-  const handleTsuikaToggle = (key) => {
-    const next = !tsuikaVis[key];
-    setTsuikaVis((prev) => ({ ...prev, [key]: next }));
-    setTsuikaVisible(key, next);
-  };
   // ログインIDは肩越しに見られないよう既定で伏せ、タップで表示する
   const [idShown, setIdShown] = useState(false);
   // 利用規約は画面遷移せず、アプリ内モーダルで表示を完結させる
@@ -244,47 +200,11 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOn
           </div>
         </div>
 
-        {/* ノード詳細の表示項目カスタマイズ。普段は触らないためアコーディオンで隠す */}
-        <div style={{ marginBottom: 28 }}>
-          <button
-            onClick={() => setTsuikaOpen((v) => !v)}
-            style={{
-              display: "flex", alignItems: "center", gap: 6, width: "100%",
-              marginBottom: tsuikaOpen ? 10 : 0,
-              padding: 0,
-              background: "none", border: "none", cursor: "pointer",
-              fontSize: T.fontSize.md, color: T.inkMid, letterSpacing: "0.08em",
-              fontFamily: T.fontSerif, textAlign: "left",
-            }}
-          >
-            <span style={{ flex: 1 }}>ノード編集画面に表示する項目</span>
-            <i className={`ti ti-chevron-${tsuikaOpen ? "up" : "down"}`} style={{ fontSize: "0.8125rem", color: T.inkMid }} />
-          </button>
-          {tsuikaOpen && <>
-          <div style={{ borderRadius: T.radius.md, border: `0.5px solid ${T.inkLine}`, overflow: "hidden" }}>
-            {TSUIKA_ITEMS.map((it, i) => (
-              <div
-                key={it.key}
-                style={{
-                  display: "flex", alignItems: "center", gap: 10,
-                  padding: "13px 16px",
-                  borderBottom: i < TSUIKA_ITEMS.length - 1 ? `0.5px solid ${T.inkLineFaint}` : "none",
-                }}
-              >
-                <i className={`ti ${it.icon}`} style={{ fontSize: "1rem", color: tsuikaVis[it.key] ? T.gold : T.gray }} />
-                <span style={{ flex: 1, fontSize: T.fontSize.lg, color: tsuikaVis[it.key] ? T.ink : T.inkMid, fontFamily: T.fontSerif }}>
-                  {it.label}
-                </span>
-                <Toggle on={tsuikaVis[it.key]} onChange={() => handleTsuikaToggle(it.key)} label={it.label} />
-              </div>
-            ))}
-          </div>
-          <div style={{ display: "flex", gap: 6, marginTop: 8, fontSize: T.fontSize.base, color: T.inkFaint, lineHeight: 1.7 }}>
-            <i className="ti ti-info-circle" style={{ marginTop: 3, flexShrink: 0 }} />
-            <span>OFFにしても入力済みのデータは消えません。ONに戻すとそのまま再表示されます。</span>
-          </div>
-          </>}
-        </div>
+        {/* ノード編集画面に表示する項目の設定は、ここには置かない。
+            ノードを編集していて「欄が多い」と感じた瞬間から一番遠い場所
+            （ツリー一覧へ戻る → 設定 → アコーディオンを開く）にあったため、
+            ノード編集画面の「ついか」見出しの歯車へ移した
+            （src/components/TsuikaVisibilityModal.jsx）。 */}
 
         {/* 文字サイズ */}
         <div style={{ fontSize: T.fontSize.md, color: T.inkMid, marginBottom: 10, letterSpacing: "0.08em" }}>

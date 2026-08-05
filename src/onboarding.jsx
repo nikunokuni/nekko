@@ -32,10 +32,7 @@ export const ONBOARD_MESSAGES = {
   search: [
     <span><b>ノード検索</b>　名前・メモ・戦法で、全ツリーのノードをまとめて探せます</span>,
     <span>ステータスや戦法で<b>絞り込み</b>、勝率・好き度・頻度で<b>並び替え</b>。盤面のサムネイルからも探せます</span>,
-  ],
-  // 設定画面に初めて来たとき、追加した「表示項目カスタマイズ」を案内する
-  settings: [
-    <span><b>ノード編集画面に表示する項目</b>　使わない項目をオフにして、入力をすっきりできます</span>,
+    <span><b>次に調べること</b>　ノードに書いた「次に調べること」だけを、ここでまとめて見返せます</span>,
   ],
   map: [
     <span>ノードを<b>タップ</b>で編集</span>,
@@ -53,7 +50,7 @@ export const ONBOARD_MESSAGES = {
   node: [
     <span><b>きほん</b>　相手の戦法と自分の戦法を入力</span>,
     <span><b>保存済み棋譜から取り込む</b>　棋譜ライブラリの棋譜をこのノードに取り込めます</span>,
-    <span><b>ついか</b>　さらに詳細を入力</span>,
+    <span><b>ついか</b>　さらに詳細を入力（見出しの<i className="ti ti-settings" />で使わない項目をオフにできます）</span>,
     <span><b>子ノード</b>　「ここから分岐を追加」で次の分岐を作成できます</span>,
     // 分岐で手が止まるのは、自分の指し手を並べようとしたとき。
     // 「相手の選択で分ける」一点だけをここで伝え、残りは子ノードの「ヒント」に置く
@@ -78,7 +75,7 @@ export const ONBOARD_MESSAGES = {
 // 各トーストが指さす対象（data-onboard 属性値）。null は指さし対象なし（トーストのみ）
 export const ONBOARD_TARGETS = {
   list: ["search", "public", "kifus", "trophy", "settings", "new"],
-  // search / settings は指さし対象なし（中央にトーストのみ表示）
+  // search は指さし対象なし（中央にトーストのみ表示）
   // 棋譜ライブラリは「棋譜を保存」「棋譜入力」を指さし、タグ・取り込みの説明は中央に出す
   kifus: ["kifu-save", "kifu-record", null, null],
   // つなぎ替えの「元に戻す」は付け替え後にしか出ないボタンなので指さし対象なし

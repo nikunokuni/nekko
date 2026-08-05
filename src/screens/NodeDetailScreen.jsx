@@ -2,7 +2,7 @@
 // NodeDetailScreen.jsx  ―  ノード詳細編集画面
 //   親ノード / きほん / ついか / 子ノード
 // ══════════════════════════════════════════════════════════════════
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, useReducer } from "react";
 import {
   StatusChip, MergeTag, SummaryTag, Divider, BackBtn, MiniBoard,
 } from "../components";
@@ -13,6 +13,7 @@ import {
 import { recordAction, getCustomTagsByGroup, addCustomTag, getCommentCustomTags, addCommentCustomTag, isTsuikaVisible } from "../rewards";
 import { T, INPUT_STYLE, MODAL_OVERLAY_STYLE, MODAL_SHEET_STYLE, cloneBoard, parseTags } from "../theme";
 import { SectionLabel, BoardSection, MergeLinkList, LinkPicker, TagPickerField, KifuPreviewBoard, IconRating } from "../components/uiParts";
+import { TsuikaVisibilityModal } from "../components/TsuikaVisibilityModal";
 import { fetchMyKifus, fetchKifu, fetchKifusForAnalysis, kifuRowToKifu, fetchAllMyNodes, fetchNode, nodeRowToNode } from "../db";
 import { nodeContentPatch } from "../nodeFields";
 import { toAnalysisGame } from "../kifuAnalyze";
@@ -435,6 +436,12 @@ export function NodeDetail({ tree, trees = [], nodeId, userId, collabGuest = fal
   const [kifuPickerOpen,         setKifuPickerOpen]         = useState(false);
   const [recallOpen,             setRecallOpen]             = useState(false);
   const [branchTipOpen,          setBranchTipOpen]          = useState(false);
+  const [visOpen,                setVisOpen]                = useState(false); // 表示する項目（ついかの歯車）
+  // 表示可否（tsuikaShow）は rewards のキャッシュ（Reactの外）を毎回読んでいる。
+  // ログイン直後のハイドレートが遅れて届いても追いつけるようにするためだが、
+  // 歯車で切り替えても React から見た状態は何も変わらないので再描画が起きない。
+  // 保存する値は無いので、再描画のきっかけだけを作る
+  const [, rerenderForVisibility] = useReducer((x) => x + 1, 0);
 
   // デバウンス付き自動保存（ノード名・メモ・タグなど、入力ごとに即時送信したくないフィールド用）
   const pendingPatch = useRef({});
@@ -1471,16 +1478,35 @@ export function NodeDetail({ tree, trees = [], nodeId, userId, collabGuest = fal
         <SectionDivider />
 
         {/* ════════════════ ついか ════════════════
-            項目は設定でON/OFFできる。全項目OFFのときはセクションごと非表示 */}
-        {tsuikaAny && <>
+            項目のON/OFFは見出しの歯車から。
+            以前は設定画面の中にあり、「欄が多い」と感じる場所（ここ）から
+            ツリー一覧→設定→アコーディオンと3手離れていた。
+            見出しごと隠さないのは、全項目OFFにすると歯車も消えて
+            二度と戻せなくなるため（戻す入口はここにしか無い） */}
         <div onClick={() => setAddOpen((v) => !v)} style={{ cursor: "pointer" }}>
           <SectionHeader icon="ti-adjustments" dataOnboard="tsuika">
             ついか
-            <i className={`ti ti-chevron-${addOpen ? "up" : "down"}`} style={{ fontSize: "0.8125rem", color: T.inkMid, marginLeft: "auto" }} />
+            {/* 見出しのタップは開閉なので、歯車では伝播を止める */}
+            <button
+              onClick={(e) => { e.stopPropagation(); setVisOpen(true); }}
+              aria-label="表示する項目を選ぶ"
+              style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: T.inkMid, fontSize: "0.9375rem", padding: "2px 4px", lineHeight: 1 }}
+            >
+              <i className="ti ti-settings" />
+            </button>
+            <i className={`ti ti-chevron-${addOpen ? "up" : "down"}`} style={{ fontSize: "0.8125rem", color: T.inkMid }} />
           </SectionHeader>
         </div>
 
         {addOpen && <>
+
+        {/* 全項目OFFのときは中身が空になる。歯車から戻せることを書いておかないと、
+            開いても何も出ない見出しになり、壊れているように見える */}
+        {!tsuikaAny && (
+          <div style={{ padding: "0 16px 10px", fontSize: T.fontSize.base, color: T.inkFaint, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
+            表示する項目がすべてオフになっています。見出しの歯車から戻せます。
+          </div>
+        )}
 
         {/* 志向（攻め / 受け / バランス / 不明）*/}
         {tsuikaShow.orientation && (
@@ -1622,7 +1648,6 @@ export function NodeDetail({ tree, trees = [], nodeId, userId, collabGuest = fal
         </>}
 
         <SectionDivider />
-        </>}
 
         {/* ════════════════ 子ノード ════════════════ */}
         <SectionHeader icon="ti-git-branch" dataOnboard="children">子ノード</SectionHeader>
@@ -1845,6 +1870,14 @@ export function NodeDetail({ tree, trees = [], nodeId, userId, collabGuest = fal
           hasExistingKifu={(node.kifu || []).length > 0}
           onClose={() => setKifuPickerOpen(false)}
           onImport={handleImportKifu}
+        />
+      )}
+
+      {/* 表示する項目のON/OFF。「ついか」見出しの歯車から開く */}
+      {visOpen && (
+        <TsuikaVisibilityModal
+          onClose={() => setVisOpen(false)}
+          onChange={rerenderForVisibility}
         />
       )}
 

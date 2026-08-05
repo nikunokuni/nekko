@@ -4,6 +4,13 @@
 //   全ツリーのノードをテキスト・戦法タグ・ステータスで絞り込み、
 //   勝率・好き度・頻度で並び替えて、該当ノードへ直接ジャンプする。
 //   （入力した勝率・好き度・タグを“見返す場所”でもある）
+//
+//   「次に調べること」の絞り込みもここに置く。
+//   ノード編集画面で書いた「次に調べること」は、これまで自分の画面のどこにも
+//   出てこなかった（表示していたのは公開ツリーのプレビュー＝他人が見る画面だけ）。
+//   書かせるだけで読み返せない欄は、いずれ書かれなくなる。
+//   専用の画面を足さずここに入れたのは、探す場所が2つに割れるのを避けるため
+//   ―― 「あのノードどこだっけ」も「次に何をやるんだっけ」も、行き先はノードで同じ。
 // ══════════════════════════════════════════════════════════════════
 import { useState, useEffect, useMemo } from "react";
 import { T } from "../theme";
@@ -37,6 +44,7 @@ export function NodeSearch({ userId, trees, onBack, onOpenNode }) {
   const [tagFilter,    setTagFilter]    = useState([]);   // 空 = 全タグ
   const [sortKey,      setSortKey]      = useState("recent");
   const [tagsOpen,     setTagsOpen]     = useState(false);
+  const [nextOnly,     setNextOnly]     = useState(false); // 「次に調べること」があるノードだけ
 
   useEffect(() => {
     let cancelled = false;
@@ -63,10 +71,25 @@ export function NodeSearch({ userId, trees, onBack, onOpenNode }) {
 
   const toggleIn = (arr, v) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
 
+  // 「次に調べること」が書かれているノードの数。
+  // 絞り込みを押す前から件数を出しておく（＝残っている宿題の数）。
+  // 0件のときは絞り込み自体を出さない ―― 押しても必ず空になるボタンを置くと、
+  // 「壊れている」のか「まだ書いていない」のかが画面から読み取れない
+  const nextStudyCount = useMemo(
+    () => (nodes || []).filter((n) => (n.next_study || "").trim()).length,
+    [nodes]
+  );
+  // 最後の1件を消した／絞り込み中に0件になったときに、押せない絞り込みが
+  // ONのまま残らないようにする（結果が永遠に0件のままになるため）
+  useEffect(() => {
+    if (nextStudyCount === 0) setNextOnly(false);
+  }, [nextStudyCount]);
+
   const results = useMemo(() => {
     if (!nodes) return [];
     const q = query.trim().toLowerCase();
     let list = nodes.filter((n) => {
+      if (nextOnly && !(n.next_study || "").trim()) return false;
       if (statusFilter.length > 0 && !statusFilter.includes(n.status)) return false;
       if (tagFilter.length > 0) {
         const tags = [...(n.situation || []), ...(n.my_approach || [])];
@@ -74,7 +97,7 @@ export function NodeSearch({ userId, trees, onBack, onOpenNode }) {
       }
       if (q) {
         const hay = [
-          n.label, n.memo,
+          n.label, n.memo, n.next_study,
           ...(n.situation || []), ...(n.my_approach || []),
           treeName.get(n.tree_id) || "",
         ].join(" ").toLowerCase();
@@ -88,7 +111,7 @@ export function NodeSearch({ userId, trees, onBack, onOpenNode }) {
     if (sortKey === "likeLevel")  list = [...list].sort((a, b) => val(b.like_level)  - val(a.like_level));
     if (sortKey === "usageLevel") list = [...list].sort((a, b) => val(b.usage_level) - val(a.usage_level));
     return list;
-  }, [nodes, query, statusFilter, tagFilter, sortKey, treeName]);
+  }, [nodes, query, statusFilter, tagFilter, sortKey, treeName, nextOnly]);
 
   const filterChipStyle = (selected, color = T.gold, bg = T.goldLight) => ({
     padding: "4px 10px", borderRadius: 20, cursor: "pointer",
@@ -134,6 +157,24 @@ export function NodeSearch({ userId, trees, onBack, onOpenNode }) {
             onBlur={(e)  => (e.target.style.borderColor = T.inkLine)}
           />
         </div>
+
+        {/* ── 「次に調べること」だけを見る ──
+            ステータス・タグとは軸が違う（ノードの分類ではなく「自分が書き残した宿題」）
+            ので、同じ行に混ぜず1行を与えて左端に置く。
+            件数を出しておくのは、押す前に「残りいくつか」が分かるようにするため */}
+        {nextStudyCount > 0 && (
+          <div style={{ marginBottom: 8 }}>
+            <button
+              onClick={() => setNextOnly((v) => !v)}
+              aria-pressed={nextOnly}
+              style={{ ...filterChipStyle(nextOnly), padding: "5px 12px", fontFamily: T.fontSerif }}
+            >
+              <i className="ti ti-flag" style={{ fontSize: "0.75rem" }} />
+              次に調べること
+              <span style={{ opacity: 0.75 }}>{nextStudyCount}件</span>
+            </button>
+          </div>
+        )}
 
         {/* ステータス絞り込み（複数選択可・未選択 = 全部） */}
         <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
@@ -192,7 +233,11 @@ export function NodeSearch({ userId, trees, onBack, onOpenNode }) {
         ) : results.length === 0 ? (
           <div style={{ padding: "40px 0", textAlign: "center", color: T.inkFaint, fontSize: T.fontSize.base, lineHeight: 1.8 }}>
             <i className="ti ti-search-off" style={{ fontSize: "1.5rem", display: "block", marginBottom: 8 }} />
-            {nodes.length === 0 ? "ノードがまだありません" : "条件に合うノードがありません"}
+            {nodes.length === 0 ? "ノードがまだありません"
+              // 絞り込みONで0件になったのが「宿題が無い」からなのか「他の条件で消えた」
+              // からなのかは、利用者からは区別がつかない。ここだけ文言を分ける
+              : nextOnly ? "「次に調べること」を書いたノードのうち、条件に合うものがありません"
+              : "条件に合うノードがありません"}
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -242,7 +287,19 @@ export function NodeSearch({ userId, trees, onBack, onOpenNode }) {
                           </span>
                         </div>
                       )}
-                      {/* 4行目: メモの冒頭（あれば1行だけ） */}
+                      {/* 4行目: 次に調べること（絞り込みの有無にかかわらず常に出す）。
+                          ここに出すこと自体が目的 ―― 書いた宿題を読み返せる唯一の場所。
+                          メモより先に置くのは、探しているのが「何をやるか」だから。
+                          旗アイコンと色でメモと区別する（どちらも本文だと見分けがつかない） */}
+                      {(n.next_study || "").trim() && (
+                        <div style={{ display: "flex", gap: 4, marginTop: 4, fontSize: T.fontSize.sm, color: T.gold, fontFamily: T.fontSerif, lineHeight: 1.5 }}>
+                          <i className="ti ti-flag" style={{ fontSize: "0.6875rem", marginTop: 3, flexShrink: 0 }} />
+                          <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {n.next_study}
+                          </span>
+                        </div>
+                      )}
+                      {/* 5行目: メモの冒頭（あれば1行だけ） */}
                       {n.memo && (
                         <div style={{ fontSize: T.fontSize.sm, color: T.inkMid, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: T.fontSerif }}>
                           {n.memo}
