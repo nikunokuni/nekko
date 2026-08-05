@@ -34,7 +34,7 @@ test("棋譜プレビューに「ツリーへ送る」と先後の選択が出�
   await importKifuAndOpenPreview(page);
 
   // ① ツリーへ送る導線（onSendToInbox と trees の両方が届いていないと描画されない）
-  await expect(page.getByText(/ツリーへ送る|とりあえず/).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: /この局面からノードを作る/ })).toBeVisible();
 
   // ② 先後の選択（onSetSide が届いていないと押しても何も起きない）
   //    サンプルは対局者名を覚えていないので、先後未確定のまま出るのが正しい
@@ -65,7 +65,7 @@ test("棋譜プレビューから範囲を切り取って「とりあえず」�
   await page.getByRole("button", { name: "最初の局面へ" }).click();
   for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "一手すすむ" }).click();
 
-  await page.getByRole("button", { name: /とりあえず.*に入れる/ }).click();
+  await page.getByRole("button", { name: /この局面からノードを作る/ }).click();
   await expect(page.getByText("どこまで入れますか")).toBeVisible();
   await expect(page.getByText("第3手から")).toBeVisible();
 

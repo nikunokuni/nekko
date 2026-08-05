@@ -43,23 +43,23 @@ test("傾向の行から実戦をたどり、ツリーの「とりあえず」�
 
   // ── 棋譜をタップすると再生モーダルが開く ──
   await kifuRow.click();
-  await expect(page.getByRole("button", { name: /ツリーの「とりあえず」に入れる/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /この局面からノードを作る/ })).toBeVisible();
 
   // ── 範囲を選ぶ段階から「やめる」で降りられる ──
-  await page.getByRole("button", { name: /ツリーの「とりあえず」に入れる/ }).click();
+  await page.getByRole("button", { name: /この局面からノードを作る/ }).click();
   await expect(page.getByText("どこまで入れますか")).toBeVisible();
   await page.getByRole("button", { name: "やめる" }).click();
-  await expect(page.getByRole("button", { name: /ツリーの「とりあえず」に入れる/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /この局面からノードを作る/ })).toBeVisible();
 
   // ── ツリーを選ぶ段階からも「やめる」で降りられる ──
-  await page.getByRole("button", { name: /ツリーの「とりあえず」に入れる/ }).click();
+  await page.getByRole("button", { name: /この局面からノードを作る/ }).click();
   await page.getByRole("button", { name: /最後（第20手）まで/ }).click();
   await expect(page.getByText("どのツリーに入れますか")).toBeVisible();
   await page.getByRole("button", { name: "やめる" }).click();
-  await expect(page.getByRole("button", { name: /ツリーの「とりあえず」に入れる/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /この局面からノードを作る/ })).toBeVisible();
 
   // ── もう一度たどって、実際にツリーへ入れる ──
-  await page.getByRole("button", { name: /ツリーの「とりあえず」に入れる/ }).click();
+  await page.getByRole("button", { name: /この局面からノードを作る/ }).click();
   await page.getByRole("button", { name: /最後（第20手）まで/ }).click();
   // ツリーは名前で指す。「対抗形」は読み取った戦型としても画面に出るので、
   // 文字ではなくボタンとして指す（同じ将棋用語が別の意味で並ぶことがある）

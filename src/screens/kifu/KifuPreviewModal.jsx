@@ -191,7 +191,11 @@ export function KifuPreviewModal({ kifu, onClose, onSetSide, trees = [], onSendT
 
         {/* ── ツリーへ送る ──
             どこに置くか決めずにツリーへ入れられるようにする。
-            置き場所を決めるのは後で良い、という前提で「とりあえず」へ入れる */}
+            置き場所を決めるのは後で良い、という前提で「とりあえず」へ入れる。
+            ボタンの文言は入れ先ではなく**することそのもの**にしてある。
+            「とりあえず」はツリーの中の置き場の名前で、棋譜を見ている時点では
+            まだ出てきていないので、押す前に何が起きるか読み取れない
+            （入れ先は下の説明と、押したあとのツリー選択で分かる） */}
         {onSendToInbox && trees.length > 0 && (
           <div style={{ marginBottom: 14 }}>
             {step === null ? (
@@ -205,7 +209,7 @@ export function KifuPreviewModal({ kifu, onClose, onSetSide, trees = [], onSendT
                 }}
               >
                 <i className="ti ti-git-branch" style={{ fontSize: "0.875rem" }} />
-                ツリーの「とりあえず」に入れる
+                この局面からノードを作る
               </button>
             ) : step === "range" ? (
               /* ── ①どこまで入れるか ──
