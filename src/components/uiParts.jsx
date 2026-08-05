@@ -46,8 +46,10 @@ export function SectionLabel({ children, style }) {
 //   軸ごとにアイコンの形と色を変えて「何の評価か」を視覚で示す。
 //   levels: 保存される値の配列（例 [1,3,5,7,9]）。選んだ値以下のアイコンが点灯する
 //   clearable: 選択中の値をもう一度タップで未設定(null)に戻せる
+//   両端の目盛り（「めったに」「いつも」など）は置かない。
+//   選んだ値は右の valueLabel が言葉で出しているので、同じことを二重に説明していた
 // ──────────────────────────────────────────
-export function IconRating({ icon, color, bg, levels, value, onChange, lowLabel, highLabel, valueLabel, clearable = false }) {
+export function IconRating({ icon, color, bg, levels, value, onChange, valueLabel, clearable = false }) {
   const selectedIdx = levels.indexOf(value); // -1 = 未設定
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
@@ -74,10 +76,6 @@ export function IconRating({ icon, color, bg, levels, value, onChange, lowLabel,
               </div>
             );
           })}
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 3 }}>
-          <span style={{ fontSize: T.fontSize.xs, color: T.inkMid, fontFamily: T.fontSerif }}>{lowLabel}</span>
-          <span style={{ fontSize: T.fontSize.xs, color: T.inkMid, fontFamily: T.fontSerif }}>{highLabel}</span>
         </div>
       </div>
       {/* 現在値バッジ（未設定時は薄く表示） */}
@@ -217,7 +215,9 @@ export function KifuPreviewBoard({ snapshots, onPlaybackIdxChange }) {
 // ──────────────────────────────────────────
 // BoardSection: 将棋盤の表示/追加エリア
 // ──────────────────────────────────────────
-export function BoardSection({ boardVisible, boardData, stamps, handSente, handGote, parentBoard, parentLabel, onToggle, onChange, onDelete, onLoadTemplate, kifu, onKifuChange, onKifuDelete, allowBranch, onBranchFromHere, onBranchRange, canUndo, onUndo, stickyPeek = true }){
+// kifuImportSlot: 棋譜ライブラリからの取り込み導線。盤が出ていれば「棋譜を記録」と同じ行に、
+//   盤が無ければプレースホルダーの下に置く（盤が無くても取り込みから始められるようにする）
+export function BoardSection({ boardVisible, boardData, stamps, handSente, handGote, parentBoard, parentLabel, onToggle, onChange, onDelete, onLoadTemplate, kifu, onKifuChange, onKifuDelete, allowBranch, onBranchFromHere, onBranchRange, canUndo, onUndo, stickyPeek = true, kifuImportSlot = null }){
   const [tmplOpen, setTmplOpen] = useState(false);
 
   // 盤面操作系ボタンの共通スタイル
@@ -261,6 +261,9 @@ export function BoardSection({ boardVisible, boardData, stamps, handSente, handG
             {boardData ? "タップして盤面を再表示" : "タップして盤面を追加"}
           </span>
         </div>
+        {kifuImportSlot && (
+          <div style={{ display: "flex", marginBottom: 12 }}>{kifuImportSlot}</div>
+        )}
       </div>
     );
   }
@@ -378,6 +381,7 @@ export function BoardSection({ boardVisible, boardData, stamps, handSente, handG
           // 盤が非表示のときはこの分岐に来ない（上の early return）ので、貼り付けも起きない。
           // 設定「ノード編集画面に表示する項目」でOFFにすると貼り付けない（既定はON）
           stickyPeek={stickyPeek}
+          kifuImportSlot={kifuImportSlot}
         />
       </div>
     </div>

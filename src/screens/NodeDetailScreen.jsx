@@ -985,6 +985,23 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
           canUndo={canUndoBoard}
           onUndo={handleUndoBoard}
           stickyPeek={showBoardPeek}
+          // 棋譜ライブラリからの取り込み。「棋譜を記録」と同じ行に置く
+          // （どちらも「この盤に棋譜を入れる」操作なので隣り合わせにする）。
+          // 盤の中の行に混ぜるため、大きさは盤の道具ボタンに合わせる
+          kifuImportSlot={userId ? (
+            <button
+              data-onboard="kifu-import"
+              onClick={() => setKifuPickerOpen(true)}
+              style={{
+                display: "flex", alignItems: "center", gap: 5,
+                padding: "4px 9px", borderRadius: 8, cursor: "pointer",
+                border: `0.5px dashed ${T.brown}`, background: "none",
+                color: T.brown, fontSize: T.fontSize.md, fontFamily: T.fontSerif,
+              }}
+            >
+              <i className="ti ti-books" style={{ fontSize: "0.8125rem" }} />保存済み棋譜から取り込む
+            </button>
+          ) : null}
         />
 
         {/* 手番・評価値（盤面表示中のみ。局面に紐づく情報のため盤面の直下に置く） */}
@@ -1058,21 +1075,6 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
               />
             </div>
             )}
-          </div>
-        )}
-
-        {/* 棋譜ライブラリからの取り込み */}
-        {userId && (
-          <div style={{ padding: "0 16px 12px" }}>
-            <div
-              data-onboard="kifu-import"
-              onClick={() => setKifuPickerOpen(true)}
-              style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: T.radius.sm, border: `0.5px dashed ${T.brown}`, cursor: "pointer", color: T.brown, fontSize: T.fontSize.base }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = T.goldLight)}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-            >
-              <i className="ti ti-books" style={{ fontSize: "0.875rem" }} />保存済み棋譜から取り込む
-            </div>
           </div>
         )}
 
@@ -1180,7 +1182,7 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
             対局直後に目に入るメモの直下に置く（閉じているときは選択済みタグのみ表示） */}
         {showCommentTags && (
         <TagPickerField
-          label="一言コメント（タップで気軽に記録）"
+          label="一言コメント"
           text={commentTags}
           onSelectTag={(next) => saveField({ commentTags: next },
             () => setCommentTags(next.join("、")),
@@ -1272,7 +1274,7 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
         <div style={{ padding: "0 16px 10px" }}>
           <SectionLabel style={{ marginBottom: 5 }}>
             <i className="ti ti-flame" style={{ fontSize: "0.75rem", color: T.gold, marginRight: 4 }} />
-            頻度（どのくらい指すか）
+            頻度
           </SectionLabel>
           <IconRating
             icon="ti-flame" color={T.gold} bg={T.goldLight}
@@ -1280,8 +1282,6 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
             onChange={(lvl) => saveField({ usageLevel: lvl },
               () => setUsageLevel(lvl),
               () => setUsageLevel(node.usageLevel || 2))}
-            lowLabel={USAGE_META[USAGE_LEVELS[0]].label}
-            highLabel={USAGE_META[USAGE_LEVELS[USAGE_LEVELS.length - 1]].label}
             valueLabel={USAGE_META[usageLevel]?.label ?? "未設定"}
           />
         </div>
@@ -1291,7 +1291,7 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
         <div style={{ padding: "0 16px 10px" }}>
           <SectionLabel style={{ marginBottom: 5 }}>
             <i className="ti ti-trophy" style={{ fontSize: "0.75rem", color: T.green, marginRight: 4 }} />
-            勝率（どのくらい勝てるか）
+            勝率
           </SectionLabel>
           <IconRating
             icon="ti-trophy" color={T.green} bg={T.greenBg}
@@ -1299,7 +1299,6 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
             onChange={(lvl) => saveField({ winRate: lvl },
               () => setWinRate(lvl),
               () => setWinRate(node.winRate ?? null))}
-            lowLabel="勝てない" highLabel="勝ちやすい"
             valueLabel={winRate != null ? `${winRate}割くらい勝てる` : "未設定"}
           />
         </div>
@@ -1309,7 +1308,7 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
         <div style={{ padding: "0 16px 10px" }}>
           <SectionLabel style={{ marginBottom: 5 }}>
             <i className="ti ti-heart" style={{ fontSize: "0.75rem", color: T.red, marginRight: 4 }} />
-            好き度（どのくらい好きか）
+            好き度
           </SectionLabel>
           <IconRating
             icon="ti-heart" color={T.red} bg={T.redBg}
@@ -1317,8 +1316,6 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
             onChange={(lvl) => saveField({ likeLevel: lvl },
               () => setLikeLevel(lvl),
               () => setLikeLevel(node.likeLevel ?? null))}
-            lowLabel={LIKE_LEVELS[0].label}
-            highLabel={LIKE_LEVELS[LIKE_LEVELS.length - 1].label}
             valueLabel={LIKE_LEVELS.find((l) => l.value === likeLevel)?.label ?? "未設定"}
           />
         </div>
@@ -1327,13 +1324,10 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
         {/* ════ 研究メモ ════
             「ついか」自体がすでに畳んであるので、その中でもう一段畳むと
             開くのに2回押すことになり、書いた内容も一段奥に隠れてしまう。
-            出す・出さないは設定（tsuikaShow.studyMemo）で決められる */}
+            まとめの見出しは置かない（各欄に名前が付いていて中身が分かるため）。
+            出す・出さないは設定（tsuikaShow.studyMemo）で決められる。
+            一言コメントはメモ直下（きほん）へ移動済みで、ここは研究時に書く3欄のみ */}
         {tsuikaShow.studyMemo && <>
-        <div style={{ padding: "6px 16px 6px" }}>
-          {/* 一言コメントはメモ直下（きほん）へ移動済み。ここは研究時に書く3欄のみ */}
-          <SectionLabel style={{ marginBottom: 0 }}>研究メモ（狙い・注意・宿題）</SectionLabel>
-        </div>
-
         {[
             { label: "ここでの狙い",   value: aim,       set: setAim,       key: "aim",       placeholder: "じっくり研究するときに：この局面で目指すこと" },
             { label: "気を付けること", value: caution,   set: setCaution,   key: "caution",   placeholder: "じっくり研究するときに：ミスしやすい点・落とし穴" },

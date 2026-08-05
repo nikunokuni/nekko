@@ -543,6 +543,9 @@ export default function ShogiBoard({
   //   局面を見ながら下のメモや子ノードを読み書きするための機能なので、それが要る画面
   //   （ノード編集・公開ツリー）だけ on にする。棋譜入力モーダルは盤がすでに一番上にあり不要
   stickyPeek = false,
+  // 「棋譜を記録」と同じ行に並べる追加の導線（＝棋譜ライブラリからの取り込み）。
+  //   中身は呼び出し元が作る。盤は棋譜ライブラリ（DB）を知らないため
+  kifuImportSlot = null,
 }) {
   const canvasRef = useRef(null);
   // 貼り付けを始める目印。この行（持ち駒＋盤）の上端が画面から出たら貼り付ける
@@ -883,12 +886,12 @@ export default function ShogiBoard({
   // ── 記録の操作（棋譜を記録 / 手数・一手戻す・記録を終わる）──
   //   既存の棋譜がある間は出さない（上書き防止。録り直すには先に「棋譜を削除」）。
   //   置き場所は2通り：
-  //     通常（ノード編集）  … 道具と同じ行の右端
+  //     通常（ノード編集）  … 道具の行の1つ上（棋譜まわりの行）
   //     棋譜入力モード      … 盤の下（盤と持ち駒を画面の一番上に置きたいため）
   //   同じものを2箇所に書くと片方だけ直す事故が起きるので、変数にして置き場所だけ変える。
   const recordControls = (!readOnly && playbackIdx === null && kifuLen === 0) && (
     <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap',
-      marginLeft: recordOnly ? 0 : 'auto', marginTop: recordOnly ? 6 : 0 }}>
+      marginTop: recordOnly ? 6 : 0 }}>
       {!isRecording ? (
         <button data-onboard="board-kifu" onClick={startRecording} style={{
           ...btnStyle(false), borderColor:'#854F0B', color:'#854F0B', gap:5,
@@ -928,14 +931,24 @@ export default function ShogiBoard({
           棋譜入力モードで道具を出さないのは、棋譜に残るのは駒の動きだけで、
           スタンプは記録されないため。置けると「記録されたつもり」になる */}
       {!readOnly && playbackIdx === null && !recordOnly && (
-        <div style={{ display:'flex', gap:6, marginBottom:6, flexWrap:'wrap', alignItems:'center' }}>
-          {[['move','動かす','ti-arrows-move'],['stamp','スタンプ','ti-stamp'],['erase','消す','ti-eraser']].map(([t,lbl,icon]) => (
-            <button key={t} data-onboard={`board-${t}`} onClick={() => { setTool(t); setSelected(null); setSelectedHand(null); setArrowStart(null); }} style={btnStyle(tool===t)}>
-              <i className={`ti ${icon}`} style={{fontSize:"0.8125rem"}}/>{lbl}
-            </button>
-          ))}
-          {recordControls}
-        </div>
+        <>
+          {/* 棋譜の行：記録する／ライブラリから取り込む。
+              どちらも「この盤に棋譜を入れる」操作なので、盤を編集する道具
+              （動かす・スタンプ・消す）とは行を分けて上に置く */}
+          {(recordControls || kifuImportSlot) && (
+            <div style={{ display:'flex', gap:6, marginBottom:6, flexWrap:'wrap', alignItems:'center' }}>
+              {recordControls}
+              {kifuImportSlot}
+            </div>
+          )}
+          <div style={{ display:'flex', gap:6, marginBottom:6, flexWrap:'wrap', alignItems:'center' }}>
+            {[['move','動かす','ti-arrows-move'],['stamp','スタンプ','ti-stamp'],['erase','消す','ti-eraser']].map(([t,lbl,icon]) => (
+              <button key={t} data-onboard={`board-${t}`} onClick={() => { setTool(t); setSelected(null); setSelectedHand(null); setArrowStart(null); }} style={btnStyle(tool===t)}>
+                <i className={`ti ${icon}`} style={{fontSize:"0.8125rem"}}/>{lbl}
+              </button>
+            ))}
+          </div>
+        </>
       )}
 
       {/* スタンプ選択 */}
