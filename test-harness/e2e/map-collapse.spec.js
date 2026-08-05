@@ -29,8 +29,10 @@ async function makeSummaryWithChild(page, treeId) {
   await page.goto(`/tree/${treeId}`);
   await page.getByText("居飛車", { exact: true }).first().click();
   await page.waitForURL(/\/node\//);
-  await page.getByText("このノードをまとめにする").click();
-  await expect(page.getByText("まとめノードにしています")).toBeVisible();
+  // ボタンの文字は状態で変わらないので、押せたかは aria-pressed で見る
+  const summaryBtn = page.getByRole("button", { name: "まとめる" });
+  await summaryBtn.click();
+  await expect(summaryBtn).toHaveAttribute("aria-pressed", "true");
 
   await page.goto(`/tree/${treeId}`);
 }

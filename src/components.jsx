@@ -303,7 +303,7 @@ export function SummaryList({ nodes, rootId, onSelect }) {
     return (
       <div style={{ padding:'16px 14px', fontSize:T.fontSize.base, color:T.inkFaint, fontFamily:T.fontSerif, lineHeight:1.8 }}>
         まとめノードがまだありません。<br/>
-        ノードの詳細画面で「このノードをまとめにする」を押すと、
+        ノードの詳細画面で「まとめる」を押すと、
         戦型全体の考え方を書けるようになり、マップでその下を束ねられます。
       </div>
     );

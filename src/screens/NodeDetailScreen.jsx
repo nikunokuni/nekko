@@ -220,7 +220,6 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
   const [customTags,        setCustomTags]        = useState(() => getCustomTagsByGroup());
   const [commentTags,       setCommentTags]       = useState("");
   const [commentCustomTags, setCommentCustomTags] = useState(() => getCommentCustomTags());
-  const [commentOpen,       setCommentOpen]       = useState(false);
   const [aim,         setAim]         = useState("");
   const [caution,     setCaution]     = useState("");
   const [nextStudy,   setNextStudy]   = useState("");
@@ -762,6 +761,37 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
           )}
         </div>
         {node.isMergeTarget && <MergeTag />}
+        {/* まとめノードのトグル。ノード名と同じ高さの右端に置く。
+            ノードの性格を決める切り替えなので、下の入力欄に混ぜず名前の隣に出す。
+            ルートは畳めない（ツリー全体が消えるため）のでトグルを出さず、
+            まとめ欄だけ常に出している。置き場は既に別扱い */}
+        {!node.isRoot && !node.isInbox && (
+          <button
+            onClick={() => {
+              const next = !node.isSummary;
+              setPositionOpen(!next);
+              saveField({ isSummary: next }, () => {}, () => {});
+            }}
+            // アイコンフォントが ::before で文字を差し込むため、文字を添えていても
+            // 名前の計算がそちらへ引っ張られる。aria-label で確実に名前を付ける
+            aria-label="まとめる"
+            aria-pressed={!!node.isSummary}
+            style={{
+              flexShrink: 0,
+              display: "inline-flex", alignItems: "center", gap: 5,
+              padding: "5px 10px", borderRadius: T.radius.xl, cursor: "pointer",
+              fontFamily: T.fontSerif, fontSize: T.fontSize.sm,
+              border: node.isSummary ? `1px solid ${T.gold}` : `0.5px dashed ${T.inkLine}`,
+              background: node.isSummary ? T.goldLight : "transparent",
+              color: node.isSummary ? T.gold : T.inkMid,
+            }}
+          >
+            {/* 塗りつぶし版（ti-bookmark-filled）は別のフォントで、このアプリは読んでいない。
+                指定すると字が出ずに隙間だけが空くので、印は枠と地色で付ける */}
+            <i className="ti ti-bookmark" style={{ fontSize: "0.8125rem" }} />
+            まとめる
+          </button>
+        )}
       </div>
 
       <div style={{ flex: 1, overflowY: "auto" }}>
@@ -1090,36 +1120,6 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
           </div>
         </div>
 
-        {/* まとめノードにするトグル。
-            1つのフラグが「マップで束ねる」と「戦型のまとめを書く」の2つを同時に
-            意味するので、説明を1行添える。ルートは畳めない（ツリー全体が消えるため）ので
-            トグルを出さず、まとめ欄だけ常に出している。置き場は既に別扱い */}
-        {!node.isRoot && !node.isInbox && (
-          <div style={{ padding: "0 16px 10px" }}>
-            <button
-              onClick={() => {
-                const next = !node.isSummary;
-                setPositionOpen(!next);
-                saveField({ isSummary: next }, () => {}, () => {});
-              }}
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                padding: "6px 12px", borderRadius: T.radius.xl, cursor: "pointer",
-                fontFamily: T.fontSerif, fontSize: T.fontSize.base,
-                border: node.isSummary ? `1px solid ${T.gold}` : `0.5px dashed ${T.inkLine}`,
-                background: node.isSummary ? T.goldLight : "transparent",
-                color: node.isSummary ? T.gold : T.inkMid,
-              }}
-            >
-              <i className={`ti ti-bookmark${node.isSummary ? "-filled" : ""}`} style={{ fontSize: "0.8125rem" }} />
-              {node.isSummary ? "まとめノードにしています" : "このノードをまとめにする"}
-            </button>
-            <div style={{ fontSize: T.fontSize.sm, color: T.inkFaint, marginTop: 4, fontFamily: T.fontSerif, lineHeight: 1.6 }}>
-              マップでこの下を束ねられます／戦型全体の考えを書けます
-            </div>
-          </div>
-        )}
-
         {/* 相手の戦法・局面の状況 / 自分の戦法 */}
         {!node.isRoot && (
           <>
@@ -1324,19 +1324,17 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
         </div>
         )}
 
-        {/* ════ 研究メモ（折りたたみ） ════ */}
+        {/* ════ 研究メモ ════
+            「ついか」自体がすでに畳んであるので、その中でもう一段畳むと
+            開くのに2回押すことになり、書いた内容も一段奥に隠れてしまう。
+            出す・出さないは設定（tsuikaShow.studyMemo）で決められる */}
         {tsuikaShow.studyMemo && <>
-        <div
-          onClick={() => setCommentOpen((v) => !v)}
-          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 16px 6px", cursor: "pointer" }}
-        >
+        <div style={{ padding: "6px 16px 6px" }}>
           {/* 一言コメントはメモ直下（きほん）へ移動済み。ここは研究時に書く3欄のみ */}
           <SectionLabel style={{ marginBottom: 0 }}>研究メモ（狙い・注意・宿題）</SectionLabel>
-          <i className={`ti ti-chevron-${commentOpen ? "up" : "down"}`} style={{ fontSize: "0.8125rem", color: T.inkMid }} />
         </div>
 
-        {commentOpen && <>
-          {[
+        {[
             { label: "ここでの狙い",   value: aim,       set: setAim,       key: "aim",       placeholder: "じっくり研究するときに：この局面で目指すこと" },
             { label: "気を付けること", value: caution,   set: setCaution,   key: "caution",   placeholder: "じっくり研究するときに：ミスしやすい点・落とし穴" },
             { label: "次に調べること", value: nextStudy, set: setNextStudy, key: "nextStudy", placeholder: "次の研究への宿題・深掘りしたい手順" },
@@ -1354,7 +1352,6 @@ export function NodeDetail({ tree, nodeId, userId, onBack, onNodeSelect, onNewNo
               />
             </div>
           ))}
-        </>}
         </>}
 
         </>}
