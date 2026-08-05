@@ -16,18 +16,12 @@ import { ConfirmDeleteModal } from "../components/uiParts";
 import { recordAction, getCustomTagsByGroup, addCustomTag, addKifuPlayerName } from "../rewards";
 import { recomputeFeatures } from "../kifuAnalyze";
 import { fetchMyKifus, fetchKifu, createKifu, updateKifu, deleteKifu, kifuRowToKifu } from "../db";
-import { outcomeLabel } from "./kifu/shared";
+import { outcomeLabel, formatDate } from "./kifu/shared";
 import { ImportKifuModal } from "./kifu/ImportKifuModal";
 import { RecordKifuModal } from "./kifu/RecordKifuModal";
 import { KifuPreviewModal } from "./kifu/KifuPreviewModal";
 import { EditKifuModal } from "./kifu/EditKifuModal";
 
-// 一覧カードの日付表示（例: 2026/7/18）
-function formatDate(iso) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
-}
 
 
 // ══════════════════════════════════════════════════════════════════

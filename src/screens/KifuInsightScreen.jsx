@@ -11,11 +11,13 @@ import { T } from "../theme";
 import { SectionLabel } from "../components/uiParts";
 import {
   fetchKifusForAnalysis, fetchKifusNeedingMeta, fetchKifusMissingSide,
-  fetchKifuSnapshotsMany, updateKifu, kifuRowToKifu, ANALYSIS_GAME_LIMIT,
+  fetchKifuSnapshotsMany, fetchKifu, updateKifu, kifuRowToKifu, ANALYSIS_GAME_LIMIT,
 } from "../db";
 import { analyzeKifu, recomputeFeatures, resolveMySide, toAnalysisGame } from "../kifuAnalyze";
 import { analyzeGames, analyzeSwingTiming, groupBy, BRANCH_VIEWS } from "../kifuStats";
 import { getKifuPlayerNames } from "../rewards";
+import { outcomeLabel, formatDate } from "./kifu/shared";
+import { KifuPreviewModal } from "./kifu/KifuPreviewModal";
 
 // 最低局数の選択肢。少ないほど細かい傾向が出るが、偶然の偏りも拾いやすくなる
 const MIN_GAMES_OPTIONS = [3, 5, 10];
@@ -40,11 +42,65 @@ function RateBar({ rate, lower, upper }) {
   );
 }
 
+// ── 掘り下げた棋譜の1行 ───────────────────────────
+// 傾向（数字）から実戦（棋譜）へ降りるための行。
+// 棋譜ライブラリのカードと同じ情報を1行に圧縮してある。ここは読むためではなく
+// 「その戦型の実戦を探して開く」ための一覧なので、縦に短いほうが探しやすい
+function DrilldownKifuRow({ kifu, onOpen }) {
+  const o = outcomeLabel(kifu);
+  return (
+    <div
+      onClick={() => onOpen(kifu)}
+      style={{
+        display: "flex", alignItems: "center", gap: 8,
+        padding: "8px 10px", marginBottom: 4, borderRadius: T.radius.sm,
+        border: `0.5px solid ${T.inkLineFaint}`, background: T.cream, cursor: "pointer",
+      }}
+    >
+      {o && (
+        <span style={{
+          flexShrink: 0, fontSize: T.fontSize.xs, fontFamily: T.fontSerif, color: o.color,
+          border: `0.5px solid ${o.color}`, borderRadius: T.radius.sm, padding: "0 6px",
+        }}>{o.text}</span>
+      )}
+      <span style={{ flex: 1, minWidth: 0, fontSize: T.fontSize.base, color: T.ink, fontFamily: T.fontSerif, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {kifu.name}
+      </span>
+      <span style={{ flexShrink: 0, fontSize: T.fontSize.xs, color: T.inkFaint, fontFamily: T.fontSerif }}>
+        {formatDate(kifu.playedAt || kifu.createdAt)}
+      </span>
+      <i className="ti ti-player-play" style={{ fontSize: "0.75rem", color: T.gold, flexShrink: 0 }} />
+    </div>
+  );
+}
+
+// ── 行を開いたときに出る棋譜一覧 ──────────────────
+// 対局日の新しい順。直近の指し方ほど今の自分に近く、分岐を作る参考になるため。
+// 件数は絞らない（「その戦型の実戦を全部見る」のが目的なので、途中で切ると探し物が出ない）
+function DrilldownList({ gameIds = [], kifuById, onOpen }) {
+  const list = gameIds
+    .map((id) => kifuById.get(id))
+    .filter(Boolean)
+    .sort((a, b) => String(b.playedAt || b.createdAt || "").localeCompare(String(a.playedAt || a.createdAt || "")));
+  if (list.length === 0) return EMPTY("この分かれ方の棋譜が見つかりませんでした");
+  return (
+    <div style={{ padding: "8px 0 10px" }}>
+      <div style={{ fontSize: T.fontSize.xs, color: T.inkFaint, fontFamily: T.fontSerif, marginBottom: 6 }}>
+        この{list.length}局。タップすると再生でき、そこからツリーの「とりあえず」に入れられます
+      </div>
+      {list.map((k) => <DrilldownKifuRow key={k.id} kifu={k} onOpen={onOpen} />)}
+    </div>
+  );
+}
+
 // ── 1グループの行 ─────────────────────────────────
-function GroupRow({ group, note }) {
+function GroupRow({ group, note, open, onToggle, children }) {
   return (
     <div style={{ padding: "10px 0", borderBottom: `0.5px solid ${T.inkLineFaint}` }}>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 5 }}>
+      <div
+        onClick={onToggle}
+        style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 5, cursor: onToggle ? "pointer" : "default" }}
+      >
         <span style={{ flex: 1, fontSize: T.fontSize.lg, color: T.ink, fontFamily: T.fontSerif }}>
           {group.label}
         </span>
@@ -54,6 +110,9 @@ function GroupRow({ group, note }) {
         <span style={{ fontSize: T.fontSize.base, color: T.gold, fontFamily: T.fontSerif, minWidth: 38, textAlign: "right" }}>
           {pct(group.rate)}
         </span>
+        {onToggle && (
+          <i className={`ti ti-chevron-${open ? "up" : "down"}`} style={{ fontSize: "0.8125rem", color: T.gray, flexShrink: 0 }} />
+        )}
       </div>
       <RateBar rate={group.rate} lower={group.lower} upper={group.upper} />
       <div style={{ marginTop: 4, fontSize: T.fontSize.xs, color: T.inkFaint, fontFamily: T.fontSerif }}>
@@ -61,6 +120,7 @@ function GroupRow({ group, note }) {
         {group.castleCompleteness != null && ` ・ 囲いの完成度 ${pct(group.castleCompleteness)}`}
         {note && ` ・ ${note}`}
       </div>
+      {open && children}
     </div>
   );
 }
@@ -68,27 +128,36 @@ function GroupRow({ group, note }) {
 // ── 戦型べつ一覧の1行 ─────────────────────────────
 // 数局しかない段階で勝率バーを出すと、偶然の偏りを傾向のように見せてしまう。
 // ここでは勝敗をそのまま並べるだけにとどめる。
-function MatchupRow({ group }) {
+function MatchupRow({ group, open, onToggle, children }) {
   const castle = group.castleCompleteness;
   return (
-    <div style={{
-      display: "flex", alignItems: "baseline", gap: 8,
-      padding: "9px 0", borderBottom: `0.5px solid ${T.inkLineFaint}`,
-    }}>
-      <span style={{ flex: 1, fontSize: T.fontSize.lg, color: T.ink, fontFamily: T.fontSerif }}>
-        {group.label}
-      </span>
-      {castle != null && castle < 1 && (
-        <span style={{ fontSize: T.fontSize.xs, color: T.inkFaint, fontFamily: T.fontSerif }}>
-          囲いが組みかけ
+    <div style={{ borderBottom: `0.5px solid ${T.inkLineFaint}` }}>
+      <div
+        onClick={onToggle}
+        style={{
+          display: "flex", alignItems: "baseline", gap: 8,
+          padding: "9px 0", cursor: onToggle ? "pointer" : "default",
+        }}
+      >
+        <span style={{ flex: 1, fontSize: T.fontSize.lg, color: T.ink, fontFamily: T.fontSerif }}>
+          {group.label}
         </span>
-      )}
-      <span style={{ fontSize: T.fontSize.base, color: T.ink, fontFamily: T.fontSerif }}>
-        {group.wins}勝{group.losses}敗{group.draws ? `${group.draws}分` : ""}
-      </span>
-      <span style={{ fontSize: T.fontSize.xs, color: T.inkFaint, fontFamily: T.fontSerif, minWidth: 30, textAlign: "right" }}>
-        {group.games}局
-      </span>
+        {castle != null && castle < 1 && (
+          <span style={{ fontSize: T.fontSize.xs, color: T.inkFaint, fontFamily: T.fontSerif }}>
+            囲いが組みかけ
+          </span>
+        )}
+        <span style={{ fontSize: T.fontSize.base, color: T.ink, fontFamily: T.fontSerif }}>
+          {group.wins}勝{group.losses}敗{group.draws ? `${group.draws}分` : ""}
+        </span>
+        <span style={{ fontSize: T.fontSize.xs, color: T.inkFaint, fontFamily: T.fontSerif, minWidth: 30, textAlign: "right" }}>
+          {group.games}局
+        </span>
+        {onToggle && (
+          <i className={`ti ti-chevron-${open ? "up" : "down"}`} style={{ fontSize: "0.8125rem", color: T.gray, flexShrink: 0 }} />
+        )}
+      </div>
+      {open && children}
     </div>
   );
 }
@@ -114,7 +183,7 @@ const EMPTY = (text) => (
 );
 
 // ══════════════════════════════════════════════════════════════════
-export function KifuInsight({ userId, onBack, onGoSettings }) {
+export function KifuInsight({ userId, trees = [], onBack, onGoSettings, onSendToInbox }) {
   const [kifus,    setKifus]    = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [minGames, setMinGames] = useState(3);
@@ -123,6 +192,15 @@ export function KifuInsight({ userId, onBack, onGoSettings }) {
   const [viewKey, setViewKey] = useState(BRANCH_VIEWS[0].key);
   const [backfilling, setBackfilling] = useState(false);
   const [backfillMsg, setBackfillMsg] = useState("");
+  // 掘り下げて開いている行。同時に開くのは1つだけにする
+  // （全部開けるようにすると縦に伸びて、見比べていた一覧を見失う）。
+  // キーは「セクション名:グループのキー」。同じ戦型が複数のセクションに出るため、
+  // グループのキーだけだと別のセクションの行まで一緒に開いてしまう
+  const [openKey, setOpenKey] = useState(null);
+  // 掘り下げから開いた棋譜。傾向画面は軽い列しか読んでいないので、
+  // 再生に必要な盤面（snapshots）は開くときに1件だけ取りに行く
+  const [previewKifu,    setPreviewKifu]    = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   const playerNames = getKifuPlayerNames();
 
@@ -135,6 +213,23 @@ export function KifuInsight({ userId, onBack, onGoSettings }) {
     });
   };
   useEffect(load, [userId]);
+
+  // ── 掘り下げ（傾向の行 → その戦型の実戦 → 再生 → ツリーへ）──
+  // 数字を見て終わりにせず、そのまま実戦を開いて枝の材料にできるようにする。
+  // 再生から先（範囲を切り取ってツリーの「とりあえず」へ）は棋譜ライブラリと
+  // 同じ KifuPreviewModal に任せる。取り込みの手順を2箇所に持たないため
+  const kifuById = useMemo(() => new Map(kifus.map((k) => [k.id, k])), [kifus]);
+  const toggleOpen = (key) => setOpenKey((prev) => (prev === key ? null : key));
+
+  const openKifu = async (kifu) => {
+    if (previewLoading) return;
+    setPreviewLoading(true);
+    const { data } = await fetchKifu(kifu.id);
+    setPreviewLoading(false);
+    if (!data) { setBackfillMsg("棋譜の読み込みに失敗しました。もう一度お試しください"); return; }
+    setPreviewKifu(kifuRowToKifu(data));
+  };
+
 
   // ── 棋譜の解析（未解析の解析 ＋ 先後の再判定を1つにまとめたもの）──
   // 利用者からは「解析されていない棋譜がある」という1つの状態にしか見えないので、
@@ -387,7 +482,15 @@ export function KifuInsight({ userId, onBack, onGoSettings }) {
               </div>
               {byView.length === 0
                 ? EMPTY("集計できる棋譜がまだありません")
-                : byView.map((g) => <MatchupRow key={g.key} group={g} />)}
+                : byView.map((g) => (
+                    <MatchupRow
+                      key={g.key} group={g}
+                      open={openKey === `view:${g.key}`}
+                      onToggle={() => toggleOpen(`view:${g.key}`)}
+                    >
+                      <DrilldownList gameIds={g.gameIds} kifuById={kifuById} onOpen={openKifu} />
+                    </MatchupRow>
+                  ))}
               {byView.length === 1 && (
                 <div style={{ marginTop: 6, fontSize: T.fontSize.xs, color: T.inkFaint, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
                   この観点では分かれていません。別の観点を選ぶと分かれ目が見つかるかもしれません。
@@ -401,7 +504,15 @@ export function KifuInsight({ userId, onBack, onGoSettings }) {
             >
               {strong.length === 0
                 ? EMPTY(`${minGames}局以上ためた戦型のうち、全体より確実に勝てていると言えるものはまだありません`)
-                : strong.map((g) => <GroupRow key={g.key} group={g} note={g.level} />)}
+                : strong.map((g) => (
+                    <GroupRow
+                      key={g.key} group={g} note={g.level}
+                      open={openKey === `strong:${g.key}`}
+                      onToggle={() => toggleOpen(`strong:${g.key}`)}
+                    >
+                      <DrilldownList gameIds={g.gameIds} kifuById={kifuById} onOpen={openKifu} />
+                    </GroupRow>
+                  ))}
             </Section>
 
             <Section
@@ -411,7 +522,14 @@ export function KifuInsight({ userId, onBack, onGoSettings }) {
               {weak.length === 0
                 ? EMPTY(`${minGames}局以上ためた戦型のうち、全体より確実に負けていると言えるものはまだありません`)
                 : weak.map((g) => (
-                    <GroupRow key={g.key} group={g} note={`${g.level}・約${g.lostGames.toFixed(1)}局分の取りこぼし`} />
+                    <GroupRow
+                      key={g.key} group={g}
+                      note={`${g.level}・約${g.lostGames.toFixed(1)}局分の取りこぼし`}
+                      open={openKey === `weak:${g.key}`}
+                      onToggle={() => toggleOpen(`weak:${g.key}`)}
+                    >
+                      <DrilldownList gameIds={g.gameIds} kifuById={kifuById} onOpen={openKifu} />
+                    </GroupRow>
                   ))}
             </Section>
 
@@ -431,6 +549,18 @@ export function KifuInsight({ userId, onBack, onGoSettings }) {
           </>
         )}
       </div>
+
+      {/* 掘り下げから開いた棋譜。再生と「ツリーへ送る」は棋譜ライブラリと同じ部品を使う。
+          先後の選び直し（onSetSide）は渡していない ―― 自分の側が決まっていない棋譜は
+          そもそも集計に載らないので、この一覧には出てこないため */}
+      {previewKifu && (
+        <KifuPreviewModal
+          kifu={previewKifu}
+          onClose={() => setPreviewKifu(null)}
+          trees={trees}
+          onSendToInbox={onSendToInbox}
+        />
+      )}
     </div>
   );
 }

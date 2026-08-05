@@ -581,8 +581,10 @@ export default function App() {
         {screen==="kifuInsight" && (
           <KifuInsight
             userId={session.user.id}
+            trees={myTrees}
             onBack={() => navigate("/kifus")}
-            onGoSettings={() => navigate("/settings")} />
+            onGoSettings={() => navigate("/settings")}
+            onSendToInbox={handleSendKifuToInbox} />
         )}
         {screen==="search" && (
           <NodeSearch

@@ -17,3 +17,10 @@ export function outcomeLabel(kifu) {
   if (kifu.result === "gote")  return { text: "後手の勝ち", color: T.grayText };
   return null;
 }
+
+// 一覧の日付表示（例: 2026/7/18）
+export function formatDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+}

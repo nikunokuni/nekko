@@ -88,6 +88,27 @@ function KifuFactsTable({ kifu, onSetSide }) {
 // 再生位置の呼び名。0手目は「第0手」ではなく初期局面と呼ぶ（盤の再生ナビと同じ言い方）
 const plyLabel = (i) => (i === 0 ? "初期局面" : `第${i}手`);
 
+// ツリーへ送る手順を中断するボタン。
+// 選択肢と同じ大きさのボタンにしてあるのは、始めた操作から降りる導線が
+// 小さな文字リンクだと見つからず、モーダルごと閉じるしか無いように見えるため。
+// 手順のどの段階にも必ず置く（片方だけだと、無い側で行き止まりになる）。
+function CancelButton({ onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%",
+        padding: "9px 12px", borderRadius: T.radius.sm,
+        border: `0.5px solid ${T.inkLine}`, background: "transparent",
+        color: T.grayText, cursor: "pointer", fontSize: T.fontSize.base, fontFamily: T.fontSerif,
+      }}
+    >
+      <i className="ti ti-arrow-back-up" style={{ fontSize: "0.875rem" }} />
+      やめる
+    </button>
+  );
+}
+
 export function KifuPreviewModal({ kifu, onClose, onSetSide, trees = [], onSendToInbox }) {
   // ツリーへ送るまでの段階。null=未着手 / "range"=どこまでかを聞いている / "tree"=送り先を選んでいる。
   // 範囲→ツリーの順にしているのは、範囲の始点が「ボタンを押した時に見ていた局面」で決まるため。
@@ -216,13 +237,7 @@ export function KifuPreviewModal({ kifu, onClose, onSetSide, trees = [], onSendT
                     <i className="ti ti-player-skip-forward" style={{ fontSize: "0.875rem" }} />
                     最後（{plyLabel(moveCount)}）まで
                   </button>
-                  <button
-                    onClick={() => setStep(null)}
-                    style={{
-                      alignSelf: "flex-start", padding: "4px 2px", background: "none", border: "none",
-                      color: T.inkFaint, cursor: "pointer", fontSize: T.fontSize.sm, fontFamily: T.fontSerif,
-                    }}
-                  >やめる</button>
+                  <CancelButton onClick={() => setStep(null)} />
                 </div>
                 <div style={{ marginTop: 6, fontSize: T.fontSize.sm, color: T.inkFaint, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
                   下の盤で終わりの局面まで進めてから「いま見ている局面まで」を押します。
@@ -256,6 +271,7 @@ export function KifuPreviewModal({ kifu, onClose, onSetSide, trees = [], onSendT
                       <i className="ti ti-chevron-right" style={{ fontSize: "0.8125rem", color: T.gray }} />
                     </div>
                   ))}
+                  <CancelButton onClick={() => { setStep(null); setRange(null); }} />
                 </div>
                 <div style={{ marginTop: 6, fontSize: T.fontSize.sm, color: T.inkFaint, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
                   切り取った範囲からノードを作り、選んだツリーの「とりあえず」に入れます。置き場所は後から動かせます。
