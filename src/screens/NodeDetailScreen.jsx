@@ -19,6 +19,23 @@ import { toAnalysisGame } from "../kifuAnalyze";
 import { branchCandidates, candidateToNodeFields } from "../kifuBranching";
 import { showToast } from "../toast";
 
+// ── 分岐のコツ（子ノードの「ヒント」から開く）────────────
+// 分岐で手が止まるのは「どこで分ければいいか」が見えないとき。
+// 抽象的なコツを並べるより、棋譜を見返すときの**具体的な着眼点**を並べる。
+// 補足（かっこ書き）は下の行に小さく置く。1行が長いと目が滑って読まれない。
+const BRANCH_TIPS = [
+  { point: "お互いの飛車の位置" },
+  { point: "駒交換するかしないか", note: "交換後の打ち込み場所を検討" },
+  { point: "仕掛けるか仕掛けを待つか" },
+  { point: "相手の仕掛けに応じるか手抜くか" },
+  { point: "評価値が大きく動いた手", note: "勝負の決め手になった悪手" },
+  { point: "自分が迷った手" },
+  { point: "囲いを組みなおしたとき" },
+  { point: "他の候補手があるとき" },
+  { point: "相手の囲いが決まったとき", note: "囲いの弱点も決まり、攻めやすい場所も決まる" },
+  { point: "よくある局面の部分定跡", note: "棋譜で保存して見返せるように" },
+];
+
 // ──────────────────────────────────────────
 // KifuPickerModal: 棋譜ライブラリから1件選んでノードに取り込む
 //   一覧（メタデータのみ）→ タップで snapshots 込み取得 → プレビュー再生 → 取り込み
@@ -1846,7 +1863,9 @@ export function NodeDetail({ tree, trees = [], nodeId, userId, collabGuest = fal
       {/* 分岐のコツ。子ノードの「ヒント」から開く */}
       {branchTipOpen && (
         <div style={MODAL_OVERLAY_STYLE} onClick={() => setBranchTipOpen(false)}>
-          <div style={MODAL_SHEET_STYLE} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="分岐のコツ">
+          {/* 項目が多いので、画面に収まらないぶんはシートの中でスクロールさせる
+              （画面ごと伸びると、閉じるボタンまで押しに行けなくなる） */}
+          <div style={{ ...MODAL_SHEET_STYLE, maxHeight: "85%", overflowY: "auto" }} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="分岐のコツ">
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
               <div style={{ flex: 1, fontFamily: T.fontTitle, fontSize: T.fontSize.h, color: T.ink }}>分岐のコツ</div>
               <button
@@ -1857,12 +1876,25 @@ export function NodeDetail({ tree, trees = [], nodeId, userId, collabGuest = fal
                 <i className="ti ti-x" />
               </button>
             </div>
-            {/* 分岐で手が止まるのは「自分の指し手」を並べようとしたとき。
-                その一点を先に置き、あとの2つは作り進めてから効いてくる話 */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 12, fontSize: T.fontSize.base, color: T.inkMid, fontFamily: T.fontSerif, lineHeight: 1.9 }}>
-              <div>分岐は<b>相手がどう来たか</b>で分けると迷いません。自分の指し手は、その枝の中身になります。</div>
-              <div>相手の選択肢が4つ以上に割れたら、まだ<b>ひとつ上でまとめられる</b>かもしれません。</div>
-              <div>上から順に埋めるより、<b>実戦で困ったところ</b>から作るほうが続きます。</div>
+            <div style={{ fontSize: T.fontSize.base, color: T.inkMid, fontFamily: T.fontSerif, lineHeight: 1.9, marginBottom: 10 }}>
+              以下の観点で棋譜を見てみると見つけやすいです
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {BRANCH_TIPS.map(({ point, note }) => (
+                <div key={point} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                  <i className="ti ti-git-branch" style={{ fontSize: "0.75rem", color: T.gold, marginTop: 5, flexShrink: 0 }} />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: T.fontSize.base, color: T.ink, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
+                      {point}
+                    </div>
+                    {note && (
+                      <div style={{ fontSize: T.fontSize.sm, color: T.inkFaint, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
+                        {note}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
