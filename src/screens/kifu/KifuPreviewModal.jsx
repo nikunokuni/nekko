@@ -1,0 +1,272 @@
+// ══════════════════════════════════════════════════════════════════
+// screens/kifu/KifuPreviewModal.jsx  ―  保存済み棋譜の再生ビュー
+//   棋譜ライブラリ（KifuListScreen）から開く。
+// ══════════════════════════════════════════════════════════════════
+import { useCallback, useState } from "react";
+import { T, MODAL_OVERLAY_STYLE, MODAL_SHEET_STYLE } from "../../theme";
+import { SectionLabel, KifuPreviewBoard } from "../../components/uiParts";
+import { outcomeLabel } from "./shared";
+
+// ──────────────────────────────────────────
+// KifuPreviewModal: 保存済み棋譜の再生ビュー
+// ──────────────────────────────────────────
+// 読み取った対局情報と特徴を並べて見せる表。
+// 戦法や囲いの自動判定が実戦の感覚と合っているかを、ここで確かめられるようにする。
+function KifuFactsTable({ kifu, onSetSide }) {
+  const f = kifu.features;
+  const side = kifu.mySide === "sente" ? "先手" : kifu.mySide === "gote" ? "後手" : null;
+  const outcome = outcomeLabel(kifu);
+  // 完成度は数字で出すと「67%＝組めていない」と読めてしまう。
+  // 片美濃のように金1枚でも完成形の囲いがあるため、型として成立していれば
+  // 名前だけを出し、崩れている場合だけ「組みかけ」と添える。
+  const castle = (c) => {
+    if (!c) return "―";
+    if (c.completeness > 0 && c.completeness < 1) return `${c.name}（組みかけ）`;
+    return c.name;
+  };
+
+  // 先後が決まっていない棋譜は、ここで名前を選んで直せるようにする。
+  // 対局者名の表記ゆれで自動判定が外れると、他に直す手段が無くなるため。
+  const sideCell = side ? `${side}番` : (
+    <span style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+      {[["sente", kifu.senteName || "先手"], ["gote", kifu.goteName || "後手"]].map(([v, label]) => (
+        <button
+          key={v}
+          onClick={() => onSetSide?.(v)}
+          style={{
+            padding: "2px 10px", borderRadius: T.radius.sm, cursor: "pointer",
+            border: `0.5px solid ${T.gold}`, background: "transparent", color: T.gold,
+            fontFamily: T.fontSerif, fontSize: T.fontSize.sm,
+            maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}
+        >{label}</button>
+      ))}
+      <span style={{ color: T.inkFaint, fontSize: T.fontSize.sm }}>← あなたはどちら？</span>
+    </span>
+  );
+
+  const rows = [
+    ["対局者", `先手 ${kifu.senteName || "―"} ／ 後手 ${kifu.goteName || "―"}`],
+    ["あなた", sideCell],
+    ["結果",   outcome ? outcome.text : "読み取れていません"],
+    ...(kifu.handicap && kifu.handicap !== "平手" ? [["手合割", `${kifu.handicap}（駒落ちは集計対象外）`]] : []),
+    ...(f ? [
+      ["自分の戦法", f.myStrategy],
+      ["相手の戦法", f.oppStrategy],
+      ["自分の囲い", castle(f.myCastle)],
+      ["相手の囲い", castle(f.oppCastle)],
+      ["角交換",     f.bishopExchanged ? "あり" : "なし"],
+      ["飛車を振った手", f.swingPly ? `${f.swingPly}手目（${f.swingSpeed}・${f.swingTiming === "先発" ? "自分から決めた" : "相手を見てから決めた"}）` : "振っていません（居飛車）"],
+    ] : []),
+  ];
+
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <SectionLabel style={{ marginBottom: 6 }}>読み取った内容</SectionLabel>
+      <div style={{ borderRadius: T.radius.md, border: `0.5px solid ${T.inkLine}`, overflow: "hidden" }}>
+        {rows.map(([label, value], i) => (
+          <div key={label} style={{
+            display: "flex", gap: 10, padding: "8px 12px",
+            borderBottom: i < rows.length - 1 ? `0.5px solid ${T.inkLineFaint}` : "none",
+            fontSize: T.fontSize.base, fontFamily: T.fontSerif,
+          }}>
+            <span style={{ width: 96, flexShrink: 0, color: T.inkMid }}>{label}</span>
+            <span style={{ flex: 1, color: T.ink }}>{value}</span>
+          </div>
+        ))}
+      </div>
+      {!f && (
+        <div style={{ marginTop: 6, fontSize: T.fontSize.sm, color: T.grayText, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
+          あなたがどちら側か決まっていないため、戦法・囲いは判定していません。
+          上の「あなた」であなたの名前を選ぶと、その名前を覚えて他の棋譜にも適用されます。
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 再生位置の呼び名。0手目は「第0手」ではなく初期局面と呼ぶ（盤の再生ナビと同じ言い方）
+const plyLabel = (i) => (i === 0 ? "初期局面" : `第${i}手`);
+
+export function KifuPreviewModal({ kifu, onClose, onSetSide, trees = [], onSendToInbox }) {
+  // ツリーへ送るまでの段階。null=未着手 / "range"=どこまでかを聞いている / "tree"=送り先を選んでいる。
+  // 範囲→ツリーの順にしているのは、範囲の始点が「ボタンを押した時に見ていた局面」で決まるため。
+  // 先にツリーを選ばせると、選んでいる間に盤を触られて始点が動いてしまう
+  const [step,    setStep]    = useState(null);
+  const [range,   setRange]   = useState(null);  // { start, end } 確定した切り取り範囲
+  const [sending, setSending] = useState(false);
+  // 盤がいま映している手数（null = 再生していない＝最終局面を表示中）
+  const [viewPly, setViewPly] = useState(null);
+  // 盤へ渡す通知。毎レンダー作り直すと盤の useEffect が回り続けるので固定する
+  const handlePlaybackIdxChange = useCallback((idx) => setViewPly(idx), []);
+
+  const snaps     = kifu.snapshots || [];
+  const moveCount = Math.max(0, snaps.length - 1);
+
+  // 始点はボタンを押した時点で凍らせる。以降は終点を選ぶために盤を動かすので、
+  // 表示中の手数（viewPly）をそのまま始点として読み続けると始点まで一緒に動いてしまう
+  const [start, setStart] = useState(0);
+
+  const beginSend = () => {
+    // 「その時に見ていた盤面」から切り取る。再生していないとき（null）だけは、
+    // 見えている最終局面を始点にすると手が1つも入らないので、棋譜まるごと＝初期局面からにする
+    const s = viewPly ?? 0;
+    setStart(s);
+    // 1局面しかない／最終手を見ていた場合は切り取る余地がないので、範囲は聞かずに送り先へ進む
+    if (s >= moveCount) { setRange({ start: 0, end: moveCount }); setStep("tree"); return; }
+    setStep("range");
+  };
+
+  const chooseEnd = (end) => { setRange({ start, end }); setStep("tree"); };
+
+  const send = async (treeId) => {
+    if (sending) return;
+    setSending(true);
+    await onSendToInbox?.(treeId, kifu, range);
+    setSending(false);
+  };
+
+  return (
+    <div style={MODAL_OVERLAY_STYLE} onClick={onClose}>
+      <div style={{ ...MODAL_SHEET_STYLE, maxHeight: "90%", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+          <div style={{ flex: 1, fontFamily: T.fontTitle, fontSize: T.fontSize.h, color: T.ink }}>
+            {kifu.name}
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: "1.125rem", padding: 2 }}>
+            <i className="ti ti-x" />
+          </button>
+        </div>
+        <KifuFactsTable kifu={kifu} onSetSide={onSetSide} />
+
+        {/* 自分で書いたメモ。読み取った事実（上の表）とは別物なので、線を引いて分ける */}
+        {(kifu.memo || "").trim() && (
+          <div style={{ marginBottom: 14 }}>
+            <SectionLabel style={{ marginBottom: 6 }}>メモ</SectionLabel>
+            <div style={{
+              padding: "9px 12px", borderRadius: T.radius.md,
+              border: `0.5px solid ${T.inkLine}`, background: T.goldBg,
+              fontSize: T.fontSize.base, color: T.ink, fontFamily: T.fontSerif,
+              lineHeight: 1.8, whiteSpace: "pre-wrap",
+            }}>
+              {kifu.memo}
+            </div>
+          </div>
+        )}
+
+        {/* ── ツリーへ送る ──
+            どこに置くか決めずにツリーへ入れられるようにする。
+            置き場所を決めるのは後で良い、という前提で「とりあえず」へ入れる */}
+        {onSendToInbox && trees.length > 0 && (
+          <div style={{ marginBottom: 14 }}>
+            {step === null ? (
+              <button
+                onClick={beginSend}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6, width: "100%",
+                  padding: "9px 12px", borderRadius: T.radius.md,
+                  border: `0.5px dashed ${T.gold}`, background: "transparent",
+                  color: T.gold, cursor: "pointer", fontSize: T.fontSize.base, fontFamily: T.fontSerif,
+                }}
+              >
+                <i className="ti ti-git-branch" style={{ fontSize: "0.875rem" }} />
+                ツリーの「とりあえず」に入れる
+              </button>
+            ) : step === "range" ? (
+              /* ── ①どこまで入れるか ──
+                 始点は押した時に見ていた局面で固定し、終点だけを聞く。
+                 「ここから・ここまで」の2回選ばせると、見ていた局面をもう一度
+                 選び直す手間になるうえ、選び忘れたまま止まりやすい */
+              <div>
+                <SectionLabel style={{ marginBottom: 6 }}>どこまで入れますか</SectionLabel>
+                <div style={{ fontSize: T.fontSize.base, color: T.ink, fontFamily: T.fontSerif, marginBottom: 8 }}>
+                  {plyLabel(start)}から
+                  <span style={{ color: T.inkFaint, fontSize: T.fontSize.sm }}>
+                    {viewPly === null ? "（棋譜のはじめから）" : "（さっき見ていた局面）"}
+                  </span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {/* 下の盤を動かしてから押す。ラベルは再生位置に追従する */}
+                  <button
+                    onClick={() => chooseEnd(viewPly)}
+                    disabled={viewPly === null || viewPly <= start}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 6, width: "100%",
+                      padding: "9px 12px", borderRadius: T.radius.sm,
+                      border: `0.5px solid ${T.gold}`, background: T.goldBg,
+                      color: viewPly === null || viewPly <= start ? T.gray : T.ink,
+                      cursor: viewPly === null || viewPly <= start ? "default" : "pointer",
+                      fontSize: T.fontSize.base, fontFamily: T.fontSerif,
+                    }}
+                  >
+                    <i className="ti ti-scissors" style={{ fontSize: "0.875rem" }} />
+                    {viewPly === null || viewPly <= start
+                      ? "いま見ている局面まで（盤を進めてください）"
+                      : `いま見ている局面（${plyLabel(viewPly)}）まで`}
+                  </button>
+                  <button
+                    onClick={() => chooseEnd(moveCount)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 6, width: "100%",
+                      padding: "9px 12px", borderRadius: T.radius.sm,
+                      border: `0.5px solid ${T.inkLine}`, background: T.cream,
+                      color: T.ink, cursor: "pointer", fontSize: T.fontSize.base, fontFamily: T.fontSerif,
+                    }}
+                  >
+                    <i className="ti ti-player-skip-forward" style={{ fontSize: "0.875rem" }} />
+                    最後（{plyLabel(moveCount)}）まで
+                  </button>
+                  <button
+                    onClick={() => setStep(null)}
+                    style={{
+                      alignSelf: "flex-start", padding: "4px 2px", background: "none", border: "none",
+                      color: T.inkFaint, cursor: "pointer", fontSize: T.fontSize.sm, fontFamily: T.fontSerif,
+                    }}
+                  >やめる</button>
+                </div>
+                <div style={{ marginTop: 6, fontSize: T.fontSize.sm, color: T.inkFaint, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
+                  下の盤で終わりの局面まで進めてから「いま見ている局面まで」を押します。
+                  選んだ範囲だけを切り取ってノードにします。
+                </div>
+              </div>
+            ) : (
+              /* ── ②どのツリーへ入れるか ── */
+              <div>
+                <SectionLabel style={{ marginBottom: 6 }}>どのツリーに入れますか</SectionLabel>
+                {range && (
+                  <div style={{ marginBottom: 6, fontSize: T.fontSize.sm, color: T.inkMid, fontFamily: T.fontSerif }}>
+                    切り取る範囲：{plyLabel(range.start)}〜{plyLabel(range.end)}
+                  </div>
+                )}
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {trees.map((t) => (
+                    <div
+                      key={t.id}
+                      onClick={() => send(t.id)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 8,
+                        padding: "9px 12px", borderRadius: T.radius.sm,
+                        border: `0.5px solid ${T.inkLine}`, background: T.cream,
+                        cursor: sending ? "default" : "pointer", opacity: sending ? 0.6 : 1,
+                        fontSize: T.fontSize.base, color: T.ink,
+                      }}
+                    >
+                      <i className="ti ti-plant-2" style={{ fontSize: "0.875rem", color: T.gold, flexShrink: 0 }} />
+                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</span>
+                      <i className="ti ti-chevron-right" style={{ fontSize: "0.8125rem", color: T.gray }} />
+                    </div>
+                  ))}
+                </div>
+                <div style={{ marginTop: 6, fontSize: T.fontSize.sm, color: T.inkFaint, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
+                  切り取った範囲からノードを作り、選んだツリーの「とりあえず」に入れます。置き場所は後から動かせます。
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <KifuPreviewBoard snapshots={kifu.snapshots} onPlaybackIdxChange={handlePlaybackIdxChange} />
+      </div>
+    </div>
+  );
+}

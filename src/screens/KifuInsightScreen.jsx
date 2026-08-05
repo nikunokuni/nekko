@@ -11,7 +11,7 @@ import { T } from "../theme";
 import { SectionLabel } from "../components/uiParts";
 import {
   fetchKifusForAnalysis, fetchKifusNeedingMeta, fetchKifusMissingSide,
-  fetchKifuSnapshots, updateKifu, kifuRowToKifu,
+  fetchKifuSnapshotsMany, updateKifu, kifuRowToKifu, ANALYSIS_GAME_LIMIT,
 } from "../db";
 import { analyzeKifu, recomputeFeatures, resolveMySide, toAnalysisGame } from "../kifuAnalyze";
 import { analyzeGames, analyzeSwingTiming, groupBy, BRANCH_VIEWS } from "../kifuStats";
@@ -182,11 +182,12 @@ export function KifuInsight({ userId, onBack, onGoSettings }) {
         const targets = (data || [])
           .map((row) => ({ row, side: resolveMySide({ senteName: row.sente_name, goteName: row.gote_name }, playerNames) }))
           .filter((t) => t.side);
+        // 盤面はまとめて取る。1件ずつ取ると、対象が100局あれば100往復ぶん待たされる
+        const snapshotsById = await fetchKifuSnapshotsMany(targets.map((t) => t.row.id));
         for (const { row, side } of targets) {
-          const { data: snap } = await fetchKifuSnapshots(row.id);
           const { error: upErr } = await updateKifu(row.id, {
             mySide: side,
-            features: recomputeFeatures({ snapshots: snap?.snapshots || [], mySide: side, handicap: row.handicap }),
+            features: recomputeFeatures({ snapshots: snapshotsById.get(row.id) || [], mySide: side, handicap: row.handicap }),
           });
           if (upErr) continue;
           sided++;
@@ -344,6 +345,13 @@ export function KifuInsight({ userId, onBack, onGoSettings }) {
                   {excluded.noSide  > 0 && ` 自分の側が不明 ${excluded.noSide}件`}
                   {excluded.noResult > 0 && ` 勝敗が不明 ${excluded.noResult}件`}
                   {excluded.handicapped > 0 && ` 駒落ち ${excluded.handicapped}件`}
+                </div>
+              )}
+              {/* 上限に達したら黙って古い棋譜を捨てない。
+                  「全部の棋譜の傾向」と思って読むと、数字の意味が変わってしまうため */}
+              {kifus.length >= ANALYSIS_GAME_LIMIT && (
+                <div style={{ marginTop: 8, fontSize: T.fontSize.xs, color: T.inkFaint, fontFamily: T.fontSerif, lineHeight: 1.6 }}>
+                  直近{ANALYSIS_GAME_LIMIT}局を対象にしています（それより前の棋譜は今の指し方と離れるため）
                 </div>
               )}
             </div>

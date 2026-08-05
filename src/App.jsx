@@ -575,6 +575,7 @@ export default function App() {
             trees={myTrees}
             onBack={() => navigate("/")}
             onInsight={() => navigate("/kifus/insight")}
+            onGoSettings={() => navigate("/settings")}
             onSendToInbox={handleSendKifuToInbox} />
         )}
         {screen==="kifuInsight" && (

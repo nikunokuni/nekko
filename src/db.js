@@ -224,17 +224,25 @@ export async function fetchMyKifus(userId) {
   return result;
 }
 
+// 傾向分析が見る最大局数。棋譜は増える一方なので、上限を置かないと
+// 読み込みが局数に比例して重くなり続ける。直近300局に線を引いてあるのは、
+// それより前の将棋は棋力も指し方も今の自分と別物で、
+// 混ぜると「今の傾向」がぼやけるため（古い将棋を切るのは統計上の都合ではなく学習上の判断）。
+// 並びは played_at の新しい順なので、切り落とされるのは必ず古いほうから。
+export const ANALYSIS_GAME_LIMIT = 300;
+
 /** 傾向分析用。snapshots と source_text 以外の軽い列をまとめて読む。
  *  列を絞り込まず KIFU_META_COLUMNS を使い回すのは、必要な列を1つ書き漏らすと
  *  kifuRowToKifu が undefined を返して集計が静かに壊れるため
  *  （meta_parsed の記載漏れで全棋譜が「未解析」と誤判定される不具合があった）。
  *  除いた2列に比べれば残りはすべて小さく、まとめて読んでも通信量は変わらない。 */
-export async function fetchKifusForAnalysis(userId) {
+export async function fetchKifusForAnalysis(userId, limit = ANALYSIS_GAME_LIMIT) {
   const result = await supabase
     .from("kifus")
     .select(KIFU_META_COLUMNS)
     .eq("user_id", userId)
-    .order("played_at", { ascending: false });
+    .order("played_at", { ascending: false })
+    .limit(limit);
   if (result.error) console.error("fetchKifusForAnalysis error:", result.error);
   return result;
 }
@@ -298,6 +306,27 @@ export async function fetchKifuSnapshots(kifuId) {
     .single();
   if (result.error) console.error("fetchKifuSnapshots error:", result.error);
   return result;
+}
+
+// 一度にまとめて取る snapshots の件数。1局の snapshots は数十KBあるので、
+// 全件を1回で取ると通信が詰まる。かといって1件ずつ取ると往復の回数だけ待たされる
+// （後追い解析で100局あれば100往復になる）。その間を取ってバッチで回す。
+const SNAPSHOT_BATCH = 20;
+
+/** 複数の棋譜の snapshots をまとめて取る（後追い解析で使う）。
+ *  @returns {Map<string, Array>} 棋譜ID → snapshots。取れなかったIDは入らない */
+export async function fetchKifuSnapshotsMany(kifuIds) {
+  const out = new Map();
+  for (let i = 0; i < kifuIds.length; i += SNAPSHOT_BATCH) {
+    const chunk = kifuIds.slice(i, i + SNAPSHOT_BATCH);
+    const { data, error } = await supabase
+      .from("kifus")
+      .select("id, snapshots")
+      .in("id", chunk);
+    if (error) { console.error("fetchKifuSnapshotsMany error:", error); continue; }
+    for (const row of data || []) out.set(row.id, row.snapshots || []);
+  }
+  return out;
 }
 
 /** 棋譜を1件保存する。項目の既定値と列名は kifuFields.js の台帳が持つ。 */

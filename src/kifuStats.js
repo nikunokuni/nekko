@@ -177,16 +177,23 @@ export function analyzeGames(games, { minGames = 6 } = {}) {
   const frequent = [...groups].sort((a, b) => b.games - a.games);
 
   // ── よく勝てる ── 勝率の下限が全体を上回っているものを、下限の高い順に
+  //   実際の勝率も全体を上回っていることを条件に足してある（下の weak と同じ理由）
   const strong = groups
-    .filter((g) => g.lower > overall.rate)
+    .filter((g) => g.rate > overall.rate && g.lower > overall.rate)
     .sort((a, b) => b.lower - a.lower);
 
   // ── よく負ける ──
   // 単に勝率が低い順ではなく「全体より確実に低い」ものだけを残し、
   // 取りこぼしている局数（＝影響の大きさ）の順に並べる。
   // 5局で勝率2割より、20局で勝率3割のほうが優先して直すべきという判断。
+  //
+  // 区間の比較だけでは足りず、実際の勝率でも下回っていることを条件にする。
+  // グループが1つしか無い（＝全体がそのグループそのもの）ときは自分自身と
+  // 比べることになり、全勝でも upper がわずかに 1 を割って
+  // 「よく負ける：勝率100%」が出てしまう。しかも upper が丸めで 1 になるかは
+  // 局数しだいなので、6局では出て8局では出ない、という追いにくい形で表に出る。
   const weak = groups
-    .filter((g) => g.upper < overall.rate)
+    .filter((g) => g.rate < overall.rate && g.upper < overall.rate)
     .map((g) => ({ ...g, lostGames: (overall.rate - g.rate) * g.games }))
     .sort((a, b) => b.lostGames - a.lostGames);
 
