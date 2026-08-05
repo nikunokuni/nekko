@@ -404,6 +404,12 @@ export function buildTreeFromNodes(treeRow, flatNodes) {
     quickMemo: treeRow.quick_memo || "",
     nodes:   nodeMap,
     rootId:  rootNode?.id || null,
+    // 持ち主と公開状態も持たせる。開いているのが自分のツリーか、
+    // みんなで編集の公開ツリーかで、画面から触れる範囲が変わるため
+    // （ノードを作るときの持ち主も、開いた人ではなくツリーの持ち主にそろえる）
+    userId:  treeRow.user_id || null,
+    isPublic: !!treeRow.is_public,
+    isCollaborative: !!treeRow.is_collaborative,
   };
 }
 
@@ -459,12 +465,14 @@ export async function fetchMyLikedTreeIds(userId) {
   if (error) { console.error("fetchMyLikedTreeIds error:", error); return []; }
   return (data || []).map((r) => r.tree_id);
 }
-/** ツリーを公開状態にする */
-export async function publishTree(treeId) {
+/** ツリーを公開状態にする。
+ *  collaborative を立てると「みんなで編集」（誰でもノードを足す・直す・消せる）になる。
+ *  立てられるのは試験運用中の開発者アカウントだけで、DB側のトリガーも同じ判定をする。 */
+export async function publishTree(treeId, { collaborative = false } = {}) {
   try {
     const { error } = await supabase
       .from("trees")
-      .update({ is_public: true })
+      .update({ is_public: true, is_collaborative: collaborative })
       .eq("id", treeId);
     if (error) throw error;
   } catch (e) {
@@ -472,11 +480,28 @@ export async function publishTree(treeId) {
     throw e;
   }
 }
-export async function unpublishTree(treeId) {
+
+/** 公開中のツリーの「みんなで編集」を切り替える（公開したあとから変えるとき用） */
+export async function setTreeCollaborative(treeId, on) {
   try {
     const { error } = await supabase
       .from("trees")
-      .update({ is_public: false })
+      .update({ is_collaborative: on })
+      .eq("id", treeId);
+    if (error) throw error;
+  } catch (e) {
+    console.error("setTreeCollaborative error:", e);
+    throw e;
+  }
+}
+
+export async function unpublishTree(treeId) {
+  try {
+    // 「みんなで編集」も一緒に降ろす。非公開のツリーを他人が編集できる状態は
+    // 筋が通らないうえ、次に公開したときに黙って編集可能で復活してしまう
+    const { error } = await supabase
+      .from("trees")
+      .update({ is_public: false, is_collaborative: false })
       .eq("id", treeId);
     if (error) throw error;
   } catch (e) {

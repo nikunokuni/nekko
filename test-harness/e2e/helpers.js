@@ -139,8 +139,47 @@ export async function signUp(page) {
 const MOCK_DB_KEY   = "nekko_mock_db_v1";   // test-harness/supabaseMock.js と揃える
 const MOCK_AUTH_KEY = "nekko_mock_auth_v1";
 
-export async function login(page) {
-  const id     = `e2e${Date.now()}${Math.floor(Math.random() * 1000)}`;
+// ── 他人の公開ツリーを1本ぶん、モックDBの行として組み立てる ──
+// 「みんなで編集」は他の利用者のツリーを触る機能なので、テストには
+// **自分ではないアカウントのツリー**が要る。1つのブラウザで2人分ログインは
+// できないので、相手のツリーだけを実データとして置く。
+//
+// ツリーの中身を seed で作らないのが原則（App.jsx の作成処理が変わっても
+// テストが古い形のまま通ってしまうため）だが、ここで作るのは
+// **試験の対象ではない他人の持ち物**＝ただの前提条件なので seed でよい。
+// 自分のツリーは今までどおり createTree() で画面から作る。
+export function makeForeignTree({ ownerName, treeName, nodeLabels = [], collaborative = false }) {
+  const ownerId = crypto.randomUUID();
+  const treeId  = crypto.randomUUID();
+  const rootId  = crypto.randomUUID();
+  const now     = new Date().toISOString();
+
+  const nodes = [
+    { id: rootId, tree_id: treeId, user_id: ownerId, parent_id: null, label: treeName,
+      is_root: true, status: "todo", sort_order: 0, created_at: now },
+    ...nodeLabels.map((label, i) => ({
+      id: crypto.randomUUID(), tree_id: treeId, user_id: ownerId, parent_id: rootId,
+      label, is_root: false, status: "todo", sort_order: i, created_at: now,
+    })),
+  ];
+
+  return {
+    treeId,
+    profile: { id: ownerId, username: ownerName, display_name: ownerName, created_at: now },
+    tree: {
+      id: treeId, user_id: ownerId, name: treeName, tags: [], active: true,
+      is_public: true, is_collaborative: collaborative, liked_by: 0, quick_memo: "",
+      created_at: now, updated_at: now,
+    },
+    nodes,
+  };
+}
+
+// foreignTrees … makeForeignTree() の戻り値の配列。他人の公開ツリーを最初から置く
+// username     … ログインするアカウントのID。開発者だけの機能（みんなで編集）を
+//                 見るテストで "niku" を渡す。既定はテストごとに別のランダムID
+export async function login(page, { foreignTrees = [], username } = {}) {
+  const id     = username || `e2e${Date.now()}${Math.floor(Math.random() * 1000)}`;
   const userId = crypto.randomUUID();
   // src/db.js の idToFakeEmail と同じ変換（Supabase Auth が email 必須なため）
   const email  = `${id}@nekko.local`;
@@ -153,8 +192,11 @@ export async function login(page) {
   const db = {
     users:    [{ ...user, password: "pass1234" }],
     // profiles 行は本番ではDBトリガーが作る。モックの signUp と同じ形にする
-    profiles: [{ id: userId, username: id, display_name: id, created_at: now }],
-    trees: [], nodes: [], likes: [], kifus: [],
+    profiles: [{ id: userId, username: id, display_name: id, created_at: now },
+               ...foreignTrees.map((f) => f.profile)],
+    trees: foreignTrees.map((f) => f.tree),
+    nodes: foreignTrees.flatMap((f) => f.nodes),
+    likes: [], kifus: [],
     // 発行済みにしておく。未発行だと useRecoveryCode がログイン直後に
     // 「スクショしてね」モーダルを出し、閉じるまで他が押せない
     recovery_codes: [{ user_id: userId, code: "ABCD2345EFGH6789" }],

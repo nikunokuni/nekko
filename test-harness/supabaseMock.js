@@ -181,7 +181,7 @@ class Query {
 }
 
 function defaultsFor(table) {
-  if (table === "trees") return { tags: [], active: true, is_public: false, liked_by: 0, quick_memo: "" };
+  if (table === "trees") return { tags: [], active: true, is_public: false, is_collaborative: false, liked_by: 0, quick_memo: "" };
   if (table === "nodes") return { board_hidden: false, is_inbox: false };
   if (table === "kifus") return {
     tags: [], memo: "", sente_name: "", gote_name: "", handicap: "",

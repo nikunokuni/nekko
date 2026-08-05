@@ -33,8 +33,14 @@ function truncateLabel(label, maxWidth, fontSize) {
   return label;
 }
 
-// readOnly: 公開ツリーのプレビュー用。ドラッグでの親付け替えを無効にし、一言メモを閲覧のみにする
-export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparent, onUndoReparent, onMemoSave, readOnly = false }) {
+// readOnly    : 公開ツリーのプレビュー用。ドラッグでの親付け替えを無効にし、一言メモを閲覧のみにする
+// canEditTree : ツリーそのもの（一言メモなど）を変えられるか。オーナーだけ true。
+//               「みんなで編集」で開いている他人のツリーは、中身は触れるが器は触れない。
+//               readOnly と分けているのは、中身だけ編集できる状態があるため
+// collabGuest : 他人の「みんなで編集」ツリーを開いている（＝自分の一覧には無い）
+// onReload    : 最新の内容を読み直す。みんなで編集ツリーは他の人の変更が
+//               自動では降ってこない（後から保存したほうが残る）ので、追いつく手段を出す
+export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparent, onUndoReparent, onMemoSave, readOnly = false, canEditTree = true, collabGuest = false, onReload }) {
   const [drawerOpen,   setDrawerOpen]   = useState(false);
   const [memoValue,    setMemoValue]    = useState(tree?.quickMemo || "");
   const [canvasOffset, setCanvasOffset] = useState({ x: 20, y: 20 });
@@ -435,9 +441,26 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
         <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.125rem", padding: 2, lineHeight: 1 }}>
           <i className="ti ti-chevron-left" />
         </button>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: T.fontTitle, fontSize: T.fontSize.xl, color: T.ink }}>{tree.name}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: T.fontTitle, fontSize: T.fontSize.xl, color: T.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tree.name}</div>
         </div>
+        {/* 読み直す。他の人の変更は自動では降ってこないので、追いつく手段を常に出しておく。
+            押した時点の内容に入れ替わる（＝編集中の未保存分は無いので、失うものはない） */}
+        {onReload && tree.isCollaborative && (
+          <button
+            onClick={onReload}
+            aria-label="読み直す"
+            style={{
+              flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 4,
+              padding: "4px 9px", borderRadius: T.radius.xl, cursor: "pointer",
+              border: `0.5px solid ${T.inkLine}`, background: "transparent",
+              color: T.inkMid, fontFamily: T.fontSerif, fontSize: T.fontSize.sm,
+            }}
+          >
+            <i className="ti ti-refresh" style={{ fontSize: "0.75rem" }} />
+            読み直す
+          </button>
+        )}
         {/* 目次ドロワーを開く3点ドット */}
         <div
           data-onboard="map-menu"
@@ -449,6 +472,21 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
           ))}
         </div>
       </div>
+
+      {/* ── みんなで編集の帯 ──
+          他人のツリーを直していることが分からないまま書き換えると、
+          自分のメモのつもりで書いたものが全員に見える。開いている間ずっと出す */}
+      {collabGuest && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
+          padding: "6px 14px", background: T.greenBg, color: T.green,
+          borderBottom: `0.5px solid ${T.inkLineFaint}`,
+          fontSize: T.fontSize.sm, fontFamily: T.fontSerif, lineHeight: 1.6,
+        }}>
+          <i className="ti ti-users" style={{ fontSize: "0.75rem", flexShrink: 0 }} />
+          みんなで編集できるツリーです。直した内容はそのまま全員に見えます
+        </div>
+      )}
 
       {/* ── マップエリア ── */}
       <div
@@ -845,8 +883,9 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
             )}
           </div>
 
-          {/* 一言メモ（閲覧専用時はテキスト表示のみ） */}
-          {readOnly ? (
+          {/* 一言メモ（閲覧専用時と、他人のツリーを編集しているときはテキスト表示のみ）。
+              一言メモはツリーの持ち物なので、中身を直せる人でも書き換えられない */}
+          {(readOnly || !canEditTree) ? (
             (tree?.quickMemo || "").trim() && (
               <div style={{ borderTop: `0.5px solid ${T.inkLine}`, padding: "12px 14px", flexShrink: 0 }}>
                 <div style={{ fontSize: T.fontSize.sm, color: T.inkFaint, fontFamily: T.fontSerif, marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>

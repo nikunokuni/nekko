@@ -40,12 +40,17 @@ function CreateTreeModal({ onClose, onCreate }) {
 // ──────────────────────────────────────────
 // EditTreeModal: ツリー編集
 // ──────────────────────────────────────────
-function EditTreeModal({ tree, onClose, onSave, onPublish, onUnpublish }) {
+//   canCollaborate: 「みんなで編集」を選べるか（試験運用中は開発者アカウントだけ）
+function EditTreeModal({ tree, onClose, onSave, onPublish, onUnpublish, onSetCollaborative, canCollaborate = false }) {
   const [name,         setName]         = useState(tree.name);
   const [active,       setActive]       = useState(tree.active);
   const [publishing,   setPublishing]   = useState(false);
   const [unpublishing, setUnpublishing] = useState(false);
   const [publishError, setPublishError] = useState("");
+  // 公開の直前に「みんなで編集にするか」を聞いている最中かどうか。
+  // 公開してから設定を探させると、公開した時点の状態が意図と違ったまま人目に触れる
+  const [askMode,      setAskMode]      = useState(false);
+  const [collabBusy,   setCollabBusy]   = useState(false);
 
   // 戦法名：フォーカスを外した時点で保存
   const handleNameBlur = async () => {
@@ -61,18 +66,33 @@ function EditTreeModal({ tree, onClose, onSave, onPublish, onUnpublish }) {
     await onSave(tree.id, { name: name.trim() || tree.name, active: val });
   };
 
-  const handlePublish = async () => {
+  const handlePublish = async (collaborative) => {
     if (publishing || typeof onPublish !== "function") return;
     setPublishing(true);
     setPublishError("");
     try {
-      await onPublish(tree.id);
+      await onPublish(tree.id, { collaborative });
       onClose();
     } catch (e) {
       console.error("公開に失敗しました", e);
       setPublishError("公開に失敗しました。もう一度お試しください。");
+      setAskMode(false);
     } finally {
       setPublishing(false);
+    }
+  };
+
+  const handleToggleCollaborative = async (on) => {
+    if (collabBusy || typeof onSetCollaborative !== "function") return;
+    setCollabBusy(true);
+    setPublishError("");
+    try {
+      await onSetCollaborative(tree.id, on);
+    } catch (e) {
+      console.error("みんなで編集の切り替えに失敗しました", e);
+      setPublishError("みんなで編集の切り替えに失敗しました。もう一度お試しください。");
+    } finally {
+      setCollabBusy(false);
     }
   };
 
@@ -150,25 +170,97 @@ function EditTreeModal({ tree, onClose, onSave, onPublish, onUnpublish }) {
           </div>
         )}
         {!tree.is_public ? (
-          <button
-            onClick={handlePublish}
-            disabled={publishing || typeof onPublish !== "function"}
-            style={{
-              width: "100%", padding: 11, borderRadius: "12px",
-              border: `0.5px solid #3B6D11`, background: "#EAF3DE", color: "#3B6D11",
-              fontSize: "0.875rem", fontFamily: "'Noto Serif JP', serif", fontWeight: 600,
-              cursor: publishing ? "default" : "pointer", marginBottom: 10,
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-            }}
-          >
-            <i className="ti ti-world" style={{ fontSize: "0.875rem" }} />
-            {publishing ? "公開中..." : "このツリーを公開する"}
-          </button>
+          // 「みんなで編集」を選べる人だけ、公開の直前に聞く。
+          // 選べない人には今までどおり1タップで公開させる（選択肢の無い問いを出さない）
+          askMode ? (
+            <div style={{ marginBottom: 10 }}>
+              <SectionLabel style={{ marginBottom: 8 }}>どう公開しますか</SectionLabel>
+              <button
+                onClick={() => handlePublish(false)}
+                disabled={publishing}
+                style={{
+                  width: "100%", padding: 11, borderRadius: "12px", marginBottom: 8,
+                  border: `0.5px solid #3B6D11`, background: "#EAF3DE", color: "#3B6D11",
+                  fontSize: "0.875rem", fontFamily: "'Noto Serif JP', serif", fontWeight: 600,
+                  cursor: publishing ? "default" : "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                }}
+              >
+                <i className="ti ti-world" style={{ fontSize: "0.875rem" }} />
+                見せるだけ（編集は自分だけ）
+              </button>
+              <button
+                onClick={() => handlePublish(true)}
+                disabled={publishing}
+                style={{
+                  width: "100%", padding: 11, borderRadius: "12px",
+                  border: `0.5px solid #3B6D11`, background: "#3B6D11", color: "#faf4e8",
+                  fontSize: "0.875rem", fontFamily: "'Noto Serif JP', serif", fontWeight: 600,
+                  cursor: publishing ? "default" : "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                }}
+              >
+                <i className="ti ti-users" style={{ fontSize: "0.875rem" }} />
+                みんなで編集にする
+              </button>
+              <div style={{ fontSize: "0.75rem", color: "rgba(26,15,0,0.45)", fontFamily: "'Noto Serif JP', serif", lineHeight: 1.7, margin: "8px 0 0" }}>
+                みんなで編集にすると、ねっこを使っている人なら誰でもノードを足す・直す・消せるようになります。あとから切り替えられます。
+              </div>
+              <button
+                onClick={() => setAskMode(false)}
+                style={{
+                  width: "100%", padding: 9, marginTop: 8, borderRadius: "12px",
+                  border: `0.5px solid rgba(26,15,0,0.15)`, background: "transparent",
+                  color: "rgba(26,15,0,0.45)", fontSize: "0.8125rem",
+                  fontFamily: "'Noto Serif JP', serif", cursor: "pointer",
+                }}
+              >
+                やめる
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => (canCollaborate ? setAskMode(true) : handlePublish(false))}
+              disabled={publishing || typeof onPublish !== "function"}
+              style={{
+                width: "100%", padding: 11, borderRadius: "12px",
+                border: `0.5px solid #3B6D11`, background: "#EAF3DE", color: "#3B6D11",
+                fontSize: "0.875rem", fontFamily: "'Noto Serif JP', serif", fontWeight: 600,
+                cursor: publishing ? "default" : "pointer", marginBottom: 10,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              }}
+            >
+              <i className="ti ti-world" style={{ fontSize: "0.875rem" }} />
+              {publishing ? "公開中..." : "このツリーを公開する"}
+            </button>
+          )
         ) : (
           <div style={{ marginBottom: 10 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: "0.75rem", color: "#3B6D11", padding: "4px 0 8px" }}>
-              <i className="ti ti-world-check" style={{ fontSize: "0.8125rem" }} /> 公開中
+              <i className={`ti ti-${tree.is_collaborative ? "users" : "world-check"}`} style={{ fontSize: "0.8125rem" }} />
+              {tree.is_collaborative ? "公開中（みんなで編集）" : "公開中"}
             </div>
+
+            {/* 公開したあとから切り替える。試験運用中なので、切り替えられる人にだけ出す */}
+            {canCollaborate && (
+              <button
+                onClick={() => handleToggleCollaborative(!tree.is_collaborative)}
+                disabled={collabBusy}
+                style={{
+                  width: "100%", padding: 9, borderRadius: "12px", marginBottom: 8,
+                  border: `0.5px solid ${tree.is_collaborative ? "rgba(26,15,0,0.15)" : "#3B6D11"}`,
+                  background: "transparent",
+                  color: tree.is_collaborative ? "rgba(26,15,0,0.45)" : "#3B6D11",
+                  fontSize: "0.8125rem", fontFamily: "'Noto Serif JP', serif",
+                  cursor: collabBusy ? "default" : "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                }}
+              >
+                <i className={`ti ti-${tree.is_collaborative ? "user-off" : "users"}`} style={{ fontSize: "0.8125rem" }} />
+                {collabBusy ? "切り替え中..."
+                  : tree.is_collaborative ? "みんなで編集をやめる" : "みんなで編集にする"}
+              </button>
+            )}
             <button
               onClick={handleUnpublish}
               disabled={unpublishing || typeof onUnpublish !== "function"}
@@ -254,8 +346,11 @@ function TreeCard({ tree, onOpen, onEdit, onDelete, onMemoSave }) {
           </span>
 
           {/* 一言メモボタン */}
+          {/* 絵しか無いボタンは title だけでは読み上げソフトに名前が付かない
+              （アイコンフォントが ::before で文字を差し込むため）。aria-label で固定する */}
           <button
             onClick={handleMemoToggle}
+            aria-label={`${tree.name}の一言メモ`}
             title={memoValue || "一言メモ"}
             style={{ background: "none", border: "none", cursor: "pointer", color: memoValue ? T.gold : T.inkFaint, fontSize: "1rem", padding: "2px 4px", borderRadius: 6, lineHeight: 1 }}
           >
@@ -292,6 +387,7 @@ function TreeCard({ tree, onOpen, onEdit, onDelete, onMemoSave }) {
 
           <button
             onClick={handleMenuToggle}
+            aria-label={`${tree.name}のメニュー`}
             style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: "1rem", padding: "2px 4px", borderRadius: 6, lineHeight: 1 }}
           >
             <i className="ti ti-dots-vertical" />
@@ -395,7 +491,7 @@ function TreeCard({ tree, onOpen, onEdit, onDelete, onMemoSave }) {
 // ══════════════════════════════════════════════════════════════════
 // TreeList: ツリー一覧画面
 // ══════════════════════════════════════════════════════════════════
-export function TreeList({ trees, profile, onOpen, onPublic, onSearch, onKifus, onTrophy, onSettings, onNewTree, onSignOut, onDeleteTree, onEditTree, onPublish, onUnpublish, onMemoSave }) {
+export function TreeList({ trees, profile, onOpen, onPublic, onSearch, onKifus, onTrophy, onSettings, onNewTree, onSignOut, onDeleteTree, onEditTree, onPublish, onUnpublish, onSetCollaborative, onMemoSave }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editTarget,      setEditTarget]      = useState(null);
   const [deleteTarget,    setDeleteTarget]    = useState(null);
@@ -494,11 +590,19 @@ export function TreeList({ trees, profile, onOpen, onPublic, onSearch, onKifus, 
       )}
       {editTarget && (
         <EditTreeModal
-          tree={editTarget}
+          // 一覧の最新の行を渡す。開いた時点の写しを持ち続けると、モーダルを閉じずに
+          // 状態を変える操作（みんなで編集の切り替え）が画面に反映されず、
+          // 押しても何も起きていないように見える（保存は済んでいるので気づけない）
+          tree={trees.find((t) => t.id === editTarget.id) || editTarget}
           onClose={() => setEditTarget(null)}
           onSave={onEditTree}
           onPublish={onPublish}
           onUnpublish={onUnpublish}
+          onSetCollaborative={onSetCollaborative}
+          // 「みんなで編集」は試験運用中。開発者アカウントのツリーだけが選べる。
+          // 画面で出し分けるだけでは直接APIを叩けば通ってしまうので、
+          // DB側にも同じ判定を置いてある（20260806_collaborative_public_trees.sql）
+          canCollaborate={profile?.username === "niku"}
         />
       )}
       {deleteTarget && (

@@ -17,7 +17,7 @@ import { NodeSearch } from "./screens/NodeSearchScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import {
   createTree, createNode, updateNode, updateTree, deleteTree, copyTree,
-  nodeRowToNode, publishTree, deleteNodes, unpublishTree,
+  nodeRowToNode, publishTree, deleteNodes, unpublishTree, setTreeCollaborative,
   likeTree, unlikeTree, ensureInboxNode,
 } from "./db";
 // ツリー変更ロジック（childIds / merge_parent_ids / tags の整合）を一本化した純粋関数群。
@@ -98,6 +98,23 @@ export default function App() {
     if (session && screen === "public") loadPublicTrees();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen, session]);
+
+  // ── 開いているツリーとの関係 ──────────────────────
+  // 自分のツリーか、「みんなで編集」の公開ツリーかで、触れる範囲が変わる。
+  //   中身（ノードの追加・編集・削除）… 自分のツリー / みんなで編集ツリーの両方
+  //   器（ツリー名・公開・一言メモ・削除）… 自分のツリーだけ
+  const isOwnTree = !!activeTree && (!activeTree.userId || activeTree.userId === session?.user?.id);
+  const isCollabGuest = !!activeTree && !isOwnTree && activeTree.isCollaborative;
+
+  // ノードの持ち主は「開いた人」ではなく「ツリーの持ち主」にそろえる。
+  // 編集した人を持ち主にすると、その人のノード検索（自分の全ノード）と
+  // トロフィーの数に、他人のツリーのノードが混ざってしまう。
+  // 自分のツリーではどちらも同じ値になるので、分岐は要らない。
+  const treeOwnerId = (tree) => tree?.userId || session?.user?.id || null;
+
+  // 他人のツリーを編集しているときは、戻り先も「みんなのツリー」にする。
+  // 自分のツリー一覧へ戻すと、そこに無いツリーを閉じたことになって迷子になる
+  const treeBackPath = isOwnTree ? "/" : "/public";
 
   // ── Auth ハンドラ ────────────────────────────
   // 認証側の後始末（signOut・実績キャッシュ・session/profile クリア）は useAuth、
@@ -268,17 +285,25 @@ export default function App() {
   };
 
   // 失敗時は例外をそのまま投げ、呼び出し元（EditTreeModal）がエラーメッセージを表示する
-  const handlePublishTree = async (treeId) => {
-    await publishTree(treeId);
+  const handlePublishTree = async (treeId, { collaborative = false } = {}) => {
+    await publishTree(treeId, { collaborative });
     setMyTrees((prev) =>
-      prev.map((t) => (t.id === treeId ? { ...t, is_public: true } : t))
+      prev.map((t) => (t.id === treeId ? { ...t, is_public: true, is_collaborative: collaborative } : t))
     );
   };
 
   const handleUnpublishTree = async (treeId) => {
     await unpublishTree(treeId);
     setMyTrees((prev) =>
-      prev.map((t) => (t.id === treeId ? { ...t, is_public: false } : t))
+      prev.map((t) => (t.id === treeId ? { ...t, is_public: false, is_collaborative: false } : t))
+    );
+  };
+
+  // 公開したあとから「みんなで編集」を切り替える
+  const handleSetCollaborative = async (treeId, on) => {
+    await setTreeCollaborative(treeId, on);
+    setMyTrees((prev) =>
+      prev.map((t) => (t.id === treeId ? { ...t, is_collaborative: on } : t))
     );
   };
 
@@ -357,7 +382,7 @@ export default function App() {
     if (!activeTree || !session) return;
     const { data: newNode } = await createNode({
       treeId:   activeTree.id,
-      userId:   session.user.id,
+      userId:   treeOwnerId(activeTree),
       parentId: parentId,
       label:    "新しいノード",
       status:   "wip",
@@ -377,7 +402,7 @@ export default function App() {
     if (!activeTree || !session) return;
     const { data: newNode } = await createNode({
       treeId:    activeTree.id,
-      userId:    session.user.id,
+      userId:    treeOwnerId(activeTree),
       parentId:  parentNodeId,
       label:     "新しいノード",
       status:    "wip",
@@ -459,11 +484,26 @@ export default function App() {
     }
   };
 
-  // ── 公開ツリーのプレビュー（閲覧専用でマップ・ノードの中身を見る）──
+  // ── 公開ツリーを開く ────────────────────────────
+  // ふつうの公開ツリーは閲覧専用のプレビュー。
+  // 「みんなで編集」のツリーは、自分のツリーと同じ編集できる画面をそのまま使う。
+  // 閲覧用の画面に編集機能を足していくと、同じことをする画面が2つになり、
+  // どちらかに機能を足し忘れる（プレビューの props 渡し忘れで実際に起きている）。
   const handleOpenPublicTree = async (treeId) => {
     const tree = await loadTree(treeId);
     if (!tree) { showToast("ツリーの読み込みに失敗しました。もう一度お試しください。"); return; }
-    navigate(`/tree/${treeId}/preview`);
+    navigate(tree.isCollaborative ? `/tree/${treeId}` : `/tree/${treeId}/preview`);
+  };
+
+  // ── 開いているツリーを読み直す ──────────────────
+  // みんなで編集ツリーは、自分が開いている間に他の人が変えていることがある。
+  // 変更は自動では降ってこない（後から保存したほうが残る）ので、
+  // 最新に追いつく手段を画面に置く。
+  const handleReloadTree = async () => {
+    if (!activeTree) return;
+    const tree = await loadTree(activeTree.id);
+    if (!tree) { showToast("読み直しに失敗しました。通信環境を確認してください。"); return; }
+    showToast("最新の内容にしました");
   };
 
   // ── 公開ツリーのコピー（サーバー側RPCで1トランザクション一括コピー）──
@@ -537,6 +577,7 @@ export default function App() {
             onNewTree={handleNewTree} onSignOut={handleSignOut}
             onDeleteTree={handleDeleteTree} onEditTree={handleEditTree}
             onPublish={handlePublishTree} onUnpublish={handleUnpublishTree}
+            onSetCollaborative={handleSetCollaborative}
             onMemoSave={handleMemoSave}/>
         )}
         {screen==="trophy" && (() => {
@@ -562,13 +603,16 @@ export default function App() {
         })()}
         {screen==="map" && activeTree && (
           <MindMap tree={activeTree} onNodeSelect={handleNodeSelect}
-            onBack={() => navigate("/")} onReparent={handleReparentNode}
+            onBack={() => navigate(treeBackPath)} onReparent={handleReparentNode}
             canUndoReparent={reparentStack.length > 0} onUndoReparent={handleUndoReparent}
-            onMemoSave={handleMemoSave}/>
+            onMemoSave={handleMemoSave}
+            canEditTree={isOwnTree}
+            collabGuest={isCollabGuest} onReload={handleReloadTree}/>
         )}
         {screen==="node" && activeTree && activeNodeId && activeTree.nodes[activeNodeId] && (
           <NodeDetail tree={activeTree} trees={myTrees} nodeId={activeNodeId} userId={session.user.id}
             onBack={() => navigate(`/tree/${activeTree.id}`)} onNodeSelect={handleNodeSelect}
+            collabGuest={isCollabGuest}
             onNewNode={handleNewNode} onUpdate={handleNodeUpdate}
             onDeleteNode={handleDeleteNode} onSetMergeParents={handleSetMergeParents}
             onReparentNode={handleReparentNode}

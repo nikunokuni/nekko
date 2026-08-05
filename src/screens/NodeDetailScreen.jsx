@@ -368,7 +368,7 @@ function SectionDivider() {
 // ══════════════════════════════════════════════════════════════════
 // NodeDetail: ノード詳細編集画面
 // ══════════════════════════════════════════════════════════════════
-export function NodeDetail({ tree, trees = [], nodeId, userId, onBack, onNodeSelect, onNewNode, onUpdate, onDeleteNode, onSetMergeParents, onReparentNode, onBranchFromKifu, onBranchRangeFromKifu, onBoardFirstShown }) {
+export function NodeDetail({ tree, trees = [], nodeId, userId, collabGuest = false, onBack, onNodeSelect, onNewNode, onUpdate, onDeleteNode, onSetMergeParents, onReparentNode, onBranchFromKifu, onBranchRangeFromKifu, onBoardFirstShown }) {
   const node = tree.nodes[nodeId];
 
   const [label,        setLabel]        = useState("");
@@ -1038,6 +1038,20 @@ export function NodeDetail({ tree, trees = [], nodeId, userId, onBack, onNodeSel
           </button>
         )}
       </div>
+
+      {/* みんなで編集のツリーを直していることを、編集画面でも出しておく。
+          マップの帯はノードを開くと隠れるので、書いている場所にも要る */}
+      {collabGuest && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
+          padding: "6px 14px", background: T.greenBg, color: T.green,
+          borderBottom: `0.5px solid ${T.inkLineFaint}`,
+          fontSize: T.fontSize.sm, fontFamily: T.fontSerif, lineHeight: 1.6,
+        }}>
+          <i className="ti ti-users" style={{ fontSize: "0.75rem", flexShrink: 0 }} />
+          みんなで編集できるツリーです。直した内容はそのまま全員に見えます
+        </div>
+      )}
 
       <div style={{ flex: 1, overflowY: "auto" }}>
 

@@ -430,9 +430,22 @@ function PublicTreeCard({ tree, isCopied, isCopying, isLiked, likeCount, onCopy,
     >
       {/* ヘッダー行 */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8 }}>
-        <div>
+        <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: T.fontTitle, fontSize: T.fontSize.xxl, color: T.ink, marginBottom: 2 }}>{tree.name}</div>
           <div style={{ fontSize: T.fontSize.sm, color: "rgba(26,15,0,0.4)" }}>@{author}</div>
+          {/* みんなで編集できるツリーは、開く前に分かるようにする。
+              開いてから「編集できた」と気づく形だと、読むだけのつもりで
+              触ってしまう（消す操作まで全員に開いているため） */}
+          {tree.is_collaborative && (
+            <span style={{
+              display: "inline-flex", alignItems: "center", gap: 3, marginTop: 4,
+              fontSize: T.fontSize.sm, padding: "2px 8px", borderRadius: T.radius.md,
+              background: T.greenBg, color: T.green, fontFamily: T.fontSerif,
+            }}>
+              <i className="ti ti-users" style={{ fontSize: "0.625rem" }} />
+              みんなで編集
+            </span>
+          )}
         </div>
         {/* いいねボタン（タップでいいね↔解除をトグル）。カードのタップ（プレビュー）とは独立 */}
         <button
@@ -464,7 +477,7 @@ function PublicTreeCard({ tree, isCopied, isCopying, isLiked, likeCount, onCopy,
       {/* コピーボタン行（左側はプレビューできることのヒント） */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
         <span style={{ fontSize: T.fontSize.sm, color: T.inkFaint, fontFamily: T.fontSerif }}>
-          タップで中身を見る ›
+          {tree.is_collaborative ? "タップして見る・編集する ›" : "タップで中身を見る ›"}
         </span>
         <button
           onClick={(e) => { e.stopPropagation(); onCopy(tree.id); }}
