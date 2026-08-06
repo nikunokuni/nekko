@@ -6,6 +6,7 @@ import { useCallback, useState } from "react";
 import { T, MODAL_OVERLAY_STYLE, MODAL_SHEET_STYLE } from "../../theme";
 import { SectionLabel, KifuPreviewBoard } from "../../components/uiParts";
 import { FEATURES_VERSION } from "../../kifuFeatures";
+import { normalizeBookmarks, toggleBookmark, markBookmarkDone, pendingBookmarks } from "../../kifuBookmarks";
 import { outcomeLabel } from "./shared";
 
 // ──────────────────────────────────────────
@@ -123,7 +124,7 @@ function CancelButton({ onClick }) {
   );
 }
 
-export function KifuPreviewModal({ kifu, onClose, onSetSide, trees = [], onSendToInbox }) {
+export function KifuPreviewModal({ kifu, onClose, onSetSide, trees = [], onSendToInbox, onBookmarksChange }) {
   // ツリーへ送るまでの段階。null=未着手 / "range"=どこまでかを聞いている / "tree"=送り先を選んでいる。
   // 範囲→ツリーの順にしているのは、範囲の始点が「ボタンを押した時に見ていた局面」で決まるため。
   // 先にツリーを選ばせると、選んでいる間に盤を触られて始点が動いてしまう
@@ -132,6 +133,18 @@ export function KifuPreviewModal({ kifu, onClose, onSetSide, trees = [], onSendT
   const [sending, setSending] = useState(false);
   // 盤がいま映している手数（null = 再生していない＝最終局面を表示中）
   const [viewPly, setViewPly] = useState(null);
+  // しおり。保存は呼び出し元（DBを触るのは画面側）だが、押した瞬間に
+  // 見た目が変わらないと「効いていない」と読まれるので、ここでも持つ
+  const [marks, setMarks] = useState(() => normalizeBookmarks(kifu.bookmarks));
+
+  // しおりを付け外しする。保存に失敗したら見た目を元に戻す
+  // （消えたはずの印が残る／付けた印が消えるのを、黙って放置しない）
+  const saveMarks = async (next) => {
+    const prev = marks;
+    setMarks(next);
+    const ok = await onBookmarksChange?.(kifu.id, next);
+    if (ok === false) setMarks(prev);
+  };
   // 盤へ渡す通知。毎レンダー作り直すと盤の useEffect が回り続けるので固定する
   const handlePlaybackIdxChange = useCallback((idx) => setViewPly(idx), []);
 
@@ -157,8 +170,12 @@ export function KifuPreviewModal({ kifu, onClose, onSetSide, trees = [], onSendT
   const send = async (treeId) => {
     if (sending) return;
     setSending(true);
-    await onSendToInbox?.(treeId, kifu, range);
+    const ok = await onSendToInbox?.(treeId, kifu, range);
     setSending(false);
+    // ノードにした手は「済み」にする。しおりは消さない ―― 消すと
+    // 「自分がどこを分岐点だと思ったか」の記録がその場で失われる。
+    // しおりを付けずに直接作った手も、分岐点だと判断した事実には違いないので記録する
+    if (ok !== false && range) saveMarks(markBookmarkDone(marks, range.start));
   };
 
   return (
@@ -168,7 +185,10 @@ export function KifuPreviewModal({ kifu, onClose, onSetSide, trees = [], onSendT
           <div style={{ flex: 1, fontFamily: T.fontTitle, fontSize: T.fontSize.h, color: T.ink }}>
             {kifu.name}
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: "1.125rem", padding: 2 }}>
+          {/* 絵しか無いボタンには aria-label を付ける（title だけでは、
+              アイコンフォントが ::before で差し込む文字に名前が引っ張られる） */}
+          <button onClick={onClose} aria-label="閉じる"
+            style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: "1.125rem", padding: 2 }}>
             <i className="ti ti-x" />
           </button>
         </div>
@@ -301,7 +321,26 @@ export function KifuPreviewModal({ kifu, onClose, onSetSide, trees = [], onSendT
           </div>
         )}
 
-        <KifuPreviewBoard snapshots={kifu.snapshots} onPlaybackIdxChange={handlePlaybackIdxChange} />
+        {/* しおりの残り。盤のしおり列は再生を始めないと目に入らないので、
+            「まだいくつ残っているか」は盤の外に出しておく。
+            棋譜を開き直したとき、続きがあること自体を思い出せるようにする */}
+        {onBookmarksChange && marks.length > 0 && (
+          <div style={{ marginBottom: 10, fontSize: T.fontSize.sm, color: T.brown, fontFamily: T.fontSerif }}>
+            <i className="ti ti-bookmark" style={{ fontSize: "0.75rem", marginRight: 4 }} />
+            しおり {marks.length}件
+            {pendingBookmarks(marks).length > 0
+              ? `（ノードにしていない手が${pendingBookmarks(marks).length}件）`
+              : "（すべてノードにしました）"}
+          </div>
+        )}
+
+        <KifuPreviewBoard
+          snapshots={kifu.snapshots}
+          onPlaybackIdxChange={handlePlaybackIdxChange}
+          bookmarks={marks}
+          // 保存する手段が無いときはしおりのUIごと出さない（押せても残らないため）
+          onToggleBookmark={onBookmarksChange ? (ply) => saveMarks(toggleBookmark(marks, ply)) : undefined}
+        />
       </div>
     </div>
   );

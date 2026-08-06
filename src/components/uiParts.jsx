@@ -197,7 +197,10 @@ export function ConfirmDeleteModal({ title, message, onClose, onConfirm }) {
 // ──────────────────────────────────────────
 // onPlaybackIdxChange: 再生位置が動いたら知らせる。プレビュー側の
 //   「どこまで切り取るか」が、いま見ている手数を必要とするため
-export function KifuPreviewBoard({ snapshots, onPlaybackIdxChange }) {
+// bookmarks / onToggleBookmark: しおり。保存先（kifus 行）を知っているのは
+//   呼び出し元なので、盤には受け渡すだけ。渡し忘れるとUIごと消えるので、
+//   プレビューを開くE2E（kifu-bookmark.spec.js）が見張っている
+export function KifuPreviewBoard({ snapshots, onPlaybackIdxChange, bookmarks, onToggleBookmark }) {
   const snaps = snapshots || [];
   const last  = snaps.length > 0 ? snaps[snaps.length - 1] : null;
   if (!last) {
@@ -214,6 +217,8 @@ export function KifuPreviewBoard({ snapshots, onPlaybackIdxChange }) {
       handGote={last.handGote}
       kifu={snaps}
       onPlaybackIdxChange={onPlaybackIdxChange}
+      bookmarks={bookmarks}
+      onToggleBookmark={onToggleBookmark}
       readOnly
     />
   );

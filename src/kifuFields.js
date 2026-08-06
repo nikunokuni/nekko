@@ -21,6 +21,10 @@ export const KIFU_FIELDS = [
   { key: "name",       column: "name",        def: "" },
   { key: "memo",       column: "memo",        def: "" },
   { key: "tags",       column: "tags",        def: () => [] },
+  // しおり（分岐にしたい手の印）。[{ ply, done }]。
+  // 軽いので一覧でも読む ―― 一覧から「しおりが残っている棋譜」を
+  // 見つけられないと、見つける作業と作る作業のあいだで続きが行方不明になる
+  { key: "bookmarks",  column: "bookmarks",   def: () => [] },
 
   // ── 重い列。一覧・分析では読まない（heavy）──
   // 局面のスナップショット列と KIF/CSA の原文。どちらも数KB〜あり、

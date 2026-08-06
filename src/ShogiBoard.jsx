@@ -546,6 +546,12 @@ export default function ShogiBoard({
   // 「棋譜を記録」と同じ行に並べる追加の導線（＝棋譜ライブラリからの取り込み）。
   //   中身は呼び出し元が作る。盤は棋譜ライブラリ（DB）を知らないため
   kifuImportSlot = null,
+  // ── しおり（分岐にしたい手の印）──
+  //   bookmarks … [{ ply, done }]（正規化済みで渡す。kifuBookmarks.js）
+  //   onToggleBookmark … (ply) => void。**渡されたときだけ**しおりのUIを出す。
+  //     しおりは棋譜ライブラリの棋譜に付くもので、盤はどこに保存するかを知らない
+  bookmarks = [],
+  onToggleBookmark,
 }) {
   const canvasRef = useRef(null);
   // 貼り付けを始める目印。この行（持ち駒＋盤）の上端が画面から出たら貼り付ける
@@ -1078,6 +1084,62 @@ export default function ShogiBoard({
               <i className={`ti ${readOnly ? "ti-x" : "ti-pencil"}`} style={{fontSize:"0.8125rem"}}/>
               {readOnly ? "再生を終了" : "編集にもどる"}
             </button>
+          )}
+
+          {/* ── しおり ──
+              「分岐にしたい手を全部見つける」作業と「1つずつノードにする」作業を
+              つなぐ受け皿。見つけた場所が残らないと、作る番でまた探し直しになる。
+              印を付けるのは再生中だけ（通常表示は最終局面で、そこに印を付けても
+              「どの手か」が決まらない） */}
+          {onToggleBookmark && (
+            <div style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'center', gap:6, flexWrap:'wrap' }}>
+              {playbackIdx !== null && (() => {
+                const marked = bookmarks.some((b) => b.ply === playbackIdx);
+                return (
+                  <button
+                    onClick={() => onToggleBookmark(playbackIdx)}
+                    aria-pressed={marked}
+                    aria-label={marked ? "しおりを外す" : "しおりをはさむ"}
+                    style={{
+                      display:'flex', alignItems:'center', gap:4,
+                      padding:'3px 10px', borderRadius:8, cursor:'pointer', whiteSpace:'nowrap',
+                      border:`0.5px solid ${marked ? '#a07840' : 'rgba(26,15,0,0.18)'}`,
+                      background: marked ? '#a07840' : 'transparent',
+                      color: marked ? '#fff' : '#5F5E5A',
+                      fontSize:"0.625rem", fontFamily:"'Noto Serif JP',serif",
+                    }}
+                  >
+                    <i className={`ti ${marked ? 'ti-bookmark-off' : 'ti-bookmark-plus'}`} style={{fontSize:"0.6875rem"}}/>
+                    {marked ? "しおりを外す" : "しおりをはさむ"}
+                  </button>
+                );
+              })()}
+
+              {/* 付けたしおりへ飛ぶ。ここが「作る番」の入口になるので、
+                  ノードにした手（done）は色を落として、残りが一目で分かるようにする */}
+              {bookmarks.map((b) => (
+                <button
+                  key={b.ply}
+                  onClick={() => setPlaybackIdx(b.ply)}
+                  aria-label={`しおり ${b.ply}手へ`}
+                  title={`第${b.ply}手へ`}
+                  style={{
+                    display:'flex', alignItems:'center', gap:3,
+                    padding:'3px 9px', borderRadius:8, cursor:'pointer', whiteSpace:'nowrap',
+                    border:`0.5px solid ${cur === b.ply ? '#a07840' : 'rgba(26,15,0,0.18)'}`,
+                    background: cur === b.ply ? '#a07840' : 'transparent',
+                    color: cur === b.ply ? '#fff' : (b.done ? 'rgba(26,15,0,0.35)' : '#854F0B'),
+                    fontSize:"0.625rem", fontFamily:"'Noto Serif JP',serif",
+                    textDecoration: b.done ? 'line-through' : 'none',
+                  }}
+                >
+                  {/* 済みはチェック。しおりのまま色を薄くするだけだと、
+                      「消えかけている」のか「終わった」のかが読み取れない */}
+                  <i className={`ti ${b.done ? 'ti-check' : 'ti-bookmark'}`} style={{fontSize:"0.625rem"}}/>
+                  {b.ply === 0 ? "初期局面" : `${b.ply}手`}
+                </button>
+              ))}
+            </div>
           )}
 
           {/* ── 節目へ飛ぶ ──

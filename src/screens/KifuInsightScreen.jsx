@@ -236,6 +236,19 @@ export function KifuInsight({ userId, trees = [], onBack, onGoSettings, onSendTo
     [kifus],
   );
 
+  // しおりの保存。集計に使っている kifus も更新して、
+  // 開き直したときに古い状態へ戻らないようにする
+  const handleBookmarksChange = async (kifuId, bookmarks) => {
+    const { error } = await updateKifu(kifuId, { bookmarks });
+    if (error) {
+      showToast("しおりの保存に失敗しました。もう一度お試しください。");
+      return false;
+    }
+    setKifus((prev) => prev.map((k) => (k.id === kifuId ? { ...k, bookmarks } : k)));
+    setPreviewKifu((prev) => (prev && prev.id === kifuId ? { ...prev, bookmarks } : prev));
+    return true;
+  };
+
   const openKifu = async (kifu) => {
     if (previewLoading) return;
     // 数字（傾向）から実戦（棋譜）へ降りる動線。ここを1回通ったかどうかを見る
@@ -606,6 +619,9 @@ export function KifuInsight({ userId, trees = [], onBack, onGoSettings, onSendTo
           onClose={() => setPreviewKifu(null)}
           trees={trees}
           onSendToInbox={onSendToInbox}
+          // 掘り下げて開いた棋譜にも、しおりは付けられる。
+          // ここで渡し忘れるとこの画面からだけ機能が消える（見た目は壊れない）
+          onBookmarksChange={handleBookmarksChange}
         />
       )}
     </div>

@@ -10,12 +10,13 @@
 //     KifuPreviewModal… 保存済み棋譜の再生
 //     EditKifuModal   … 名前・タグ・メモの変更
 // ══════════════════════════════════════════════════════════════════
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { T } from "../theme";
 import { ConfirmDeleteModal } from "../components/uiParts";
 import { recordAction, getCustomTagsByGroup, addCustomTag, addKifuPlayerName } from "../rewards";
 import { recomputeFeatures } from "../kifuAnalyze";
 import { fetchMyKifus, fetchKifu, createKifu, updateKifu, deleteKifu, kifuRowToKifu } from "../db";
+import { pendingBookmarks } from "../kifuBookmarks";
 import { outcomeLabel, formatDate } from "./kifu/shared";
 import { ImportKifuModal } from "./kifu/ImportKifuModal";
 import { RecordKifuModal } from "./kifu/RecordKifuModal";
@@ -94,6 +95,15 @@ function KifuCard({ kifu, onOpen, onRename, onDelete }) {
             <i className="ti ti-chess" style={{ fontSize: "0.625rem", marginRight: 3 }} />
             {kifu.moveCount}手
           </span>
+          {/* まだノードにしていないしおりの数。
+              棋譜を通して見る作業と、1つずつノードにする作業は別の日になる。
+              一覧に出しておかないと「続きがある棋譜」を探すところからやり直しになる */}
+          {pendingBookmarks(kifu.bookmarks).length > 0 && (
+            <span style={{ fontSize: T.fontSize.sm, color: T.brown, fontFamily: T.fontSerif }}>
+              <i className="ti ti-bookmark" style={{ fontSize: "0.625rem", marginRight: 3 }} />
+              しおり{pendingBookmarks(kifu.bookmarks).length}
+            </span>
+          )}
           <span style={{ fontSize: T.fontSize.sm, color: T.inkFaint, marginLeft: "auto", fontFamily: T.fontSerif }}>
             {formatDate(kifu.playedAt || kifu.createdAt)}
           </span>
@@ -148,6 +158,8 @@ export function KifuList({ userId, trees = [], onBack, onInsight, onGoSettings, 
   const [previewLoading,  setPreviewLoading]  = useState(false);
   const [editTarget,      setEditTarget]      = useState(null);
   const [deleteTarget,    setDeleteTarget]    = useState(null);
+  // しおりが残っている棋譜だけを見る（作業の続きを探すため）
+  const [bookmarkOnly,    setBookmarkOnly]    = useState(false);
   // 戦法タグはノード編集画面と同じユーザー資産（profiles）を共有する
   const [customTags,      setCustomTags]      = useState(() => getCustomTagsByGroup());
 
@@ -206,6 +218,35 @@ export function KifuList({ userId, trees = [], onBack, onInsight, onGoSettings, 
       recordAction("kifuImport");
     }
     return saved.length;
+  };
+
+  // しおりが残っている棋譜（＝作業の続きがあるもの）
+  const pendingKifuCount = useMemo(
+    () => kifus.filter((k) => pendingBookmarks(k.bookmarks).length > 0).length,
+    [kifus]
+  );
+  const visibleKifus = bookmarkOnly
+    ? kifus.filter((k) => pendingBookmarks(k.bookmarks).length > 0)
+    : kifus;
+  // 最後の1件をノードにし終えたときに、押せない絞り込みがONのまま残らないようにする
+  // （結果が永遠に0件のままになる）
+  useEffect(() => {
+    if (pendingKifuCount === 0) setBookmarkOnly(false);
+  }, [pendingKifuCount]);
+
+  // しおり（分岐にしたい手の印）の保存。
+  // 一覧の行も更新する ―― カードに残り件数を出しているので、
+  // ここで直さないと「印を付けたのに一覧の数字が古いまま」になる。
+  // 保存に失敗したら false を返し、モーダル側で見た目を元に戻してもらう
+  const handleBookmarksChange = async (kifuId, bookmarks) => {
+    const { error } = await updateKifu(kifuId, { bookmarks });
+    if (error) {
+      showToast("しおりの保存に失敗しました。もう一度お試しください。");
+      return false;
+    }
+    setKifus((prev) => prev.map((k) => (k.id === kifuId ? { ...k, bookmarks } : k)));
+    setPreviewTarget((prev) => (prev && prev.id === kifuId ? { ...prev, bookmarks } : prev));
+    return true;
   };
 
   // 盤に並べて作った棋譜を保存する（棋譜入力）。
@@ -345,9 +386,37 @@ export function KifuList({ userId, trees = [], onBack, onInsight, onGoSettings, 
             </button>
           </div>
         ) : (
-          kifus.map((k) => (
-            <KifuCard key={k.id} kifu={k} onOpen={handleOpen} onRename={setEditTarget} onDelete={setDeleteTarget} />
-          ))
+          <>
+            {/* しおりが残っている棋譜だけに絞る。
+                0件のときは出さない ―― 押しても必ず空になるボタンは、
+                「壊れている」のか「まだ付けていない」のかが読み取れない */}
+            {pendingKifuCount > 0 && (
+              <button
+                onClick={() => setBookmarkOnly((v) => !v)}
+                aria-pressed={bookmarkOnly}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 4, marginBottom: 12,
+                  padding: "5px 12px", borderRadius: 20, cursor: "pointer",
+                  fontSize: T.fontSize.sm, fontFamily: T.fontSerif,
+                  border: bookmarkOnly ? `1.5px solid ${T.gold}` : `0.5px solid ${T.inkLine}`,
+                  background: bookmarkOnly ? T.goldLight : T.cream,
+                  color: bookmarkOnly ? T.gold : T.inkMid,
+                  fontWeight: bookmarkOnly ? 600 : 400,
+                }}
+              >
+                <i className="ti ti-bookmark" style={{ fontSize: "0.75rem" }} />
+                しおりが残っている
+                <span style={{ opacity: 0.75 }}>{pendingKifuCount}件</span>
+              </button>
+            )}
+            {visibleKifus.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "40px 0", color: T.inkFaint, fontSize: T.fontSize.base }}>
+                しおりが残っている棋譜はありません
+              </div>
+            ) : visibleKifus.map((k) => (
+              <KifuCard key={k.id} kifu={k} onOpen={handleOpen} onRename={setEditTarget} onDelete={setDeleteTarget} />
+            ))}
+          </>
         )}
       </div>
 
@@ -380,6 +449,7 @@ export function KifuList({ userId, trees = [], onBack, onInsight, onGoSettings, 
           onSetSide={(side) => handleSetSide(previewTarget, side)}
           trees={trees}
           onSendToInbox={onSendToInbox}
+          onBookmarksChange={handleBookmarksChange}
         />
       )}
       {editTarget && (
