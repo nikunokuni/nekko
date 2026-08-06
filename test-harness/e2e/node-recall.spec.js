@@ -63,3 +63,50 @@ test("他のツリーのノードの中身を呼び出して上書きできる",
 
   expect(errors).toEqual([]);
 });
+
+test("呼び出しの一覧を並べ替え・ツリー絞り込みで狭められる", async ({ page }) => {
+  const errors = watchForAppErrors(page);
+  await login(page);
+
+  // ── 頻度を付けたノード（ツリーA）と、付けないノード（ツリーB）を作る ──
+  await makeNode(page, "ツリーA", "よく使う形", "何度も呼び出したい");
+  // 頻度は「ついか」の中。ここを「いつも」にしておくと、頻度順で先頭に来るはず
+  await page.getByText("ついか", { exact: true }).click();
+  await page.getByRole("button", { name: "頻度 5" }).click();
+  await page.waitForTimeout(600);
+
+  await makeNode(page, "ツリーB", "一度きりの形", "たまたま調べただけ");
+  await makeNode(page, "ツリーC", "呼び出す先", "ここに写す");
+
+  await page.getByRole("button", { name: "呼び出し" }).click();
+  await expect(page.getByText("どのノードを呼び出しますか")).toBeVisible();
+
+  // 並べ替えの根拠が行に出ている（出ていないと、並びが正しいか確かめようがない）
+  await expect(page.getByText("いつも")).toBeVisible();
+
+  // ── 頻度順に並べ替えると、頻度を付けたノードが先に来る ──
+  // 作成順では「一度きりの形」のほうが新しいので、押す前と後で順序が入れ替わる
+  const labels = () => page.locator("button")
+    .filter({ hasText: /(よく使う形|一度きりの形)/ }).allInnerTexts();
+  const before = await labels();
+  expect(before.findIndex((t) => t.includes("一度きり")))
+    .toBeLessThan(before.findIndex((t) => t.includes("よく使う")));
+
+  await page.getByRole("button", { name: "頻度順" }).click();
+  const after = await labels();
+  expect(after.findIndex((t) => t.includes("よく使う")))
+    .toBeLessThan(after.findIndex((t) => t.includes("一度きり")));
+
+  // ── ツリーで絞り込むと、他のツリーのノードが落ちる ──
+  // 「よく使う形を1つのツリーに集めておく」使い方が、ここで効く
+  await page.getByRole("button", { name: /ツリーで絞り込み/ }).click();
+  await page.getByRole("button", { name: "ツリーA", exact: true }).click();
+  await expect(page.getByText("よく使う形")).toBeVisible();
+  await expect(page.getByText("一度きりの形")).toHaveCount(0);
+
+  // もう一度押すと戻る（絞ったまま戻れないと、探す場所として使えなくなる）
+  await page.getByRole("button", { name: "ツリーA", exact: true }).click();
+  await expect(page.getByText("一度きりの形")).toBeVisible();
+
+  expect(errors).toEqual([]);
+});

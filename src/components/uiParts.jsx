@@ -49,7 +49,7 @@ export function SectionLabel({ children, style }) {
 //   両端の目盛り（「めったに」「いつも」など）は置かない。
 //   選んだ値は右の valueLabel が言葉で出しているので、同じことを二重に説明していた
 // ──────────────────────────────────────────
-export function IconRating({ icon, color, bg, levels, value, onChange, valueLabel, clearable = false }) {
+export function IconRating({ icon, color, bg, levels, value, onChange, valueLabel, clearable = false, name = "" }) {
   const selectedIdx = levels.indexOf(value); // -1 = 未設定
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
@@ -61,6 +61,13 @@ export function IconRating({ icon, color, bg, levels, value, onChange, valueLabe
               <div
                 key={lvl}
                 onClick={() => onChange(clearable && value === lvl ? null : lvl)}
+                // 絵しか無いので、読み上げでは「何段目のどの軸か」が分からない。
+                // title だけでは足りない（アイコンフォントが ::before で文字を
+                // 差し込むため、名前の計算がそちらに引っ張られる）。
+                // aria-label は中身より強いので確実に名前が付き、テストからも指せる
+                role="button"
+                aria-label={`${name}${name ? " " : ""}${lvl}`}
+                aria-pressed={value === lvl}
                 title={String(lvl)}
                 style={{ cursor: "pointer", padding: "2px 3px", lineHeight: 1 }}
               >

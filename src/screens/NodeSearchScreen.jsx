@@ -18,13 +18,7 @@ import { BackBtn, StatusChip, MiniBoard } from "../components";
 import { USAGE_META, LIKE_LEVELS } from "../data";
 import { fetchAllMyNodes } from "../db";
 import { recordAction } from "../rewards";
-
-const SORT_OPTIONS = [
-  { key: "recent",     label: "新しい順" },
-  { key: "winRate",    label: "勝率順",   icon: "ti-trophy" },
-  { key: "likeLevel",  label: "好き度順", icon: "ti-heart" },
-  { key: "usageLevel", label: "頻度順",   icon: "ti-flame" },
-];
+import { NODE_SORTS, sortNodeRows } from "../nodeSort";
 
 const STATUS_KEYS = ["done", "wip", "todo"];
 
@@ -108,12 +102,9 @@ export function NodeSearch({ userId, trees, onBack, onOpenNode }) {
       }
       return true;
     });
-    // 未設定(null)は常に末尾へ。recent は取得時の created_at 降順のまま
-    const val = (v) => (v == null ? -Infinity : v);
-    if (sortKey === "winRate")    list = [...list].sort((a, b) => val(b.win_rate)    - val(a.win_rate));
-    if (sortKey === "likeLevel")  list = [...list].sort((a, b) => val(b.like_level)  - val(a.like_level));
-    if (sortKey === "usageLevel") list = [...list].sort((a, b) => val(b.usage_level) - val(a.usage_level));
-    return list;
+    // 並べ替えは「呼び出し」と同じ規則を使う（nodeSort.js）。
+    // 別々に書くと、同じ「頻度順」でも未設定の扱いがズレる
+    return sortNodeRows(list, sortKey);
   }, [nodes, query, statusFilter, tagFilter, sortKey, treeName, nextOnly]);
 
   const filterChipStyle = (selected, color = T.gold, bg = T.goldLight) => ({
@@ -192,7 +183,7 @@ export function NodeSearch({ userId, trees, onBack, onOpenNode }) {
 
           {/* 並び替え */}
           <div style={{ display: "flex", gap: 6, marginLeft: "auto", flexWrap: "wrap" }}>
-            {SORT_OPTIONS.map((o) => (
+            {NODE_SORTS.map((o) => (
               <div key={o.key} onClick={() => setSortKey(o.key)} style={filterChipStyle(sortKey === o.key)}>
                 {o.icon && <i className={`ti ${o.icon}`} style={{ fontSize: "0.6875rem" }} />}
                 {o.label}

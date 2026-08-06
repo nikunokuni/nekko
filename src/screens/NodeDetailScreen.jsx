@@ -7,6 +7,7 @@ import {
   StatusChip, MergeTag, SummaryTag, Divider, BackBtn, MiniBoard,
 } from "../components";
 import { orderedChildIds } from "../treeOps";
+import { NODE_SORTS, sortNodeRows } from "../nodeSort";
 import {
   STATUS_META, ORIENTATION_META, STRATEGY_GROUPS, WIN_RATE_LEVELS, LIKE_LEVELS, COMMENT_GROUPS, USAGE_LEVELS, USAGE_META,
 } from "../data";
@@ -208,12 +209,22 @@ function KifuPickerModal({ userId, nodeTags = [], hasExistingKifu, onClose, onIm
 //
 //   一覧に検索欄を置いているのは、ノードが増えると名前だけでは見つからないため
 //   （ノード名は「次の一手」になりがちで、あとから探しにくい。ノード検索画面と同じ問題）。
+//
+//   並べ替えとツリー絞り込みも置く。検索欄しか無かった頃は全ノードが
+//   作成日の新しい順に**全部同列**で並び、「何度も呼び出したい形」が
+//   一度きりのノードに埋もれていた。並べ替えの規則はノード検索と共用する
+//   （nodeSort.js）。ツリー絞り込みはここにだけ置く ―― 呼び出しは
+//   ツリーをまたぐ操作で、「よく使う形を1つのツリーに集めておく」使い方が
+//   そのまま効く場所だから。
 // ──────────────────────────────────────────
 function NodeRecallModal({ userId, trees = [], currentNodeId, currentLabel, onClose, onRecall }) {
-  const [nodes,   setNodes]   = useState(null); // null = 読み込み中
-  const [query,   setQuery]   = useState("");
-  const [picked,  setPicked]  = useState(null); // 確認中のノード（一覧の軽い行）
-  const [running, setRunning] = useState(false);
+  const [nodes,    setNodes]    = useState(null); // null = 読み込み中
+  const [query,    setQuery]    = useState("");
+  const [sortKey,  setSortKey]  = useState("recent");
+  const [treeIds,  setTreeIds]  = useState([]);   // 空 = 全ツリー
+  const [treesOpen, setTreesOpen] = useState(false);
+  const [picked,   setPicked]   = useState(null); // 確認中のノード（一覧の軽い行）
+  const [running,  setRunning]  = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -239,15 +250,36 @@ function NodeRecallModal({ userId, trees = [], currentNodeId, currentLabel, onCl
     return m;
   }, [trees]);
 
+  // 候補を持っているツリーだけを絞り込みに出す（呼び出せるノードが
+  // 1つも無いツリーを並べても、押した瞬間に必ず空になる）
+  const treeChoices = useMemo(() => {
+    const ids = new Set((nodes || []).map((n) => n.tree_id));
+    return (trees || []).filter((t) => ids.has(t.id));
+  }, [nodes, trees]);
+
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return nodes || [];
-    return (nodes || []).filter((n) => [
-      n.label, n.memo,
-      ...(n.situation || []), ...(n.my_approach || []),
-      treeName.get(n.tree_id) || "",
-    ].join(" ").toLowerCase().includes(q));
-  }, [nodes, query, treeName]);
+    const list = (nodes || []).filter((n) => {
+      if (treeIds.length > 0 && !treeIds.includes(n.tree_id)) return false;
+      if (!q) return true;
+      return [
+        n.label, n.memo,
+        ...(n.situation || []), ...(n.my_approach || []),
+        treeName.get(n.tree_id) || "",
+      ].join(" ").toLowerCase().includes(q);
+    });
+    return sortNodeRows(list, sortKey);
+  }, [nodes, query, treeName, treeIds, sortKey]);
+
+  const chipStyle = (selected) => ({
+    padding: "4px 10px", borderRadius: 20, cursor: "pointer",
+    fontSize: T.fontSize.sm, fontFamily: T.fontSerif,
+    border: selected ? `1.5px solid ${T.gold}` : `0.5px solid ${T.inkLine}`,
+    background: selected ? T.goldLight : T.cream,
+    color: selected ? T.gold : T.inkMid,
+    fontWeight: selected ? 600 : 400,
+    display: "inline-flex", alignItems: "center", gap: 4,
+  });
 
   const handleRecall = async () => {
     if (!picked || running) return;
@@ -282,8 +314,50 @@ function NodeRecallModal({ userId, trees = [], currentNodeId, currentLabel, onCl
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="ノード名・メモ・戦法名・ツリー名で検索"
-              style={{ ...INPUT_STYLE, marginBottom: 10 }}
+              style={{ ...INPUT_STYLE, marginBottom: 8 }}
             />
+
+            {/* 並べ替え。規則はノード検索と同じ（nodeSort.js） */}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+              {NODE_SORTS.map((o) => (
+                <button key={o.key} onClick={() => setSortKey(o.key)}
+                  aria-pressed={sortKey === o.key} style={chipStyle(sortKey === o.key)}>
+                  {o.icon && <i className={`ti ${o.icon}`} style={{ fontSize: "0.6875rem" }} />}
+                  {o.label}
+                </button>
+              ))}
+            </div>
+
+            {/* ツリーで絞り込み。ツリーが1つしか無いうちは出さない
+                （選んでも何も減らないので、置くだけ場所を取る） */}
+            {treeChoices.length > 1 && (
+              <div style={{ marginBottom: 10 }}>
+                <button
+                  onClick={() => setTreesOpen((v) => !v)}
+                  style={{ display: "flex", alignItems: "center", gap: 5, background: "none", border: "none", padding: "2px 0",
+                           cursor: "pointer", color: T.inkMid, fontSize: T.fontSize.sm, fontFamily: T.fontSerif }}
+                >
+                  <i className={`ti ti-chevron-${treesOpen ? "up" : "right"}`} style={{ fontSize: "0.6875rem" }} />
+                  ツリーで絞り込み
+                  {treeIds.length > 0 && (
+                    <span style={{ color: T.gold, fontWeight: 600 }}>（{treeIds.length}件選択中）</span>
+                  )}
+                </button>
+                {treesOpen && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+                    {treeChoices.map((t) => (
+                      <button key={t.id} style={chipStyle(treeIds.includes(t.id))}
+                        aria-pressed={treeIds.includes(t.id)}
+                        onClick={() => setTreeIds((prev) =>
+                          prev.includes(t.id) ? prev.filter((x) => x !== t.id) : [...prev, t.id])}>
+                        {t.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {nodes === null ? (
               <div style={{ padding: "24px 0", textAlign: "center", color: T.inkFaint, fontSize: T.fontSize.base }}>
                 読み込み中...
@@ -318,6 +392,31 @@ function NodeRecallModal({ userId, trees = [], currentNodeId, currentLabel, onCl
                       {n.memo && (
                         <div style={{ fontSize: T.fontSize.sm, color: T.inkMid, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {n.memo}
+                        </div>
+                      )}
+                      {/* 頻度・勝率・好き度。並べ替えの根拠を行にも出しておく ――
+                          出さないと「頻度順」に並べ替えたとき、なぜこの順なのかが
+                          画面から読み取れず、並びが正しいのか確かめようがない */}
+                      {(n.usage_level != null || n.win_rate != null || n.like_level != null) && (
+                        <div style={{ display: "flex", gap: 8, marginTop: 3, flexWrap: "wrap", fontSize: T.fontSize.sm }}>
+                          {n.usage_level != null && n.usage_level !== 2 && (
+                            <span style={{ color: T.gold }}>
+                              <i className="ti ti-flame" style={{ fontSize: "0.6875rem", marginRight: 2 }} />
+                              {USAGE_META[n.usage_level]?.label}
+                            </span>
+                          )}
+                          {n.win_rate != null && (
+                            <span style={{ color: T.green }}>
+                              <i className="ti ti-trophy" style={{ fontSize: "0.6875rem", marginRight: 2 }} />
+                              {n.win_rate}割
+                            </span>
+                          )}
+                          {n.like_level != null && (
+                            <span style={{ color: T.red }}>
+                              <i className="ti ti-heart" style={{ fontSize: "0.6875rem", marginRight: 2 }} />
+                              {LIKE_LEVELS.find((l) => l.value === n.like_level)?.label}
+                            </span>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1577,7 +1676,7 @@ export function NodeDetail({ tree, trees = [], nodeId, userId, collabGuest = fal
             頻度
           </SectionLabel>
           <IconRating
-            icon="ti-flame" color={T.gold} bg={T.goldLight}
+            icon="ti-flame" color={T.gold} bg={T.goldLight} name="頻度"
             levels={USAGE_LEVELS} value={usageLevel}
             onChange={(lvl) => saveField({ usageLevel: lvl },
               () => setUsageLevel(lvl),
@@ -1594,7 +1693,7 @@ export function NodeDetail({ tree, trees = [], nodeId, userId, collabGuest = fal
             勝率
           </SectionLabel>
           <IconRating
-            icon="ti-trophy" color={T.green} bg={T.greenBg}
+            icon="ti-trophy" color={T.green} bg={T.greenBg} name="勝率"
             levels={WIN_RATE_LEVELS} value={winRate} clearable
             onChange={(lvl) => saveField({ winRate: lvl },
               () => setWinRate(lvl),
@@ -1611,7 +1710,7 @@ export function NodeDetail({ tree, trees = [], nodeId, userId, collabGuest = fal
             好き度
           </SectionLabel>
           <IconRating
-            icon="ti-heart" color={T.red} bg={T.redBg}
+            icon="ti-heart" color={T.red} bg={T.redBg} name="好き度"
             levels={LIKE_LEVELS.map((l) => l.value)} value={likeLevel} clearable
             onChange={(lvl) => saveField({ likeLevel: lvl },
               () => setLikeLevel(lvl),
