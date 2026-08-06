@@ -9,14 +9,7 @@
 //   使っている数字が画面に出ていることを見張る。
 //   数え方そのもの（何段掘ったか）は test-harness/treeOps.test.mjs の領分。
 import { test, expect } from "@playwright/test";
-import { login, createTree, watchForAppErrors } from "./helpers.js";
-
-// ヘッダーの「獲得数 / 全体数」から獲得数だけを取り出す
-async function earnedCount(page) {
-  await page.goto("/trophy");
-  const text = await page.getByText(/^\d+ \/ \d+$/).first().innerText();
-  return Number(text.split("/")[0].trim());
-}
+import { login, createTree, watchForAppErrors, earnedTrophyCount } from "./helpers.js";
 
 test("奥の画面を通るとトロフィーの獲得数が増える", async ({ page }) => {
   const errors = watchForAppErrors(page);
@@ -24,25 +17,25 @@ test("奥の画面を通るとトロフィーの獲得数が増える", async ({
   await createTree(page, "四間飛車");
 
   // ツリーを1つ作った時点で「はじめの一歩」だけ
-  const start = await earnedCount(page);
+  const start = await earnedTrophyCount(page);
   expect(start).toBeGreaterThanOrEqual(1);
 
   // ノード検索（＝全ツリーから探せることに気づいた）
   await page.goto("/search");
   await expect(page.getByText("ノード検索")).toBeVisible();
-  const afterSearch = await earnedCount(page);
+  const afterSearch = await earnedTrophyCount(page);
   expect(afterSearch).toBe(start + 1);
 
   // 棋譜の傾向（＝棋譜ライブラリの1段下にある画面に気づいた）
   await page.goto("/kifus/insight");
   await page.waitForTimeout(400);
-  const afterInsight = await earnedCount(page);
+  const afterInsight = await earnedTrophyCount(page);
   expect(afterInsight).toBe(start + 2);
 
   // 記録は端末ではなく profiles に持つので、読み直しても減らない
   await page.reload();
   await page.waitForTimeout(400);
-  expect(await earnedCount(page)).toBe(start + 2);
+  expect(await earnedTrophyCount(page)).toBe(start + 2);
 
   expect(errors).toEqual([]);
 });

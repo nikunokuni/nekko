@@ -625,6 +625,7 @@ export default function App() {
             hasBranchCand:   !!acts.branchCand,
             hasToInbox:      !!acts.toInbox,
             hasKifuRange:    !!acts.kifuRange,
+            hasBookmark:     !!acts.bookmark,
             hasMerge:        !!acts.merge,
             hasSummaryNode:  !!acts.summaryNode,
             hasRecall:       !!acts.recall,

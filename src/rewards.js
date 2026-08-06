@@ -386,6 +386,9 @@ export const BADGE_DEFS = [
   { id: "branch-cand",  icon: "ti-git-fork",         color: "#A93226", label: "実戦から枝を作る",   desc: "実戦で当たった相手の候補から子ノードを作る", check: (s) => !!s.hasBranchCand },
   { id: "to-inbox",     icon: "ti-inbox",            color: "#854F0B", label: "あとで整理する",     desc: "棋譜から「とりあえず」へ送る",             check: (s) => !!s.hasToInbox     },
   { id: "kifu-range",   icon: "ti-scissors",         color: "#854F0B", label: "切り取って残す",     desc: "棋譜の一部を切り出して分岐にする",         check: (s) => !!s.hasKifuRange   },
+  // 通し見のあいだに印だけ付けておいて、あとでまとめてノードにする ――
+  // 棋譜からツリーを作るときの作業の分け方そのものなので、気づいてほしい
+  { id: "bookmark",     icon: "ti-bookmark",         color: "#854F0B", label: "目印をつける",       desc: "棋譜にしおりをはさんで、分岐にしたい手を残す", check: (s) => !!s.hasBookmark },
   { id: "player-name",  icon: "ti-user-check",       color: "#854F0B", label: "先後おまかせ",       desc: "棋譜での自分の名前を登録する（先後を聞かれなくなる）", check: (s) => !!s.hasPlayerName },
   { id: "merge",        icon: "ti-arrow-merge",      color: "#1a5276", label: "合流させる",         desc: "別々の枝を1つの子ノードへ合流させる",       check: (s) => !!s.hasMerge       },
   { id: "summary-node", icon: "ti-folder",           color: "#3B6D11", label: "章立てする",         desc: "まとめノードで枝を束ねる",                 check: (s) => !!s.hasSummaryNode },

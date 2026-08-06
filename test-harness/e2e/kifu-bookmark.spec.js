@@ -10,7 +10,7 @@
 //     ・ノードにしたら済みになり、しおり自体は消えないこと
 //       （消すと「どこを分岐点だと思ったか」の記録が失われる）
 import { test, expect } from "@playwright/test";
-import { login, createTree, watchForAppErrors, KIF_SAMPLE } from "./helpers.js";
+import { login, createTree, watchForAppErrors, earnedTrophyCount, KIF_SAMPLE } from "./helpers.js";
 
 // 棋譜ライブラリ（/kifus を開いた状態）にサンプルを1件保存する
 async function saveSample(page) {
@@ -94,6 +94,26 @@ test("ノードにするとしおりは済みになるが、印そのものは�
   // 済みだけになったら、一覧の絞り込みは引っ込む（押しても必ず空になるため）
   await page.getByRole("button", { name: "閉じる" }).first().click();
   await expect(page.getByRole("button", { name: /しおりが残っている/ })).toHaveCount(0);
+
+  expect(errors).toEqual([]);
+});
+
+test("しおりをはさむとトロフィーが増える", async ({ page }) => {
+  const errors = watchForAppErrors(page);
+  await login(page);
+  await createTree(page, "四間飛車");
+  await page.goto("/kifus");
+  await saveSample(page);
+
+  // 取り込みで増えるぶんを先に数えておき、しおりの増分だけを見る
+  const before = await earnedTrophyCount(page);
+
+  await page.goto("/kifus");
+  await openAndPlay(page, 4);
+  await page.getByRole("button", { name: "しおりをはさむ" }).click();
+  await expect(page.getByRole("button", { name: "しおりを外す" })).toBeVisible();
+
+  expect(await earnedTrophyCount(page)).toBe(before + 1);
 
   expect(errors).toEqual([]);
 });

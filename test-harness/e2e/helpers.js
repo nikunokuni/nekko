@@ -238,6 +238,15 @@ export async function dismissOnboarding(page) {
   }
 }
 
+// トロフィー画面のヘッダー「獲得数 / 全体数」から獲得数だけを読む。
+//   奥の画面を通ったことが記録されているか（＝認知系バッジが効いているか）を
+//   前後で比べるために使う。この画面へ移動するので、開いていたモーダルは閉じる。
+export async function earnedTrophyCount(page) {
+  await page.goto("/trophy");
+  const text = await page.getByText(/^\d+ \/ \d+$/).first().innerText();
+  return Number(text.split("/")[0].trim());
+}
+
 // ツリーを1つ作ってマップ画面まで進む。作ったツリーのIDを返す。
 export async function createTree(page, name) {
   await page.getByRole("button", { name: /新規/ }).click();

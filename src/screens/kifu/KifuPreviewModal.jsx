@@ -7,6 +7,7 @@ import { T, MODAL_OVERLAY_STYLE, MODAL_SHEET_STYLE } from "../../theme";
 import { SectionLabel, KifuPreviewBoard } from "../../components/uiParts";
 import { FEATURES_VERSION } from "../../kifuFeatures";
 import { normalizeBookmarks, toggleBookmark, markBookmarkDone, pendingBookmarks } from "../../kifuBookmarks";
+import { recordAction } from "../../rewards";
 import { outcomeLabel } from "./shared";
 
 // ──────────────────────────────────────────
@@ -339,7 +340,12 @@ export function KifuPreviewModal({ kifu, onClose, onSetSide, trees = [], onSendT
           onPlaybackIdxChange={handlePlaybackIdxChange}
           bookmarks={marks}
           // 保存する手段が無いときはしおりのUIごと出さない（押せても残らないため）
-          onToggleBookmark={onBookmarksChange ? (ply) => saveMarks(toggleBookmark(marks, ply)) : undefined}
+          onToggleBookmark={onBookmarksChange ? (ply) => {
+            const next = toggleBookmark(marks, ply);
+            // 外したときは数えない（はさめたことを見たいので、往復で取れると意味が薄れる）
+            if (next.length > marks.length) recordAction("bookmark");
+            saveMarks(next);
+          } : undefined}
         />
       </div>
     </div>
