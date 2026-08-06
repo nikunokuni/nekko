@@ -344,7 +344,7 @@ function NodeViewSheet({ node, onClose }) {
         {row("メモ", (node.memo || "").trim())}
         {row("ここでの狙い", (node.aim || "").trim())}
         {row("気を付けること", (node.caution || "").trim())}
-        {row("次に調べること", (node.nextStudy || "").trim())}
+        {row("次にやりたいこと", (node.nextStudy || "").trim())}
         {chips("一言コメント", node.commentTags)}
 
         {/* 盤面（閲覧専用。棋譜があれば再生もできる） */}

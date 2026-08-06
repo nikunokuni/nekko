@@ -1628,7 +1628,10 @@ export function NodeDetail({ tree, trees = [], nodeId, userId, collabGuest = fal
         {[
             { label: "ここでの狙い",   value: aim,       set: setAim,       key: "aim",       placeholder: "例：飛車を振りなおす" },
             { label: "気を付けること", value: caution,   set: setCaution,   key: "caution",   placeholder: "例：角を打ち込む隙を作らない" },
-            { label: "次に調べること", value: nextStudy, set: setNextStudy, key: "nextStudy", placeholder: "次の研究・深掘りしたい手順" },
+            // 「次に調べること」から改名。宿題として並べると、書くのが義務になって
+            // だんだん書かれなくなる。「気になる」「対策したい」の気持ちのまま
+            // 残せる名前にして、置き場所のほうを合わせる
+            { label: "次にやりたいこと", value: nextStudy, set: setNextStudy, key: "nextStudy", placeholder: "例：この仕掛けへの対策を用意したい" },
           ].map(({ label, value, set, key, placeholder }) => (
             <div key={key} style={{ padding: "0 16px 10px" }}>
               <SectionLabel style={{ marginBottom: 5 }}>{label}</SectionLabel>

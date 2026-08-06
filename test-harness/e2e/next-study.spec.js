@@ -1,11 +1,11 @@
-// 「次に調べること」を書き残してから読み返すまでの動線テスト。
+// 「次にやりたいこと」を書き残してから読み返すまでの動線テスト。
 //
 //   この欄は長いあいだ、書けるのに自分の画面のどこにも出てこなかった
 //   （表示していたのは公開ツリーのプレビュー＝他人が見る画面だけ）。
 //   壊れても画面は落ちず「書いたはずのものが見当たらない」だけになるので、
 //   目でもE2Eでも気づきにくい。ここで見張るのは3つ。
 //     ・ノード検索の一覧に本文が出ること（＝読み返せること）
-//     ・「次に調べること」の絞り込みが、書いていないノードを落とすこと
+//     ・「次にやりたいこと」の絞り込みが、書いていないノードを落とすこと
 //     ・「ついか」の歯車から表示項目を切り替えられ、その場で反映されること
 //
 //   とくに歯車は、見出しのタップ（＝開閉）と同じ場所にある。伝播を止め忘れると
@@ -13,7 +13,7 @@
 import { test, expect } from "@playwright/test";
 import { login, createTree, watchForAppErrors } from "./helpers.js";
 
-const NEXT_STUDY = "角交換のあとの飛車先を調べる";
+const NEXT_STUDY = "角交換のあとの飛車先を対策したい";
 
 // ツリーを作り、初期の枝「居飛車」を開いて「ついか」を開いた状態にする
 async function openNodeTsuika(page, treeName) {
@@ -23,12 +23,12 @@ async function openNodeTsuika(page, treeName) {
   await page.getByText("ついか", { exact: true }).click();
 }
 
-test("「次に調べること」がノード検索で読み返せて、絞り込みで抜き出せる", async ({ page }) => {
+test("「次にやりたいこと」がノード検索で読み返せて、絞り込みで抜き出せる", async ({ page }) => {
   const errors = watchForAppErrors(page);
   await login(page);
   await openNodeTsuika(page, "四間飛車");
 
-  const box = page.getByPlaceholder("次の研究・深掘りしたい手順");
+  const box = page.getByPlaceholder("例：この仕掛けへの対策を用意したい");
   await box.fill(NEXT_STUDY);
   // 保存はデバウンス（800ms）付き。離れる前に確実に送らせる
   await box.blur();
@@ -37,8 +37,8 @@ test("「次に調べること」がノード検索で読み返せて、絞り�
   // ── ノード検索へ ──
   await page.goto("/search");
 
-  // 絞り込みを押す前から件数が出る（残っている宿題の数）
-  const filter = page.getByRole("button", { name: /次に調べること/ });
+  // 絞り込みを押す前から件数が出る（いくつ溜まっているか）
+  const filter = page.getByRole("button", { name: /次にやりたいこと/ });
   await expect(filter).toBeVisible();
   await expect(filter).toContainText("1件");
 
@@ -65,7 +65,7 @@ test("「ついか」の歯車から表示する項目を切り替えると、�
   await login(page);
   await openNodeTsuika(page, "中飛車");
 
-  const box = page.getByPlaceholder("次の研究・深掘りしたい手順");
+  const box = page.getByPlaceholder("例：この仕掛けへの対策を用意したい");
   await expect(box).toBeVisible();
 
   // ── 歯車 → 表示する項目 ──

@@ -153,7 +153,7 @@ export async function fetchNodes(treeId) {
 export async function fetchAllMyNodes(userId) {
   const result = await supabase
     .from("nodes")
-    // next_study（次に調べること）はノード検索の「次に調べること」絞り込みで読む。
+    // next_study（画面では「次にやりたいこと」）はノード検索の絞り込みで読む。
     // 短文なので一覧に載せても重くならない（重いのは kifu / snapshots のほう）
     .select("id, tree_id, label, status, memo, next_study, situation, my_approach, orientation, win_rate, like_level, usage_level, board, board_hidden, is_inbox, created_at")
     .eq("user_id", userId)

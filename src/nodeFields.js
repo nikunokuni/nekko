@@ -57,6 +57,8 @@ export const NODE_FIELDS = [
   { key: "likeLevel",   column: "like_level",   def: null },
   { key: "aim",         column: "aim",          def: "" },
   { key: "caution",     column: "caution",      def: "" },
+  // 画面に出る名前は「次にやりたいこと」。キー・列名は歴史的経緯で nextStudy /
+  // next_study のまま（表示名を変えるためだけに列を作り直す必要は無い）
   { key: "nextStudy",   column: "next_study",   def: "" },
   { key: "commentTags", column: "comment_tags", def: () => [] },
   { key: "turn",        column: "turn",         def: null },
