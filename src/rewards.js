@@ -83,12 +83,19 @@ export async function initUserState(userId, profileRow) {
     kifuPlayerNames: Array.isArray(profileRow?.kifu_player_names)
       ? profileRow.kifu_player_names.filter((n) => typeof n === "string" && n.trim()) : [],
   };
+  // ハイドレート前に記録されたアクションを合流させる（下の _pendingActions 参照）
+  if (Object.keys(_pendingActions).length > 0) {
+    _state.actions = { ..._state.actions, ..._pendingActions };
+    _pendingActions = {};
+    persist({ actions: _state.actions });
+  }
   await migrateLegacyLocalStorage();
 }
 
 /** ログアウト時にキャッシュを空にする（次のユーザーへ持ち越さない） */
 export function resetUserState() {
   _userId = null;
+  _pendingActions = {};
   _state = {
     loginDays: [], actions: {}, earnedBadges: [], customTags: [], commentTags: [],
     tsuikaVisibility: {}, kifuPlayerNames: [],
@@ -180,10 +187,22 @@ async function migrateLegacyLocalStorage() {
   }
 }
 
+// ハイドレート（initUserState）より前に記録されたアクションの控え。
+//
+// 「画面に入った瞬間」に記録する種類のトロフィー（棋譜の傾向・ノード検索）は、
+// URL直打ちやリロードで開くと profiles が届く前に走ることがある。
+// そのとき _userId がまだ無く、persist は黙って何もしない ――
+// つまり**その回の達成が保存されず、リロードで消える**。
+// 画面は何も変わらないので、バッジが取れないことでしか気づけない。
+let _pendingActions = {};
+
 /** 一回限りのアクション達成を記録する */
 export function recordAction(key) {
   if (!key || _state.actions[key]) return;
   _state.actions = { ..._state.actions, [key]: true };
+  // ハイドレート前なら控えに積む。initUserState が読み込んだ内容へ合流させる
+  // （ここで persist しても _userId が無く、書き込みは捨てられる）
+  if (!_userId) { _pendingActions[key] = true; return; }
   persist({ actions: _state.actions });
 }
 
@@ -301,7 +320,20 @@ export function getLoginStats() {
 }
 
 // ── スタンプ（バッジ）定義 ─────────────────────────
-// check は { treeCount, nodeCount, totalDays, streak } を受け取り達成判定する
+// check は { treeCount, nodeCount, totalDays, streak, kifuCount, doneCount,
+//            maxDepth, has* } を受け取り達成判定する。
+//
+// トロフィーの目的は2つだけ。**続けて使ってもらうこと**と、
+// **奥にある機能に気づいてもらうこと**。だから採る／採らないはこう決めている。
+//
+//   ・継続系 … 一度では終わらず、時間をかけないと増えない／減らせないもの。
+//              段階を刻む（progress を持たせて、あと何回かが見えるようにする）
+//   ・認知系 … 画面の奥にあって気づかれにくいもの。1回やれば達成でよく、
+//              **desc がそのまま機能の紹介文になる**ように書く
+//
+// 逆に「入力欄を埋める」たぐいは入れない（志向・勝率・好き度・序盤の意識など）。
+// 使わない項目は「ついか」の歯車で消せるようにしてあるので、
+// 埋めることをご褒美にすると、消せる設計と正面から矛盾する。
 export const BADGE_DEFS = [
   { id: "tree-1",   icon: "ti-seedling",      color: "#3B6D11", label: "はじめの一歩",     desc: "ツリーを1個作る",       check: (s) => s.treeCount  >= 1,   progress: (s) => ({ current: s.treeCount,  max: 1   }) },
   { id: "tree-5",   icon: "ti-plant-2",       color: "#3B6D11", label: "ねっこが広がる",   desc: "ツリーを5個作る",       check: (s) => s.treeCount  >= 5,   progress: (s) => ({ current: s.treeCount,  max: 5   }) },
@@ -321,5 +353,45 @@ export const BADGE_DEFS = [
   { id: "tags",      icon: "ti-tags",         color: "#3B6D11", label: "タグ整理師",       desc: "新しい戦法タグを追加する",     check: (s) => !!s.hasCustomTag },
   { id: "kifu",      icon: "ti-video",        color: "#1a5276", label: "棋譜記録者",       desc: "盤面に棋譜を記録する",         check: (s) => !!s.hasKifu      },
   { id: "template",  icon: "ti-layout-grid",  color: "#854F0B", label: "型の継承者",       desc: "盤面のテンプレートを利用する", check: (s) => !!s.hasTemplate  },
+
+  // ══ 継続系 ══════════════════════════════════════
+  // 連続ログイン（streak）は1日休むとゼロに戻る。休んでも消えない軸が
+  // 無いと、一度途切れた人には積み上げるものが何も残らない
+  { id: "days-30",  icon: "ti-calendar-check", color: "#854F0B", label: "ひと月ぶん",     desc: "累計30日ログインする",  check: (s) => s.totalDays >= 30,  progress: (s) => ({ current: s.totalDays, max: 30  }) },
+  { id: "days-100", icon: "ti-calendar-stats", color: "#854F0B", label: "百日の記録",     desc: "累計100日ログインする", check: (s) => s.totalDays >= 100, progress: (s) => ({ current: s.totalDays, max: 100 }) },
+  { id: "days-365", icon: "ti-calendar-heart", color: "#A93226", label: "一年分のねっこ", desc: "累計365日ログインする", check: (s) => s.totalDays >= 365, progress: (s) => ({ current: s.totalDays, max: 365 }) },
+
+  // 棋譜は実際に対局しないと増えない＝時間そのものが要る。
+  // 300局は傾向分析が見る上限（ANALYSIS_GAME_LIMIT）と同じ数
+  { id: "kifu-10",  icon: "ti-file-stack", color: "#1a5276", label: "棋譜の芽",     desc: "棋譜を10局ためる",  check: (s) => s.kifuCount >= 10,  progress: (s) => ({ current: s.kifuCount, max: 10  }) },
+  { id: "kifu-50",  icon: "ti-books",      color: "#1a5276", label: "棋譜の蓄え",   desc: "棋譜を50局ためる",  check: (s) => s.kifuCount >= 50,  progress: (s) => ({ current: s.kifuCount, max: 50  }) },
+  { id: "kifu-300", icon: "ti-database",   color: "#A93226", label: "傾向が見える", desc: "棋譜を300局ためる（傾向分析が見る上限）", check: (s) => s.kifuCount >= 300, progress: (s) => ({ current: s.kifuCount, max: 300 }) },
+
+  // 「できた」と「次にやりたいこと」は、このアプリで唯一**減る／終わる**もの。
+  // 増やすだけのバッジばかりだと、やりきったことが何にも表れない
+  { id: "done-10",   icon: "ti-circle-check", color: "#3B6D11", label: "やりきった",         desc: "ステータスを「できた」にしたノードを10個", check: (s) => s.doneCount >= 10, progress: (s) => ({ current: s.doneCount, max: 10 }) },
+  { id: "next-done", icon: "ti-flag-check",   color: "#3B6D11", label: "やりたいを片づける", desc: "「次にやりたいこと」を書いて、片づける",   check: (s) => !!s.hasNextDone },
+
+  // 「ノード150個」は横に広げるだけでも取れる。掘った深さは別の軸。
+  // ツリーを作った直後が1段なので、2段目から自分で掘った分になる
+  { id: "depth-3", icon: "ti-stairs",   color: "#1a5276", label: "三段掘り", desc: "ルートから3段の分岐を作る", check: (s) => s.maxDepth >= 3, progress: (s) => ({ current: s.maxDepth, max: 3 }) },
+  { id: "depth-5", icon: "ti-mountain", color: "#1a5276", label: "五段掘り", desc: "ルートから5段の分岐を作る", check: (s) => s.maxDepth >= 5, progress: (s) => ({ current: s.maxDepth, max: 5 }) },
+
+  // ══ 認知系（1回やれば達成。desc が機能の紹介文）══════════
+  { id: "kifu-import",  icon: "ti-file-import",      color: "#1a5276", label: "棋譜を取り込む",     desc: "KIF/CSAの棋譜ファイルを取り込む",         check: (s) => !!s.hasKifuImport  },
+  { id: "insight",      icon: "ti-chart-histogram",  color: "#1a5276", label: "傾向を読む",         desc: "ためた棋譜から自分の傾向を見る",           check: (s) => !!s.hasInsight     },
+  { id: "insight-drill",icon: "ti-zoom-scan",        color: "#1a5276", label: "実戦にあたる",       desc: "傾向の戦型から、その実戦の棋譜を開く",     check: (s) => !!s.hasInsightDrill},
+  // 実戦の統計からツリーの枝を作る、このアプリだけの動線。
+  // 説明文でも「実戦で当たった相手だけが出る」ことが分かるようにする
+  { id: "branch-cand",  icon: "ti-git-fork",         color: "#A93226", label: "実戦から枝を作る",   desc: "実戦で当たった相手の候補から子ノードを作る", check: (s) => !!s.hasBranchCand },
+  { id: "to-inbox",     icon: "ti-inbox",            color: "#854F0B", label: "あとで整理する",     desc: "棋譜から「とりあえず」へ送る",             check: (s) => !!s.hasToInbox     },
+  { id: "kifu-range",   icon: "ti-scissors",         color: "#854F0B", label: "切り取って残す",     desc: "棋譜の一部を切り出して分岐にする",         check: (s) => !!s.hasKifuRange   },
+  { id: "player-name",  icon: "ti-user-check",       color: "#854F0B", label: "先後おまかせ",       desc: "棋譜での自分の名前を登録する（先後を聞かれなくなる）", check: (s) => !!s.hasPlayerName },
+  { id: "merge",        icon: "ti-arrow-merge",      color: "#1a5276", label: "合流させる",         desc: "別々の枝を1つの子ノードへ合流させる",       check: (s) => !!s.hasMerge       },
+  { id: "summary-node", icon: "ti-folder",           color: "#3B6D11", label: "章立てする",         desc: "まとめノードで枝を束ねる",                 check: (s) => !!s.hasSummaryNode },
+  { id: "recall",       icon: "ti-copy",             color: "#854F0B", label: "使い回す",           desc: "他のノードの中身を呼び出して写す",         check: (s) => !!s.hasRecall      },
+  { id: "search",       icon: "ti-search",           color: "#3B6D11", label: "まとめて探す",       desc: "ノード検索で全ツリーからノードを探す",     check: (s) => !!s.hasSearch      },
+  { id: "reparent",     icon: "ti-drag-drop",        color: "#3B6D11", label: "つなぎ替える",       desc: "マップでノードをドラッグして親を変える",   check: (s) => !!s.hasReparent    },
+  { id: "inbox-sorted", icon: "ti-arrow-move-right", color: "#854F0B", label: "置き場から出す",     desc: "「とりあえず」のノードを別の枝へ移す",     check: (s) => !!s.hasInboxSorted },
 ];
 

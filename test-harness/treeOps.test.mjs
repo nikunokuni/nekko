@@ -5,7 +5,7 @@ import {
   collectTreeTags, nextSortOrder, addNode, applyNodePatch,
   reparent, setMergeParents, removeNodes,
   collapsedHiddenIds, chapterOf, visibleAnchor, subtreeCounts,
-  isTrunkParent, orderedChildIds, branchRanks, branchSides,
+  isTrunkParent, orderedChildIds, branchRanks, branchSides, maxDepthFromRows,
 } from "../src/treeOps.js";
 
 let pass = 0, fail = 0;
@@ -282,6 +282,33 @@ function makeTrunkTree() {
   check("branchSides: 縦順は手数順に入れ替わる",
     eq(orderedChildIds(added, "p"), ["c1", "c4", "c3", "c2"]),
     JSON.stringify(orderedChildIds(added, "p")));
+}
+
+// ── maxDepthFromRows（トロフィー「何段まで掘ったか」）──
+// 数え違いが起きても画面は落ちず、バッジが取れない／勝手に取れるだけなので、
+// 目でもE2Eでも気づけない。ここで固めておく。
+{
+  const row = (id, parent_id, is_root = false) => ({ id, parent_id, is_root });
+
+  check("maxDepthFromRows: ノードが無ければ0", maxDepthFromRows([]) === 0);
+  check("maxDepthFromRows: ルートだけなら0", maxDepthFromRows([row("r", null, true)]) === 0);
+
+  // ツリーを作った直後の形（ルート＋居飛車／振り飛車／とりあえず）は必ず1段
+  const fresh = [row("r", null, true), row("a", "r"), row("b", "r"), row("inbox", "r")];
+  check("maxDepthFromRows: 作った直後は1", maxDepthFromRows(fresh) === 1, String(maxDepthFromRows(fresh)));
+
+  // 一番深い枝を見る（浅い枝が何本あっても引きずられない）
+  const deep = [...fresh, row("a1", "a"), row("a2", "a1"), row("a3", "a2")];
+  check("maxDepthFromRows: 一番深い枝の段数を返す", maxDepthFromRows(deep) === 4, String(maxDepthFromRows(deep)));
+
+  // 親が消えたノードは数えない。数えると壊れたデータのほうが深く出てしまう
+  const orphan = [...fresh, row("x", "居ない親")];
+  check("maxDepthFromRows: 親が見つからないノードは数えない", maxDepthFromRows(orphan) === 1, String(maxDepthFromRows(orphan)));
+
+  // 親子が輪になったデータでも止まる（無限ループにしない）
+  const cyclic = [row("r", null, true), row("p", "r"), row("q", "p"), row("p2", "q")];
+  cyclic.push({ id: "loop", parent_id: "loop2" }, { id: "loop2", parent_id: "loop" });
+  check("maxDepthFromRows: 循環していても止まる", maxDepthFromRows(cyclic) === 3, String(maxDepthFromRows(cyclic)));
 }
 
 console.log(`\n=== ${pass}/${pass + fail} passed ===`);

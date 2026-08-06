@@ -887,6 +887,7 @@ export function NodeDetail({ tree, trees = [], nodeId, userId, collabGuest = fal
 
     const ok = await onUpdate(nodeId, patch);
     if (ok === false) return false;
+    recordAction("recall");
     applyNodeToForm(patch);
     // 盤面の「元に戻す」の戻り先も呼び出し後に合わせる。
     // 合わせないと、盤面だけ呼び出し前に戻って他の項目は呼び出したまま、という
@@ -1039,6 +1040,8 @@ export function NodeDetail({ tree, trees = [], nodeId, userId, collabGuest = fal
             onClick={() => {
               const next = !node.isSummary;
               setPositionOpen(!next);
+              // 解除は数えない（束ねられたことを見たいので、往復で取れると意味が薄れる）
+              if (next) recordAction("summaryNode");
               saveField({ isSummary: next }, () => {}, () => {});
             }}
             // アイコンフォントが ::before で文字を差し込むため、文字を添えていても
@@ -1637,7 +1640,14 @@ export function NodeDetail({ tree, trees = [], nodeId, userId, collabGuest = fal
               <SectionLabel style={{ marginBottom: 5 }}>{label}</SectionLabel>
               <textarea
                 value={value}
-                onChange={(e) => { set(e.target.value); scheduleSave({ [key]: e.target.value }); }}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  set(v);
+                  // 書いてあった「次にやりたいこと」を空にした＝片づけた。
+                  // このアプリで唯一「減る」操作なので、トロフィーはここを見ている
+                  if (key === "nextStudy" && (node.nextStudy || "").trim() && !v.trim()) recordAction("nextDone");
+                  scheduleSave({ [key]: v });
+                }}
                 onBlur={(e) => { e.target.style.borderColor = T.inkLine; flushSave(); }}
                 placeholder={placeholder}
                 rows={2}
@@ -1763,7 +1773,10 @@ export function NodeDetail({ tree, trees = [], nodeId, userId, collabGuest = fal
                         {branch.candidates.map((c) => (
                           <div
                             key={c.name}
-                            onClick={() => saveAndNavigate(() => onNewNode(nodeId, candidateToNodeFields(c, branch.axis)))}
+                            onClick={() => {
+                              recordAction("branchCand");
+                              saveAndNavigate(() => onNewNode(nodeId, candidateToNodeFields(c, branch.axis)));
+                            }}
                             style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: T.radius.sm, border: `0.5px dashed ${T.gold}`, cursor: "pointer" }}
                             onMouseEnter={(e) => (e.currentTarget.style.background = T.goldLight)}
                             onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}

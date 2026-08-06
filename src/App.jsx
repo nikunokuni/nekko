@@ -22,8 +22,8 @@ import {
 } from "./db";
 // ツリー変更ロジック（childIds / merge_parent_ids / tags の整合）を一本化した純粋関数群。
 // 各ハンドラは DB 更新後にこれらでローカルツリーを組み替える（手作業の整合を排除）。
-import { nextSortOrder, addNode, applyNodePatch, reparent as reparentTree, setMergeParents as setMergeParentsTree, removeNodes } from "./treeOps";
-import { recordAction, getActions, resetOnboard } from "./rewards";
+import { nextSortOrder, addNode, applyNodePatch, reparent as reparentTree, setMergeParents as setMergeParentsTree, removeNodes, maxDepthFromRows } from "./treeOps";
+import { recordAction, getActions, resetOnboard, getKifuPlayerNames } from "./rewards";
 import { cloneBoard } from "./theme";
 import { useAuth } from "./hooks/useAuth";
 import { useTreeData } from "./hooks/useTreeData";
@@ -63,9 +63,9 @@ export default function App() {
   const { session, profile, loginStats, devStats, handleAuth, handleSignOutAuth } = useAuth();
   const {
     myTrees, setMyTrees, pubTrees, activeTree, setActiveTree,
-    loading, nodeCount, setNodeCount, likedTreeIds,
+    loading, nodeCount, setNodeCount, kifuCount, likedTreeIds,
     reparentStack, setReparentStack,
-    loadMyTrees, loadPublicTrees, loadTree, refreshNodeCount, clearTreeData,
+    loadMyTrees, loadPublicTrees, loadTree, refreshNodeCount, refreshKifuCount, clearTreeData,
   } = useTreeData(session);
   const [fontScale, handleFontScaleChange] = useFontScale();
   // リカバリーコード：未発行ならログイン直後に発行し、スクショ案内モーダルを表示する
@@ -96,6 +96,14 @@ export default function App() {
   // みんなのツリー画面に入ったら最新の公開一覧を取得する（ディープリンク対応）
   useEffect(() => {
     if (session && screen === "public") loadPublicTrees();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, session]);
+
+  // トロフィー画面に入るたびに棋譜の件数を取り直す。
+  // 棋譜の増減は棋譜ライブラリの中で完結していて、ここには伝わってこないので、
+  // 初回取得のままだと「10局ためた直後に見に行ったのにまだ埋まっていない」になる
+  useEffect(() => {
+    if (session && screen === "trophy") refreshKifuCount();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen, session]);
 
@@ -243,6 +251,7 @@ export default function App() {
     });
     if (error || !newNode) { showToast("ノードの作成に失敗しました。もう一度お試しください。"); return false; }
 
+    recordAction("toInbox");
     refreshNodeCount();
     await loadMyTrees();
     navigate(`/tree/${treeId}/node/${newNode.id}`);
@@ -354,7 +363,12 @@ export default function App() {
 
   const handleReparentNode = async (nodeId, newParentId) => {
     const oldParentId = activeTree?.nodes?.[nodeId]?.parentId ?? null;
+    // 「とりあえず」から出したかどうかは、付け替える前にしか分からない
+    const fromInbox = !!(oldParentId && activeTree?.nodes?.[oldParentId]?.isInbox);
     await reparentNode(nodeId, newParentId);
+    recordAction("reparent");
+    // 置き場から本来の枝へ移すのが「整理した」。逆（枝から置き場へ）は数えない
+    if (fromInbox && !activeTree?.nodes?.[newParentId]?.isInbox) recordAction("inboxSorted");
     setReparentStack((prev) => [...prev, { nodeId, oldParentId, newParentId }]);
   };
 
@@ -373,6 +387,8 @@ export default function App() {
       isMergeTarget: mergeParentIds.length > 0,
     });
     if (error) { showToast("保存に失敗しました。もう一度お試しください。"); return; }
+    // 合流を「外した」ときは記録しない（触ったこと自体ではなく、使えたことを見たい）
+    if (mergeParentIds.length > 0) recordAction("merge");
     setActiveTree((prev) => setMergeParentsTree(prev, nodeId, mergeParentIds));
   };
 
@@ -437,6 +453,7 @@ export default function App() {
     // 1局面だけの切り出しは棋譜を持たない通常の分岐と同じ扱いにする
     // （1局面の棋譜は「全0手」となり再生UIだけが残ってしまうため）
     const hasKifu = slice.length > 1;
+    recordAction("kifuRange");
     return createBranchNode(parentNodeId, {
       board:     last.board,
       handSente: last.handSente,
@@ -582,6 +599,13 @@ export default function App() {
         )}
         {screen==="trophy" && (() => {
           const acts = getActions();
+          // 「できた」の数と掘った深さは、一覧の埋め込みノード
+          // （id / status / is_root / parent_id）だけで数えられる。
+          // トロフィーのためだけに全ノードを取り直さない
+          const doneCount = myTrees.reduce(
+            (n, t) => n + (t.nodes || []).filter((x) => !x.is_root && x.status === "done").length, 0);
+          const maxDepth = myTrees.reduce(
+            (d, t) => Math.max(d, maxDepthFromRows(t.nodes || [])), 0);
           const extraStats = {
             hasPublished: myTrees.some(t => t.is_public),
             hasMemo:      myTrees.some(t => (t.quick_memo || "").trim().length > 0),
@@ -591,12 +615,34 @@ export default function App() {
             hasKifu:      !!acts.kifu,
             hasTemplate:  !!acts.template,
             hasCustomTag: !!acts.customTag,
+            // ── 継続系 ──
+            kifuCount, doneCount, maxDepth,
+            hasNextDone:     !!acts.nextDone,
+            // ── 認知系 ──
+            hasKifuImport:   !!acts.kifuImport,
+            hasInsight:      !!acts.insight,
+            hasInsightDrill: !!acts.insightDrill,
+            hasBranchCand:   !!acts.branchCand,
+            hasToInbox:      !!acts.toInbox,
+            hasKifuRange:    !!acts.kifuRange,
+            hasMerge:        !!acts.merge,
+            hasSummaryNode:  !!acts.summaryNode,
+            hasRecall:       !!acts.recall,
+            hasSearch:       !!acts.search,
+            hasReparent:     !!acts.reparent,
+            hasInboxSorted:  !!acts.inboxSorted,
+            // 対局者名だけはアクションではなく登録内容そのものを見る。
+            // 「登録した瞬間」ではなく「登録されている」が達成の条件なので、
+            // 設定画面に記録用の1行を足さずに済む
+            hasPlayerName:   getKifuPlayerNames().length > 0,
           };
           return (
             <TrophyScreen
               onBack={() => navigate("/")}
               treeCount={myTrees.length}
               nodeCount={nodeCount}
+              kifuCount={kifuCount}
+              doneCount={doneCount}
               loginStats={loginStats}
               extraStats={extraStats}/>
           );

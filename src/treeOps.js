@@ -310,3 +310,43 @@ export function removeNodes(tree, idsToDelete, parentId = null) {
   const newTree = tags ? { ...tree, nodes, tags } : { ...tree, nodes };
   return { tree: newTree, mergeCleanups, tags };
 }
+
+// ── ツリーの深さ（トロフィー「何段まで掘ったか」）──────────
+// 一覧（fetchMyTrees）が返す**行の配列**をそのまま受け取る。
+// 組み立て済みツリー（buildTreeFromNodes の結果）を要求すると、
+// 深さを1つ知るためにツリーの数だけ全ノードを読み直すことになる。
+//
+// 「ルートからの辺の数」を返す（ルートだけ＝0、その子＝1）。
+// ツリーを作った直後は「居飛車 / 振り飛車 / とりあえず」が自動で付くので
+// 必ず1になる。2以上が、自分で掘った分。
+//
+// 親が見つからないノード（親が削除済み・別ツリー混入）は数えない。
+// 数えてしまうと、壊れたデータのほうが深く出てしまう。
+export function maxDepthFromRows(nodeRows = []) {
+  const childrenOf = new Map();
+  const roots = [];
+  for (const n of nodeRows) {
+    if (n.is_root || !n.parent_id) { roots.push(n.id); continue; }
+    if (!childrenOf.has(n.parent_id)) childrenOf.set(n.parent_id, []);
+    childrenOf.get(n.parent_id).push(n.id);
+  }
+  if (roots.length === 0) return 0;
+
+  // 幅優先。循環（親子が輪になったデータ）でも止まるよう、通った所は二度と通らない
+  const seen = new Set(roots);
+  let depth = 0;
+  let frontier = roots;
+  while (frontier.length > 0) {
+    const next = [];
+    for (const id of frontier) {
+      for (const childId of childrenOf.get(id) || []) {
+        if (seen.has(childId)) continue;
+        seen.add(childId);
+        next.push(childId);
+      }
+    }
+    if (next.length > 0) depth++;
+    frontier = next;
+  }
+  return depth;
+}

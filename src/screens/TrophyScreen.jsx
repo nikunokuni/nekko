@@ -6,7 +6,7 @@ import { BADGE_DEFS, getEarnedBadges, recordEarnedBadges } from "../rewards";
 import { Confetti } from "../components";
 import { T } from "../theme";
 
-export function TrophyScreen({ onBack, treeCount, nodeCount, loginStats, extraStats = {} }) {
+export function TrophyScreen({ onBack, treeCount, nodeCount, kifuCount = 0, doneCount = 0, loginStats, extraStats = {} }) {
   const { totalDays = 0, streak = 0 } = loginStats || {};
   const stats = { treeCount, nodeCount, totalDays, streak, ...extraStats };
 
@@ -37,11 +37,15 @@ export function TrophyScreen({ onBack, treeCount, nodeCount, loginStats, extraSt
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [earnedIdsKey]);
 
+  // バッジの条件に使っている数はここに並べる。
+  // 数が見えないバッジは「あと何回で取れるか」が分からず、追いかけようがない
   const statItems = [
-    { icon: "ti-binary-tree", label: "ツリー",      value: treeCount, unit: "個" },
-    { icon: "ti-git-branch",  label: "ノード",      value: nodeCount, unit: "個" },
-    { icon: "ti-calendar",    label: "累計ログイン", value: totalDays, unit: "日" },
-    { icon: "ti-flame",       label: "連続ログイン", value: streak,    unit: "日" },
+    { icon: "ti-binary-tree",  label: "ツリー",      value: treeCount, unit: "個" },
+    { icon: "ti-git-branch",   label: "ノード",      value: nodeCount, unit: "個" },
+    { icon: "ti-file-stack",   label: "棋譜",        value: kifuCount, unit: "局" },
+    { icon: "ti-circle-check", label: "できた",      value: doneCount, unit: "個" },
+    { icon: "ti-calendar",     label: "累計ログイン", value: totalDays, unit: "日" },
+    { icon: "ti-flame",        label: "連続ログイン", value: streak,    unit: "日" },
   ];
 
   return (

@@ -16,7 +16,7 @@ import {
 import { analyzeKifu, recomputeFeatures, resolveMySide, toAnalysisGame } from "../kifuAnalyze";
 import { FEATURES_VERSION } from "../kifuFeatures";
 import { analyzeGames, analyzeSwingTiming, groupBy, BRANCH_VIEWS } from "../kifuStats";
-import { getKifuPlayerNames } from "../rewards";
+import { getKifuPlayerNames, recordAction } from "../rewards";
 import { showToast } from "../toast";
 import { outcomeLabel, formatDate } from "./kifu/shared";
 import { KifuPreviewModal } from "./kifu/KifuPreviewModal";
@@ -206,6 +206,10 @@ export function KifuInsight({ userId, trees = [], onBack, onGoSettings, onSendTo
 
   const playerNames = getKifuPlayerNames();
 
+  // 傾向画面は棋譜ライブラリの1段下にあって気づかれにくい。
+  // ここまで来たこと自体をトロフィーの達成にする
+  useEffect(() => { recordAction("insight"); }, []);
+
   const load = () => {
     if (!userId) return;
     setLoading(true);
@@ -234,6 +238,8 @@ export function KifuInsight({ userId, trees = [], onBack, onGoSettings, onSendTo
 
   const openKifu = async (kifu) => {
     if (previewLoading) return;
+    // 数字（傾向）から実戦（棋譜）へ降りる動線。ここを1回通ったかどうかを見る
+    recordAction("insightDrill");
     setPreviewLoading(true);
     const { data } = await fetchKifu(kifu.id);
     setPreviewLoading(false);

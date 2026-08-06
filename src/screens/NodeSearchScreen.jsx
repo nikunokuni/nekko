@@ -17,6 +17,7 @@ import { T } from "../theme";
 import { BackBtn, StatusChip, MiniBoard } from "../components";
 import { USAGE_META, LIKE_LEVELS } from "../data";
 import { fetchAllMyNodes } from "../db";
+import { recordAction } from "../rewards";
 
 const SORT_OPTIONS = [
   { key: "recent",     label: "新しい順" },
@@ -48,6 +49,8 @@ export function NodeSearch({ userId, trees, onBack, onOpenNode }) {
 
   useEffect(() => {
     let cancelled = false;
+    // この画面まで来たこと自体が「まとめて探せる」に気づいた印
+    recordAction("search");
     fetchAllMyNodes(userId).then(({ data }) => { if (!cancelled) setNodes(data || []); });
     return () => { cancelled = true; };
   }, [userId]);

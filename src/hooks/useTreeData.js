@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   fetchMyTrees, fetchPublicTrees, fetchNodes, buildTreeFromNodes,
-  countUserNodes, fetchMyLikedTreeIds,
+  countUserNodes, countUserKifus, fetchMyLikedTreeIds,
 } from "../db";
 import { showToast } from "../toast";
 
@@ -24,6 +24,7 @@ export function useTreeData(session) {
   const [activeTree,    setActiveTree]    = useState(null);
   const [loading,       setLoading]       = useState(false);
   const [nodeCount,     setNodeCount]     = useState(0);
+  const [kifuCount,     setKifuCount]     = useState(0); // トロフィー用（棋譜は別テーブルなので件数だけ取る）
   const [likedTreeIds,  setLikedTreeIds]  = useState([]); // ユーザーがいいね済みのツリーID
   const [reparentStack, setReparentStack] = useState([]); // マインドマップの親付け替えUndo用（開いた時点からの履歴）
 
@@ -79,6 +80,14 @@ export function useTreeData(session) {
     setNodeCount(cnt);
   }, [session]);
 
+  // 棋譜の増減は棋譜ライブラリの中で完結していて、こちらには伝わってこない。
+  // トロフィー画面に入るたびに取り直す（数字1つなので head: true で軽い）
+  const refreshKifuCount = useCallback(async () => {
+    if (!session) return;
+    const cnt = await countUserKifus(session.user.id);
+    setKifuCount(cnt);
+  }, [session]);
+
   // ログイン確定後に一覧・ノード数を初期取得する
   useEffect(() => {
     if (!session) return;
@@ -87,6 +96,9 @@ export function useTreeData(session) {
     countUserNodes(session.user.id)
       .then(setNodeCount)
       .catch((e) => console.error("countUserNodes error:", e));
+    countUserKifus(session.user.id)
+      .then(setKifuCount)
+      .catch((e) => console.error("countUserKifus error:", e));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
@@ -102,8 +114,9 @@ export function useTreeData(session) {
     activeTree, setActiveTree,
     loading,
     nodeCount, setNodeCount,
+    kifuCount,
     likedTreeIds,
     reparentStack, setReparentStack,
-    loadMyTrees, loadPublicTrees, loadTree, refreshNodeCount, clearTreeData,
+    loadMyTrees, loadPublicTrees, loadTree, refreshNodeCount, refreshKifuCount, clearTreeData,
   };
 }

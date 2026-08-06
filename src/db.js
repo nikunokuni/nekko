@@ -88,7 +88,9 @@ export async function updateProfile(userId, patch) {
 export async function fetchMyTrees(userId) {
   const result = await supabase
     .from("trees")
-    .select("*, nodes(id, status, is_root)")
+    // parent_id まで読むのは、トロフィーの「何段まで掘ったか」を数えるため。
+    // ID だけの埋め込みなので、ノードが増えても取得量はほとんど変わらない
+    .select("*, nodes(id, status, is_root, parent_id)")
     .eq("user_id", userId)
     .order("created_at", { ascending: true });
   if (result.error) console.error("fetchMyTrees error:", result.error);
@@ -225,6 +227,17 @@ export async function countUserNodes(userId) {
 // 棋譜はノードから独立した kifus テーブルに保存する。
 // ノードへの取り込みは参照ではなくコピー（nodes.kifu へ複製）なので、
 // ライブラリ側の削除・編集がノードに影響することはない。
+
+/** ためた棋譜の件数だけを取る（トロフィーの「棋譜を◯局ためる」用）。
+ *  一覧（fetchMyKifus）を読んで数えると、数字1つのために全件のメタデータを
+ *  運ぶことになる。head: true なので行そのものは返らない。 */
+export async function countUserKifus(userId) {
+  const { count } = await supabase
+    .from("kifus")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId);
+  return count ?? 0;
+}
 
 /** 棋譜一覧をメタデータのみで取得する（snapshots は重いので含めない） */
 export async function fetchMyKifus(userId) {

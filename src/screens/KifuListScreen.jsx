@@ -199,7 +199,12 @@ export function KifuList({ userId, trees = [], onBack, onInsight, onGoSettings, 
       if (!error && data) saved.push(kifuRowToKifu(data));
       onProgress?.(saved.length);
     }
-    if (saved.length > 0) setKifus((prev) => [...saved, ...prev]);
+    if (saved.length > 0) {
+      setKifus((prev) => [...saved, ...prev]);
+      // 「棋譜記録者」（盤に並べて録る）とは別の入口。ファイル取り込みは
+      // 傾向分析までつながる本流なので、独立したトロフィーにしてある
+      recordAction("kifuImport");
+    }
     return saved.length;
   };
 
