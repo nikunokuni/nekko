@@ -3,6 +3,7 @@
 // ══════════════════════════════════════════════════════════════════
 import { useState } from "react";
 import { T } from "../theme";
+import { ModalActionButtons } from "../components/uiParts";
 import { getKifuPlayerNames, setKifuPlayerNames } from "../rewards";
 import { APP_VERSION, BUILD_TIME } from "../version";
 
@@ -68,7 +69,12 @@ const TOS_SECTIONS = [
   },
 ];
 
-export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOnboard, onRegenerateRecovery, username, devStats }) {
+export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOnboard, onRegenerateRecovery, onSignOut, username, devStats }) {
+  // ログアウトはツリー一覧のヘッダーから移してきた。
+  // 1日に何度も押すものではないうえ、押し間違えると全部が見えなくなるので、
+  // 行き先のボタンが並ぶ場所ではなく「わざわざ取りに行く場所」に置く。
+  // 誤タップでの即ログアウトを防ぐ確認は、移す前と同じものを持ってきた
+  const [signOutConfirm, setSignOutConfirm] = useState(false);
   // 開発者向けの3項目はアコーディオンで隠す（デフォルトは閉じた状態）
   const [devOpen, setDevOpen] = useState(false);
   // 棋譜での自分の対局者名。入力中は「、」区切りの文字列で持ち、確定時に配列へ直す
@@ -356,6 +362,21 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOn
           </a>
         </div>
 
+        {/* ログアウト。画面の一番下（版数の上）に置く */}
+        <button
+          onClick={() => setSignOutConfirm(true)}
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            width: "100%", marginTop: 28, padding: "13px 16px",
+            borderRadius: T.radius.md, border: `0.5px solid ${T.inkLine}`,
+            background: "transparent", color: T.inkMid,
+            fontSize: T.fontSize.lg, fontFamily: T.fontSerif, cursor: "pointer",
+          }}
+        >
+          <i className="ti ti-logout" style={{ fontSize: "1rem" }} />
+          ログアウト
+        </button>
+
         {/* バージョン表示（package.json の version をビルド時に埋め込んだもの）。
             新バージョンが出ると自動で更新バナーが出るので、ここは現在版の確認用。 */}
         <div style={{ marginTop: 24, textAlign: "center", fontSize: T.fontSize.base, color: T.inkFaint, fontFamily: T.fontSerif, letterSpacing: "0.06em" }}>
@@ -363,6 +384,32 @@ export function SettingsScreen({ onBack, fontScale, onFontScaleChange, onResetOn
           {formatBuildDate(BUILD_TIME) && ` ・ ${formatBuildDate(BUILD_TIME)}`}
         </div>
       </div>
+
+      {/* ログアウトの確認。取り消せない操作なので、必ず一度受け止める */}
+      {signOutConfirm && (
+        <div
+          style={{
+            position: "absolute", inset: 0, background: "rgba(26,15,0,0.5)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            zIndex: 50, padding: 20,
+          }}
+          onClick={() => setSignOutConfirm(false)}
+        >
+          <div
+            style={{ width: "100%", maxWidth: 320, background: T.cream, borderRadius: T.radius.xl, padding: "26px 22px" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontFamily: T.fontTitle, fontSize: T.fontSize.xxl, color: T.ink, textAlign: "center", marginBottom: 18 }}>
+              ログアウトしますか？
+            </div>
+            <ModalActionButtons
+              onCancel={() => setSignOutConfirm(false)}
+              onConfirm={() => { setSignOutConfirm(false); onSignOut(); }}
+              confirmLabel="ログアウト"
+            />
+          </div>
+        </div>
+      )}
 
       {/* 利用規約モーダル：画面遷移せずアプリ内で表示を完結させる。
           今後ここに注意事項を追記していく。 */}

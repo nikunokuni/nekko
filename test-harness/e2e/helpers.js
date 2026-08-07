@@ -120,7 +120,7 @@ export async function signUp(page) {
   // 登録直後はリカバリーコードのモーダルが必ず出る（閉じないと他が押せない）
   await page.getByRole("button", { name: /保存しました/ }).click();
   await dismissOnboarding(page);
-  await expect(page.getByRole("button", { name: /新規/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "新しいツリーを作る" })).toBeVisible();
   return id;
 }
 
@@ -212,7 +212,7 @@ export async function login(page, { foreignTrees = [], username } = {}) {
   }, { dbKey: MOCK_DB_KEY, authKey: MOCK_AUTH_KEY, db, user });
 
   await page.goto("/");
-  await expect(page.getByRole("button", { name: /新規/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "新しいツリーを作る" })).toBeVisible();
   return id;
 }
 
@@ -249,7 +249,7 @@ export async function earnedTrophyCount(page) {
 
 // ツリーを1つ作ってマップ画面まで進む。作ったツリーのIDを返す。
 export async function createTree(page, name) {
-  await page.getByRole("button", { name: /新規/ }).click();
+  await page.getByRole("button", { name: "新しいツリーを作る" }).click();
   await page.locator("input[type=text], input:not([type])").first().fill(name);
   await page.getByRole("button", { name: /作成|つくる|保存|OK/ }).last().click();
   await page.waitForURL(/\/tree\/[0-9a-f-]+$/);

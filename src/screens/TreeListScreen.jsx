@@ -491,33 +491,33 @@ function TreeCard({ tree, onOpen, onEdit, onDelete, onMemoSave }) {
 // ══════════════════════════════════════════════════════════════════
 // TreeList: ツリー一覧画面
 // ══════════════════════════════════════════════════════════════════
-export function TreeList({ trees, profile, onOpen, onPublic, onSearch, onKifus, onTrophy, onSettings, onNewTree, onSignOut, onDeleteTree, onEditTree, onPublish, onUnpublish, onSetCollaborative, onMemoSave }) {
+// ログアウトはここには置かない。1日に何度も押すものではないうえ、
+// 押し間違えると全部が見えなくなる。行き先のボタンが並ぶ場所ではなく、
+// 設定画面の一番下（＝わざわざ取りに行く場所）へ移した
+export function TreeList({ trees, profile, onOpen, onPublic, onSearch, onKifus, onTrophy, onSettings, onNewTree, onDeleteTree, onEditTree, onPublish, onUnpublish, onSetCollaborative, onMemoSave }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editTarget,      setEditTarget]      = useState(null);
   const [deleteTarget,    setDeleteTarget]    = useState(null);
-  const [signOutConfirm,  setSignOutConfirm]  = useState(false); // 誤タップでの即ログアウトを防ぐ確認
 
   const activeTrees   = trees.filter((t) =>  t.active);
   const inactiveTrees = trees.filter((t) => !t.active);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: T.cream }}>
-      {/* ── ヘッダー ── */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px 12px", borderBottom: `0.5px solid rgba(26,15,0,0.12)` }}>
-        {/* アプリ名は縮めない・折り返さない。
-            flex の既定では右のボタン列に押されてここが縮み、「ねっこ」が
-            2行になっていた（3文字なのに2行だと、名前として読めない）。
-            右側は下の flexWrap で逃がす */}
-        <div style={{ flexShrink: 0 }}>
-          <div style={{ fontFamily: T.fontTitle, fontSize: "1.375rem", color: T.ink, letterSpacing: "0.14em", whiteSpace: "nowrap" }}>
-            ね<span style={{ color: T.gold }}>っ</span>こ
-          </div>
-          {profile && (
-            <div style={{ fontSize: T.fontSize.md, color: T.inkFaint, marginTop: 2 }}>
-              {profile.display_name || profile.username}
-            </div>
-          )}
+      {/* ── ヘッダー ──
+          アプリ名の行と、行き先のボタンの行を分ける。
+          1行に押し込んでいた頃は、アプリ名に押されてボタンが 17px まで縮み、
+          指で押すには小さすぎた（アプリ名も3文字で2行に折り返していた）。
+          2行にすれば、ボタンは幅を等分して大きく取れる。 */}
+      <div style={{ padding: "14px 18px 10px", borderBottom: `0.5px solid rgba(26,15,0,0.12)` }}>
+        <div style={{ fontFamily: T.fontTitle, fontSize: "1.375rem", color: T.ink, letterSpacing: "0.14em", whiteSpace: "nowrap" }}>
+          ね<span style={{ color: T.gold }}>っ</span>こ
         </div>
+        {profile && (
+          <div style={{ fontSize: T.fontSize.md, color: T.inkFaint, marginTop: 2 }}>
+            {profile.display_name || profile.username}
+          </div>
+        )}
 
         {/*
           アイコンだけのボタンには必ず aria-label を付ける。
@@ -525,35 +525,51 @@ export function TreeList({ trees, profile, onOpen, onPublic, onSearch, onKifus, 
             title だけでは不十分：アイコンフォントが ::before で文字を差し込むため、
             名前の計算がそちらに引っ張られて title が無視されることがある。
             aria-label は中身より強いので確実に名前が付く（テストからも指せるようになる）。
+
+          幅は6つで等分する（flex: 1）。指で押す的は 44px 角が目安なので、
+          高さもそこに合わせてある。文字サイズを変えても押しやすさが変わらないよう、
+          的の大きさは rem ではなく px で決める（絵の大きさだけ少し追従させる）。
         */}
-        {/* 文字サイズを「特大」にすると rem がすべて大きくなり、どう詰めても
-            収まらない幅が出る。そのときはここが2行になって逃げる
-            （アプリ名を削るより、ボタンが折り返すほうが読み取れる） */}
-        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
-          <button data-onboard="search" aria-label="ノード検索" title="ノード検索" onClick={onSearch} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "clamp(0.9rem, 1.0625rem, 18px)", padding: 2 }}>
-            <i className="ti ti-search" />
-          </button>
-          <button data-onboard="public" aria-label="みんなのツリー" title="みんなのツリー" onClick={onPublic} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "clamp(0.9rem, 1.0625rem, 18px)", padding: 2 }}>
-            <i className="ti ti-world" />
-          </button>
-          <button data-onboard="kifus" aria-label="棋譜ライブラリ" title="棋譜ライブラリ" onClick={onKifus} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "clamp(0.9rem, 1.0625rem, 18px)", padding: 2 }}>
-            <i className="ti ti-chess" />
-          </button>
-          <button data-onboard="trophy" aria-label="トロフィー" title="トロフィー" onClick={onTrophy} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "clamp(0.9rem, 1.0625rem, 18px)", padding: 2 }}>
-            <i className="ti ti-trophy" />
-          </button>
-          <button data-onboard="settings" aria-label="設定" title="設定" onClick={onSettings} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "clamp(0.85rem, 1rem, 17px)", padding: 2 }}>
-            <i className="ti ti-settings" />
-          </button>
+        <div style={{ display: "flex", gap: 6, alignItems: "stretch", marginTop: 12 }}>
+          {[
+            { key: "search",   label: "ノード検索",     icon: "ti-search",   onClick: onSearch },
+            { key: "public",   label: "みんなのツリー", icon: "ti-world",    onClick: onPublic },
+            { key: "kifus",    label: "棋譜ライブラリ", icon: "ti-chess",    onClick: onKifus },
+            { key: "trophy",   label: "トロフィー",     icon: "ti-trophy",   onClick: onTrophy },
+            { key: "settings", label: "設定",           icon: "ti-settings", onClick: onSettings },
+          ].map((b) => (
+            <button
+              key={b.key}
+              data-onboard={b.key}
+              aria-label={b.label}
+              title={b.label}
+              onClick={b.onClick}
+              style={{
+                flex: 1, minWidth: 0, height: 44,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                background: "none", border: `0.5px solid ${T.inkLine}`, borderRadius: T.radius.md,
+                cursor: "pointer", color: T.gold, fontSize: "clamp(1.125rem, 1.25rem, 24px)", padding: 0,
+              }}
+            >
+              <i className={`ti ${b.icon}`} />
+            </button>
+          ))}
+          {/* 新規作成は文字を外して「＋」だけにする。
+              押した先が「新しいツリーを作成」のモーダルなので、そこで分かる。
+              初回は使い方トーストがこのボタンを指さして案内する（onboarding.jsx） */}
           <button
             data-onboard="new"
+            aria-label="新しいツリーを作る"
+            title="新しいツリーを作る"
             onClick={() => setShowCreateModal(true)}
-            style={{ background: T.gold, border: "none", cursor: "pointer", color: T.cream, fontSize: "clamp(0.8rem, 0.9375rem, 16px)", padding: "5px 10px", borderRadius: T.radius.md, fontFamily: T.fontSerif, display: "flex", alignItems: "center", gap: 3, whiteSpace: "nowrap" }}
+            style={{
+              flex: 1, minWidth: 0, height: 44,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              background: T.gold, border: "none", borderRadius: T.radius.md,
+              cursor: "pointer", color: T.cream, fontSize: "clamp(1.125rem, 1.25rem, 24px)", padding: 0,
+            }}
           >
-            <i className="ti ti-plus" style={{ fontSize: "0.6875rem" }} /> 新規
-          </button>
-          <button aria-label="ログアウト" title="ログアウト" onClick={() => setSignOutConfirm(true)} style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: "clamp(0.85rem, 1rem, 17px)", padding: 2 }}>
-            <i className="ti ti-logout" />
+            <i className="ti ti-plus" />
           </button>
         </div>
       </div>
@@ -564,7 +580,7 @@ export function TreeList({ trees, profile, onOpen, onPublic, onSearch, onKifus, 
           <div style={{ textAlign: "center", padding: "60px 0", color: T.inkFaint, fontSize: T.fontSize.lg }}>
             <i className="ti ti-plant" style={{ fontSize: "2.5rem", display: "block", marginBottom: 12 }} />
             ツリーがまだありません<br />
-            <span style={{ fontSize: T.fontSize.md }}>「新規」から最初のツリーを作りましょう</span>
+            <span style={{ fontSize: T.fontSize.md }}>右上の<i className="ti ti-plus" style={{ fontSize: "0.8125rem", color: T.gold, margin: "0 2px" }} />から最初のツリーを作りましょう</span>
           </div>
         ) : (
           <>
@@ -621,31 +637,6 @@ export function TreeList({ trees, profile, onOpen, onPublic, onSearch, onKifus, 
         />
       )}
 
-      {/* サインアウト確認 */}
-      {signOutConfirm && (
-        <div
-          style={{
-            position: "absolute", inset: 0, background: "rgba(26,15,0,0.5)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            zIndex: 50, padding: 20,
-          }}
-          onClick={() => setSignOutConfirm(false)}
-        >
-          <div
-            style={{ width: "100%", maxWidth: 320, background: T.cream, borderRadius: T.radius.xl, padding: "26px 22px" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ fontFamily: T.fontTitle, fontSize: T.fontSize.xxl, color: T.ink, textAlign: "center", marginBottom: 18 }}>
-              ログアウトしますか？
-            </div>
-            <ModalActionButtons
-              onCancel={() => setSignOutConfirm(false)}
-              onConfirm={() => { setSignOutConfirm(false); onSignOut(); }}
-              confirmLabel="ログアウト"
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

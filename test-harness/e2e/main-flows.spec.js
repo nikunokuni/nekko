@@ -82,40 +82,79 @@ test("存在しないノードIDを開いても落ちない", async ({ page }) =
   await expect(page.getByText("おおもとの戦法").first()).toBeVisible();
 });
 
-test("ヘッダーが横にあふれず、アプリ名も1行のまま", async ({ page }) => {
+test("ツリー一覧のヘッダーは、押しやすい大きさで横幅いっぱいに並ぶ", async ({ page }) => {
   const errors = watchForAppErrors(page);
   await login(page);
 
-  // ヘッダーは flex の space-between。右のボタン列が広いと左のアプリ名が押され、
-  // 3文字の「ねっこ」が2行になっていた。アプリ名側に「縮まない・折り返さない」を
-  // 付けたので**もう折り返しようがない**ぶん、崩れ方が横あふれに変わる。
-  // なので見張るのは1行かどうかだけでなく、**ヘッダーが横にあふれていないか**。
-  // ボタンを足したりアイコンを大きくしたりすると、ここで先に落ちる
-  const logo = page.getByText(/^ね/).first();
-  const header = logo.locator("xpath=ancestor::div[1]/parent::div");
+  // 以前はアプリ名とボタンを1行に押し込んでいて、アプリ名に押されたボタンが
+  // 17px まで縮み、指では押しにくかった（アプリ名も3文字で2行に折り返していた）。
+  // 行を分けて幅を等分したので、ここで見張るのは
+  //   ・アプリ名が1行のまま     ・的が指で押せる大きさ（44px角が目安）
+  //   ・ボタン列が横幅いっぱい  ・ヘッダーが横にあふれない
+  const logo   = page.getByText(/^ね/).first();
+  const first  = page.getByRole("button", { name: "ノード検索" });
+  const last   = page.getByRole("button", { name: "新しいツリーを作る" });
+  const header = logo.locator("xpath=parent::div");
 
-  const ok = async () => {
+  const measure = async () => {
     const size = await logo.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-    const box  = await logo.boundingBox();
-    // 折り返すと高さが2行ぶんになる（行の高さは文字サイズで変わるので比で見る）
-    const oneLine = box.height < size * 1.8;
-    const overflow = await header.evaluate((el) => el.scrollWidth - el.clientWidth);
-    return { oneLine, overflow };
+    const lb = await logo.boundingBox();
+    const fb = await first.boundingBox();
+    const lastB = await last.boundingBox();
+    const hb = await header.boundingBox();
+    return {
+      // 折り返すと高さが2行ぶんになる（行の高さは文字サイズで変わるので比で見る）
+      oneLine:  lb.height < size * 1.8,
+      tall:     fb.height >= 44,
+      wide:     fb.width  >= 40,
+      // 左端から右端まで使えているか（左右の余白18pxぶんだけ内側）
+      fullWidth: fb.x <= 20 && Math.abs((lastB.x + lastB.width) - (hb.x + hb.width - 18)) < 2,
+      overflow: await header.evaluate((el) => el.scrollWidth - el.clientWidth),
+    };
   };
 
-  await expect(logo).toBeVisible();
-  expect(await ok()).toEqual({ oneLine: true, overflow: 0 });
+  const expected = { oneLine: true, tall: true, wide: true, fullWidth: true, overflow: 0 };
+  expect(await measure()).toEqual(expected);
 
-  // 文字サイズ「特大」。アイコンにも上限を付けてあるので、まだ収まる
+  // 文字サイズを変えても、押しやすさは変わらない（的の大きさは px で決めている）
   await page.evaluate(() => localStorage.setItem("nekko_font_scale", "1.3"));
   await page.reload();
   await expect(logo).toBeVisible();
-  expect(await ok()).toEqual({ oneLine: true, overflow: 0 });
+  expect(await measure()).toEqual(expected);
 
-  // 幅の狭い端末（320px）でも収まる
+  // 幅の狭い端末（320px）でも6つ並ぶ
   await page.setViewportSize({ width: 320, height: 700 });
   await page.waitForTimeout(200);
-  expect(await ok()).toEqual({ oneLine: true, overflow: 0 });
+  expect(await measure()).toEqual(expected);
+
+  expect(errors).toEqual([]);
+});
+
+test("ログアウトは設定画面の一番下から、確認をはさんで行う", async ({ page }) => {
+  const errors = watchForAppErrors(page);
+  await login(page);
+
+  // ツリー一覧のヘッダーには置かない。1日に何度も押すものではないうえ、
+  // 行き先のボタンに混ざっていると押し間違えて全部が見えなくなる
+  await expect(page.getByRole("button", { name: "ログアウト" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "設定" }).click();
+  const signOut = page.getByRole("button", { name: "ログアウト" });
+  await signOut.scrollIntoViewIfNeeded();
+  await expect(signOut).toBeVisible();
+
+  // 取り消せない操作なので、必ず一度受け止める
+  await signOut.click();
+  await expect(page.getByText("ログアウトしますか？")).toBeVisible();
+
+  // やめれば設定画面に残る
+  await page.getByRole("button", { name: "キャンセル" }).click();
+  await expect(page.getByText("ログアウトしますか？")).toHaveCount(0);
+
+  // 進めればログイン画面へ戻る
+  await signOut.click();
+  await page.getByRole("button", { name: "ログアウト" }).last().click();
+  await expect(page.getByText("新規登録", { exact: true }).first()).toBeVisible();
 
   expect(errors).toEqual([]);
 });

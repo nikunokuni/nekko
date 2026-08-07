@@ -616,7 +616,7 @@ export default function App() {
             onKifus={() => navigate("/kifus")}
             onTrophy={() => navigate("/trophy")}
             onSettings={() => navigate("/settings")}
-            onNewTree={handleNewTree} onSignOut={handleSignOut}
+            onNewTree={handleNewTree}
             onDeleteTree={handleDeleteTree} onEditTree={handleEditTree}
             onPublish={handlePublishTree} onUnpublish={handleUnpublishTree}
             onSetCollaborative={handleSetCollaborative}
@@ -724,6 +724,7 @@ export default function App() {
             fontScale={fontScale} onFontScaleChange={handleFontScaleChange}
             onResetOnboard={() => { resetOnboard(); navigate("/"); }}
             onRegenerateRecovery={regenerateRecoveryCode}
+            onSignOut={handleSignOut}
             username={profile?.username}
             devStats={devStats}/>
         )}

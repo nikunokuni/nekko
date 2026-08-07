@@ -19,7 +19,7 @@ export const ONBOARD_MESSAGES = {
     <span><i className="ti ti-chess" />棋譜ライブラリ　実戦の棋譜を保存して研究に取り込めます</span>,
     <span><i className="ti ti-trophy" />トロフィー　獲得したトロフィーを見れます</span>,
     <span><i className="ti ti-settings" />設定　文字サイズ変更、使い方はこちら</span>,
-    <span>「<i className="ti ti-plus" />新規」から自分のツリーを作っていきましょう</span>,
+    <span><i className="ti ti-plus" />　自分のツリーはここから作ります</span>,
   ],
   // 棋譜ライブラリに初めて来たとき、保存方法・タグ・ノードへの取り込みを案内する
   kifus: [
