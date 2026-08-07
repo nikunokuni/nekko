@@ -81,3 +81,41 @@ test("存在しないノードIDを開いても落ちない", async ({ page }) =
   await page.goto(`/tree/${treeId}`);
   await expect(page.getByText("おおもとの戦法").first()).toBeVisible();
 });
+
+test("ヘッダーが横にあふれず、アプリ名も1行のまま", async ({ page }) => {
+  const errors = watchForAppErrors(page);
+  await login(page);
+
+  // ヘッダーは flex の space-between。右のボタン列が広いと左のアプリ名が押され、
+  // 3文字の「ねっこ」が2行になっていた。アプリ名側に「縮まない・折り返さない」を
+  // 付けたので**もう折り返しようがない**ぶん、崩れ方が横あふれに変わる。
+  // なので見張るのは1行かどうかだけでなく、**ヘッダーが横にあふれていないか**。
+  // ボタンを足したりアイコンを大きくしたりすると、ここで先に落ちる
+  const logo = page.getByText(/^ね/).first();
+  const header = logo.locator("xpath=ancestor::div[1]/parent::div");
+
+  const ok = async () => {
+    const size = await logo.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+    const box  = await logo.boundingBox();
+    // 折り返すと高さが2行ぶんになる（行の高さは文字サイズで変わるので比で見る）
+    const oneLine = box.height < size * 1.8;
+    const overflow = await header.evaluate((el) => el.scrollWidth - el.clientWidth);
+    return { oneLine, overflow };
+  };
+
+  await expect(logo).toBeVisible();
+  expect(await ok()).toEqual({ oneLine: true, overflow: 0 });
+
+  // 文字サイズ「特大」。アイコンにも上限を付けてあるので、まだ収まる
+  await page.evaluate(() => localStorage.setItem("nekko_font_scale", "1.3"));
+  await page.reload();
+  await expect(logo).toBeVisible();
+  expect(await ok()).toEqual({ oneLine: true, overflow: 0 });
+
+  // 幅の狭い端末（320px）でも収まる
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.waitForTimeout(200);
+  expect(await ok()).toEqual({ oneLine: true, overflow: 0 });
+
+  expect(errors).toEqual([]);
+});

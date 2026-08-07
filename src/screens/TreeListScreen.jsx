@@ -504,8 +504,12 @@ export function TreeList({ trees, profile, onOpen, onPublic, onSearch, onKifus, 
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: T.cream }}>
       {/* ── ヘッダー ── */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px 12px", borderBottom: `0.5px solid rgba(26,15,0,0.12)` }}>
-        <div>
-          <div style={{ fontFamily: T.fontTitle, fontSize: "1.375rem", color: T.ink, letterSpacing: "0.2em" }}>
+        {/* アプリ名は縮めない・折り返さない。
+            flex の既定では右のボタン列に押されてここが縮み、「ねっこ」が
+            2行になっていた（3文字なのに2行だと、名前として読めない）。
+            右側は下の flexWrap で逃がす */}
+        <div style={{ flexShrink: 0 }}>
+          <div style={{ fontFamily: T.fontTitle, fontSize: "1.375rem", color: T.ink, letterSpacing: "0.14em", whiteSpace: "nowrap" }}>
             ね<span style={{ color: T.gold }}>っ</span>こ
           </div>
           {profile && (
@@ -522,30 +526,33 @@ export function TreeList({ trees, profile, onOpen, onPublic, onSearch, onKifus, 
             名前の計算がそちらに引っ張られて title が無視されることがある。
             aria-label は中身より強いので確実に名前が付く（テストからも指せるようになる）。
         */}
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <button data-onboard="search" aria-label="ノード検索" title="ノード検索" onClick={onSearch} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
+        {/* 文字サイズを「特大」にすると rem がすべて大きくなり、どう詰めても
+            収まらない幅が出る。そのときはここが2行になって逃げる
+            （アプリ名を削るより、ボタンが折り返すほうが読み取れる） */}
+        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <button data-onboard="search" aria-label="ノード検索" title="ノード検索" onClick={onSearch} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "clamp(0.9rem, 1.0625rem, 18px)", padding: 2 }}>
             <i className="ti ti-search" />
           </button>
-          <button data-onboard="public" aria-label="みんなのツリー" title="みんなのツリー" onClick={onPublic} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
+          <button data-onboard="public" aria-label="みんなのツリー" title="みんなのツリー" onClick={onPublic} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "clamp(0.9rem, 1.0625rem, 18px)", padding: 2 }}>
             <i className="ti ti-world" />
           </button>
-          <button data-onboard="kifus" aria-label="棋譜ライブラリ" title="棋譜ライブラリ" onClick={onKifus} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
+          <button data-onboard="kifus" aria-label="棋譜ライブラリ" title="棋譜ライブラリ" onClick={onKifus} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "clamp(0.9rem, 1.0625rem, 18px)", padding: 2 }}>
             <i className="ti ti-chess" />
           </button>
-          <button data-onboard="trophy" aria-label="トロフィー" title="トロフィー" onClick={onTrophy} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.25rem", padding: 2 }}>
+          <button data-onboard="trophy" aria-label="トロフィー" title="トロフィー" onClick={onTrophy} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "clamp(0.9rem, 1.0625rem, 18px)", padding: 2 }}>
             <i className="ti ti-trophy" />
           </button>
-          <button data-onboard="settings" aria-label="設定" title="設定" onClick={onSettings} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1.125rem", padding: 2 }}>
+          <button data-onboard="settings" aria-label="設定" title="設定" onClick={onSettings} style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "clamp(0.85rem, 1rem, 17px)", padding: 2 }}>
             <i className="ti ti-settings" />
           </button>
           <button
             data-onboard="new"
             onClick={() => setShowCreateModal(true)}
-            style={{ background: T.gold, border: "none", cursor: "pointer", color: T.cream, fontSize: T.fontSize.lg, padding: "6px 14px", borderRadius: T.radius.md, fontFamily: T.fontSerif, display: "flex", alignItems: "center", gap: 4 }}
+            style={{ background: T.gold, border: "none", cursor: "pointer", color: T.cream, fontSize: "clamp(0.8rem, 0.9375rem, 16px)", padding: "5px 10px", borderRadius: T.radius.md, fontFamily: T.fontSerif, display: "flex", alignItems: "center", gap: 3, whiteSpace: "nowrap" }}
           >
-            <i className="ti ti-plus" style={{ fontSize: "0.8125rem" }} /> 新規
+            <i className="ti ti-plus" style={{ fontSize: "0.6875rem" }} /> 新規
           </button>
-          <button aria-label="ログアウト" title="ログアウト" onClick={() => setSignOutConfirm(true)} style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: "1.125rem", padding: 2 }}>
+          <button aria-label="ログアウト" title="ログアウト" onClick={() => setSignOutConfirm(true)} style={{ background: "none", border: "none", cursor: "pointer", color: T.inkFaint, fontSize: "clamp(0.85rem, 1rem, 17px)", padding: 2 }}>
             <i className="ti ti-logout" />
           </button>
         </div>
