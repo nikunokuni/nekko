@@ -6,7 +6,7 @@
 //   統計はすべてコードで計算し、断定的な助言は書かない
 //   （数字を出すところまでが機械の仕事で、理由を書くのは利用者の仕事）。
 // ══════════════════════════════════════════════════════════════════
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { T } from "../theme";
 import { SectionLabel } from "../components/uiParts";
 import {
@@ -203,6 +203,8 @@ export function KifuInsight({ userId, trees = [], onBack, onGoSettings, onSendTo
   // 再生に必要な盤面（snapshots）は開くときに1件だけ取りに行く
   const [previewKifu,    setPreviewKifu]    = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  // 集計のもとが読めなかった。「棋譜がまだ足りない」と描き分ける
+  const [loadError,      setLoadError]      = useState(false);
 
   const playerNames = getKifuPlayerNames();
 
@@ -210,15 +212,25 @@ export function KifuInsight({ userId, trees = [], onBack, onGoSettings, onSendTo
   // ここまで来たこと自体をトロフィーの達成にする
   useEffect(() => { recordAction("insight"); }, []);
 
-  const load = () => {
+  // 集計のもとになる棋譜の読み込み。
+  // **失敗を黙って空にしない** ―― この画面が空だと「棋譜がまだ足りない」と
+  // 読めてしまい、取れているはずの傾向が出ない理由に永久にたどり着けない
+  const load = useCallback(() => {
     if (!userId) return;
     setLoading(true);
-    fetchKifusForAnalysis(userId).then(({ data }) => {
-      setKifus((data || []).map(kifuRowToKifu));
+    fetchKifusForAnalysis(userId).then(({ data, error }) => {
       setLoading(false);
+      if (error) {
+        setLoadError(true);
+        showToast("棋譜の取得に失敗しました。通信環境を確認してください。",
+          { action: { label: "もう一度読む", onClick: load } });
+        return;
+      }
+      setLoadError(false);
+      setKifus((data || []).map(kifuRowToKifu));
     });
-  };
-  useEffect(load, [userId]);
+  }, [userId]);
+  useEffect(load, [load]);
 
   // ── 掘り下げ（傾向の行 → その戦型の実戦 → 再生 → ツリーへ）──
   // 数字を見て終わりにせず、そのまま実戦を開いて枝の材料にできるようにする。
@@ -405,7 +417,27 @@ export function KifuInsight({ userId, trees = [], onBack, onGoSettings, onSendTo
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", padding: "16px 18px 40px" }}>
-        {loading ? EMPTY("読み込み中…") : (
+        {loading ? EMPTY("読み込み中…") : loadError ? (
+          /* 読めなかったのを空と同じ見た目にすると「棋譜がまだ足りない」と読まれ、
+             傾向が出ない理由に永久にたどり着けない */
+          <div style={{ padding: "40px 0", textAlign: "center", color: T.inkFaint, fontSize: T.fontSize.lg, lineHeight: 1.8 }}>
+            <i className="ti ti-cloud-off" style={{ fontSize: "2rem", display: "block", marginBottom: 10 }} />
+            棋譜を読み込めませんでした<br />
+            <span style={{ fontSize: T.fontSize.md }}>ためた棋譜が消えたわけではありません</span>
+            <button
+              onClick={load}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                margin: "18px auto 0", padding: "9px 16px", borderRadius: T.radius.md,
+                border: `0.5px solid ${T.gold}`, background: "transparent",
+                color: T.gold, cursor: "pointer", fontSize: T.fontSize.base, fontFamily: T.fontSerif,
+              }}
+            >
+              <i className="ti ti-refresh" style={{ fontSize: "0.875rem" }} />
+              もう一度読む
+            </button>
+          </div>
+        ) : (
           <>
             {/* ── 自分の名前が未登録なら最初に案内する ── */}
             {playerNames.length === 0 && (

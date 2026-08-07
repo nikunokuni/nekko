@@ -62,3 +62,43 @@ test("読み込みに失敗したら、やり直せる知らせが出る", async
   const unexpected = errors.filter((e) => !e.includes("fetchKifu error"));
   expect(unexpected).toEqual([]);
 });
+
+test("棋譜の一覧が読めなかったときは、空にせず知らせる", async ({ page }) => {
+  const errors = watchForAppErrors(page);
+  await login(page);
+
+  // 棋譜の select だけを失敗させる。
+  // 本物でこの形になるのは「列を1つ足して migration を流し忘れた」とき。
+  // このとき件数だけを取る問い合わせは通るので、**トロフィーには件数が出ているのに
+  // 一覧と傾向画面だけが空**という、原因の分からない状態になる（実際に起きた）
+  await page.evaluate(() => localStorage.setItem("nekko_mock_fail_select", "kifus"));
+
+  // ── 棋譜ライブラリ ──
+  await page.goto("/kifus");
+  // 開発ビルドは StrictMode で effect が2回走るため、同じ知らせが2枚出る
+  // （本番ビルドでは1枚）。ここで見たいのは中身なので先頭だけを見る
+  const toast = page.getByRole("alert").first();
+  await expect(toast).toContainText("棋譜の取得に失敗しました");
+  await expect(toast.getByRole("button", { name: "もう一度読む" })).toBeVisible();
+  // 「まだ1件も無い」と読ませない。ここが一番まずい間違い方で、
+  // DBには残っているのに消えたと読まれ、直す手がかりも無くなる
+  await expect(page.getByText("保存した棋譜がまだありません")).toHaveCount(0);
+  await expect(page.getByText("棋譜を読み込めませんでした")).toBeVisible();
+  await expect(page.getByText("保存した棋譜が消えたわけではありません")).toBeVisible();
+
+  // ── 傾向画面 ──
+  // ここも空にせず知らせる。この画面が空だと「棋譜がまだ足りない」と読めてしまい、
+  // 取れているはずの傾向が出ない理由にたどり着けない
+  await page.goto("/kifus/insight");
+  await expect(page.getByRole("alert").first()).toContainText("棋譜の取得に失敗しました");
+  await expect(page.getByText("棋譜を読み込めませんでした")).toBeVisible();
+
+  // ── 直ったら、もう一度読むで戻る ──
+  await page.evaluate(() => localStorage.removeItem("nekko_mock_fail_select"));
+  await page.getByRole("button", { name: "もう一度読む" }).first().click();
+  await expect(page.getByText("棋譜を読み込めませんでした")).toHaveCount(0);
+
+  // わざと失敗させているので、db.js が出すログはあって当然
+  const unexpected = errors.filter((e) => !/fetchMyKifus error|fetchKifusForAnalysis error/.test(e));
+  expect(unexpected).toEqual([]);
+});

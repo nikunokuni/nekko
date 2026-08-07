@@ -10,7 +10,7 @@
 //     KifuPreviewModal… 保存済み棋譜の再生
 //     EditKifuModal   … 名前・タグ・メモの変更
 // ══════════════════════════════════════════════════════════════════
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { T } from "../theme";
 import { ConfirmDeleteModal } from "../components/uiParts";
 import { recordAction, getCustomTagsByGroup, addCustomTag, addKifuPlayerName } from "../rewards";
@@ -158,6 +158,8 @@ export function KifuList({ userId, trees = [], onBack, onInsight, onGoSettings, 
   const [previewLoading,  setPreviewLoading]  = useState(false);
   const [editTarget,      setEditTarget]      = useState(null);
   const [deleteTarget,    setDeleteTarget]    = useState(null);
+  // 一覧を読めなかった。空とは別物として扱う（下の描き分けを参照）
+  const [loadError,       setLoadError]       = useState(false);
   // しおりが残っている棋譜だけを見る（作業の続きを探すため）
   const [bookmarkOnly,    setBookmarkOnly]    = useState(false);
   // 戦法タグはノード編集画面と同じユーザー資産（profiles）を共有する
@@ -169,16 +171,27 @@ export function KifuList({ userId, trees = [], onBack, onInsight, onGoSettings, 
     recordAction("customTag");
   };
 
-  useEffect(() => {
+  // 一覧の読み込み。**失敗を黙って空にしない**のがここの要。
+  // 空の一覧は「まだ1件も無い」のと見分けが付かないので、
+  // 棋譜がDBに残っていても「消えた」と読まれる。
+  // 実際、列を1つ足して migration を流し忘れたときに、
+  // 一覧も傾向画面も静かに空になり、原因が分からない状態になった
+  const loadKifus = useCallback(() => {
     if (!userId) return;
-    let cancelled = false;
-    fetchMyKifus(userId).then(({ data }) => {
-      if (cancelled) return;
-      setKifus((data || []).map(kifuRowToKifu));
+    setLoading(true);
+    fetchMyKifus(userId).then(({ data, error }) => {
       setLoading(false);
+      if (error) {
+        setLoadError(true);
+        showToast("棋譜の取得に失敗しました。通信環境を確認してください。",
+          { action: { label: "もう一度読む", onClick: loadKifus } });
+        return;
+      }
+      setLoadError(false);
+      setKifus((data || []).map(kifuRowToKifu));
     });
-    return () => { cancelled = true; };
   }, [userId]);
+  useEffect(loadKifus, [loadKifus]);
 
   // 取り込み（1件でも複数件でも同じ経路を通る）。
   // 保存できた件数を返し、途中で失敗しても残りの保存は続ける
@@ -364,6 +377,27 @@ export function KifuList({ userId, trees = [], onBack, onInsight, onGoSettings, 
         {loading ? (
           <div style={{ textAlign: "center", padding: "60px 0", color: T.inkFaint, fontSize: T.fontSize.base }}>
             読み込み中...
+          </div>
+        ) : loadError ? (
+          /* 読めなかったときに「まだありません」と出すのが一番まずい。
+             DBには残っているのに消えたと読まれ、しかも直す手がかりが何も無い。
+             空（まだ1件も無い）とは必ず描き分ける */
+          <div style={{ textAlign: "center", padding: "60px 0", color: T.inkFaint, fontSize: T.fontSize.lg, lineHeight: 1.8 }}>
+            <i className="ti ti-cloud-off" style={{ fontSize: "2.5rem", display: "block", marginBottom: 12 }} />
+            棋譜を読み込めませんでした<br />
+            <span style={{ fontSize: T.fontSize.md }}>保存した棋譜が消えたわけではありません</span>
+            <button
+              onClick={loadKifus}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                margin: "20px auto 0", padding: "9px 16px", borderRadius: T.radius.md,
+                border: `0.5px solid ${T.gold}`, background: "transparent",
+                color: T.gold, cursor: "pointer", fontSize: T.fontSize.base, fontFamily: T.fontSerif,
+              }}
+            >
+              <i className="ti ti-refresh" style={{ fontSize: "0.875rem" }} />
+              もう一度読む
+            </button>
           </div>
         ) : kifus.length === 0 ? (
           <div style={{ textAlign: "center", padding: "60px 0", color: T.inkFaint, fontSize: T.fontSize.lg }}>

@@ -115,6 +115,22 @@ class Query {
     const db = loadDb();
     let data = null, error = null, count = null;
 
+    // ── 読み込みの失敗を意図的に起こす（E2E用）──
+    //   localStorage の nekko_mock_fail_select にテーブル名を入れておくと、
+    //   そのテーブルの select だけが失敗する。
+    //   本物で起きるのは「列を1つ足して migration を流し忘れた」ときで、
+    //   このとき select は行ごと失敗する（列が無いので当然）。
+    //   モックは列の有無を見ないため、その形の失敗はここでしか作れない。
+    //   件数だけを取る問い合わせ（head:true）は列を並べないので巻き込まない
+    //   ―― 本物でもそちらは通り、「数字はあるのに一覧が空」になる
+    if (this.op === "select" && !this.opts.head) {
+      let failTable = null;
+      try { failTable = localStorage.getItem("nekko_mock_fail_select"); } catch { /* 読めなければ無効 */ }
+      if (failTable && failTable === this.table) {
+        return { data: null, error: { code: "42703", message: `column does not exist (mock: ${this.table})` }, count: null };
+      }
+    }
+
     if (this.op === "select") {
       let rows = this._rows(db);
       for (const { col, ascending } of [...this.orders].reverse()) {
