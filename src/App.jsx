@@ -624,7 +624,7 @@ export default function App() {
         )}
         {screen==="trophy" && (() => {
           const acts = getActions();
-          // 「できた」の数と掘った深さは、一覧の埋め込みノード
+          // 「完成」の数と掘った深さは、一覧の埋め込みノード
           // （id / status / is_root / parent_id）だけで数えられる。
           // トロフィーのためだけに全ノードを取り直さない
           const doneCount = myTrees.reduce(

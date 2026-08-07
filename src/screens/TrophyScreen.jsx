@@ -43,7 +43,7 @@ export function TrophyScreen({ onBack, treeCount, nodeCount, kifuCount = 0, done
     { icon: "ti-binary-tree",  label: "ツリー",      value: treeCount, unit: "個" },
     { icon: "ti-git-branch",   label: "ノード",      value: nodeCount, unit: "個" },
     { icon: "ti-file-stack",   label: "棋譜",        value: kifuCount, unit: "局" },
-    { icon: "ti-circle-check", label: "できた",      value: doneCount, unit: "個" },
+    { icon: "ti-circle-check", label: "完成",        value: doneCount, unit: "個" },
     { icon: "ti-calendar",     label: "累計ログイン", value: totalDays, unit: "日" },
     { icon: "ti-flame",        label: "連続ログイン", value: streak,    unit: "日" },
   ];

@@ -367,9 +367,9 @@ export const BADGE_DEFS = [
   { id: "kifu-50",  icon: "ti-books",      color: "#1a5276", label: "棋譜の蓄え",   desc: "棋譜を50局ためる",  check: (s) => s.kifuCount >= 50,  progress: (s) => ({ current: s.kifuCount, max: 50  }) },
   { id: "kifu-300", icon: "ti-database",   color: "#A93226", label: "傾向が見える", desc: "棋譜を300局ためる（傾向分析が見る上限）", check: (s) => s.kifuCount >= 300, progress: (s) => ({ current: s.kifuCount, max: 300 }) },
 
-  // 「できた」と「次にやりたいこと」は、このアプリで唯一**減る／終わる**もの。
+  // ステータス「完成」と「次にやりたいこと」は、このアプリで唯一**減る／終わる**もの。
   // 増やすだけのバッジばかりだと、やりきったことが何にも表れない
-  { id: "done-10",   icon: "ti-circle-check", color: "#3B6D11", label: "やりきった",         desc: "ステータスを「できた」にしたノードを10個", check: (s) => s.doneCount >= 10, progress: (s) => ({ current: s.doneCount, max: 10 }) },
+  { id: "done-10",   icon: "ti-circle-check", color: "#3B6D11", label: "やりきった",         desc: "ステータスを「完成」にしたノードを10個", check: (s) => s.doneCount >= 10, progress: (s) => ({ current: s.doneCount, max: 10 }) },
   { id: "next-done", icon: "ti-flag-check",   color: "#3B6D11", label: "やりたいを片づける", desc: "「次にやりたいこと」を書いて、片づける",   check: (s) => !!s.hasNextDone },
 
   // 「ノード150個」は横に広げるだけでも取れる。掘った深さは別の軸。
