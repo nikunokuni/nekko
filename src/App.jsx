@@ -392,8 +392,30 @@ export default function App() {
     setActiveTree((prev) => setMergeParentsTree(prev, nodeId, mergeParentIds));
   };
 
+  // ── 子ノードが親から引き継ぐ戦法タグ ──────────────
+  // ツリーは「親の条件を引き継いで細かくする」構造なので、タグも引き継ぐのが
+  // 本来の姿。子が分かれる軸はたいてい「相手の囲い」で、そのとき親の
+  // 相手の戦法・自分の戦法はそのまま正しい。
+  //
+  // 手間を減らすためだけの仕掛けではない：branchCandidates は situation /
+  // myApproach で対局を絞り込むので、**タグが埋まるほど分岐の候補が当たる**。
+  //
+  // 引き継いだタグに印は付けない。「継承かどうか」の状態をノードに増やすと、
+  // 以後ずっと「これは自分で付けた？引き継いだ？」を気にすることになる。
+  // 違っていればその場で外せるので、普通のタグとして扱う。
+  //
+  // 「とりあえず」（置き場）には引き継がない。中身を持たせる場所ではないので、
+  // タグが付くと検索・集計に置き場が混ざるだけになる。
+  const inheritedTags = (parentId, extraFields = {}) => {
+    if (extraFields.isInbox) return {};
+    const parent = activeTree?.nodes?.[parentId];
+    if (!parent || parent.isInbox) return {};
+    return { situation: parent.situation || [], myApproach: parent.myApproach || [] };
+  };
+
   // extraFields は「分岐の候補」から作るときに、ノード名・相手の戦法・
-  // いつ使う を最初から埋めるために渡す（白紙のノードを作る動線と共用）
+  // いつ使う を最初から埋めるために渡す（白紙のノードを作る動線と共用）。
+  // 引き継ぎより extraFields が優先される（候補は相手の戦法を名指しで決めるため）
   const handleNewNode = async (parentId, extraFields = {}) => {
     if (!activeTree || !session) return;
     const { data: newNode } = await createNode({
@@ -403,6 +425,7 @@ export default function App() {
       label:    "新しいノード",
       status:   "wip",
       sortOrder: nextSortOrder(activeTree, parentId),
+      ...inheritedTags(parentId, extraFields),
       ...extraFields,
     });
     if (!newNode) { showToast("ノードの追加に失敗しました。もう一度お試しください。"); return; }
@@ -423,6 +446,8 @@ export default function App() {
       label:     "新しいノード",
       status:    "wip",
       sortOrder: nextSortOrder(activeTree, parentNodeId),
+      // 棋譜の途中から分けた枝も、同じ対局の続きなので親の戦法タグを引き継ぐ
+      ...inheritedTags(parentNodeId),
       ...extraFields,
     });
     if (!newNode) { showToast("分岐ノードの追加に失敗しました。もう一度お試しください。"); return; }

@@ -183,11 +183,15 @@ export function NodeSearch({ userId, trees, onBack, onOpenNode }) {
 
           {/* 並び替え */}
           <div style={{ display: "flex", gap: 6, marginLeft: "auto", flexWrap: "wrap" }}>
+            {/* 押せるものは button で作る。div のままだとキーボードや読み上げから
+                たどれず、名前も付かない（E2Eからも「文字」でしか指せず、
+                同じ言葉が結果一覧にも出た瞬間に指せなくなる） */}
             {NODE_SORTS.map((o) => (
-              <div key={o.key} onClick={() => setSortKey(o.key)} style={filterChipStyle(sortKey === o.key)}>
+              <button key={o.key} onClick={() => setSortKey(o.key)}
+                aria-pressed={sortKey === o.key} style={filterChipStyle(sortKey === o.key)}>
                 {o.icon && <i className={`ti ${o.icon}`} style={{ fontSize: "0.6875rem" }} />}
                 {o.label}
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -208,9 +212,10 @@ export function NodeSearch({ userId, trees, onBack, onOpenNode }) {
             {tagsOpen && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
                 {allTags.map((t) => (
-                  <div key={t} onClick={() => setTagFilter((prev) => toggleIn(prev, t))} style={filterChipStyle(tagFilter.includes(t))}>
+                  <button key={t} onClick={() => setTagFilter((prev) => toggleIn(prev, t))}
+                    aria-pressed={tagFilter.includes(t)} style={filterChipStyle(tagFilter.includes(t))}>
                     {t}
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
