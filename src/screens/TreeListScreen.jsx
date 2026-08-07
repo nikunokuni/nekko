@@ -547,7 +547,10 @@ export function TreeList({ trees, profile, onOpen, onPublic, onSearch, onKifus, 
               style={{
                 flex: 1, minWidth: 0, height: 44,
                 display: "flex", alignItems: "center", justifyContent: "center",
-                background: "none", border: `0.5px solid ${T.inkLine}`, borderRadius: T.radius.md,
+                // 枠は描かない（絵だけが並ぶ見た目に戻す）。
+                // ただし**押せる範囲は枠があった頃のまま**にしてある ――
+                // 見えない的を小さくすると、見た目は同じなのに押しにくさだけが戻る
+                background: "none", border: "none", borderRadius: T.radius.md,
                 cursor: "pointer", color: T.gold, fontSize: "clamp(1.125rem, 1.25rem, 24px)", padding: 0,
               }}
             >
