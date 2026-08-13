@@ -1,0 +1,85 @@
+# Supabase の一時停止よけ。1日1回、いちばん軽いクエリを1本だけ投げる。
+#
+#   無料プランは「7日間まったくリクエストが無い」とプロジェクトを一時停止する。
+#   止まると復帰はダッシュボードからの手動操作で、アプリ側からは何もできない
+#   ―― 利用者から見ると「ある日ログインできなくなったアプリ」になる。
+#
+#   実際には誰かが週1回アプリを開けば止まらない（ログイン済みで開くだけで
+#   profiles / trees / nodes / kifus に7本ほど読みに行く）。ただしそれは
+#   「誰かが必ず開く」ことに賭けている状態で、旅行や忙しい週で1回抜けると止まる。
+#   利用者の行動に依存させないために、ここで機械が代わりに叩く。
+name: Keep-alive
+
+on:
+  schedule:
+    # 毎日 03:17 UTC（日本時間 12:17）。7日の猶予に対して3日おきでも計算は合うが、
+    # GitHub の cron は混雑時に遅れる・丸ごと飛ぶことがあるので毎日にしてある。
+    # 1回あたりリクエスト1本・実行10秒ほどなので、頻度を上げても負担はほぼ無い。
+    # 半端な分（:17）なのは、毎時0分がいちばん混んで遅延しやすいため。
+    - cron: "17 3 * * *"
+  # 止まりかけを手で確かめたいとき用（Actions タブから実行できる）
+  workflow_dispatch:
+
+# 遅延で前回分と重なっても、同時に2本走らせる意味は無い
+concurrency:
+  group: keepalive
+  cancel-in-progress: false
+
+# 何も読み書きしないので権限は要らない（既定の write を明示的に外す）
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    # 通信の待ちしか無いので、詰まったら早めに諦める
+    timeout-minutes: 5
+    steps:
+      - name: Ping Supabase REST
+        env:
+          SUPABASE_URL:      ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+
+          # 秘密が未設定のまま緑になるのが一番まずい。
+          # 「見張っているつもりで何も投げていない」状態は、
+          # 止まってから初めて分かる（＝手遅れになってから分かる）ので、
+          # 未設定はここで落とす。
+          if [ -z "${SUPABASE_URL}" ] || [ -z "${SUPABASE_ANON_KEY}" ]; then
+            echo "::error::SUPABASE_URL / SUPABASE_ANON_KEY が未設定です。リポジトリの Settings → Secrets and variables → Actions に登録してください（値は .env の VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY と同じ）。"
+            exit 1
+          fi
+
+          # 末尾の / があってもURLが壊れないようにしておく
+          url="${SUPABASE_URL%/}/rest/v1/trees?select=id&limit=1"
+          body="$(mktemp)"
+
+          # trees を1行だけ読む。anon キーなので RLS に弾かれて中身は空で返るが、
+          # それでかまわない ―― 欲しいのはデータではなく「Postgres まで問い合わせが
+          # 届いた」という事実のほう。空配列が返る＝ちゃんと届いている。
+          for attempt in 1 2 3; do
+            status="$(curl -sS -m 30 -o "${body}" -w "%{http_code}" \
+              -H "apikey: ${SUPABASE_ANON_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+              -H "Accept: application/json" \
+              "${url}")" || status="000"
+
+            if [ "${status}" = "200" ]; then
+              echo "OK (HTTP 200) ―― Supabase に届きました"
+              exit 0
+            fi
+
+            echo "attempt ${attempt}: HTTP ${status}"
+            head -c 500 "${body}" || true
+            echo
+
+            if [ "${attempt}" -lt 3 ]; then
+              sleep $((attempt * 15))
+            fi
+          done
+
+          # 3回とも駄目なら、届いていないか設定が違う。
+          # 応答本文には PostgREST の説明（permission denied 等）が入っているので、
+          # 上のログをそのまま読めば原因が分かる。
+          echo "::error::Supabase に届きませんでした（最後の応答: HTTP ${status}）。プロジェクトが既に一時停止していないか、キーが失効していないかを確認してください。"
+          exit 1
