@@ -435,6 +435,28 @@ export default function App() {
     navigate(`/tree/${activeTree.id}/node/${newNode.id}`);
   };
 
+  // ── マップから枝を1本足す（画面は移らない）──
+  // handleNewNode との違いは「名前をここで受け取り、詳細画面へ飛ばない」ことだけ。
+  // マップ上で続けて足せるようにするため、追加のたびに画面が切り替わらない形にする。
+  // 戻り値の ID は、追加した枝へマップを寄せるのに使う
+  const handleQuickAddNode = async (parentId, fields = {}) => {
+    if (!activeTree || !session || !parentId) return null;
+    const { data: newNode } = await createNode({
+      treeId:   activeTree.id,
+      userId:   treeOwnerId(activeTree),
+      parentId,
+      label:    "新しいノード",
+      status:   "wip",
+      sortOrder: nextSortOrder(activeTree, parentId),
+      ...inheritedTags(parentId, fields),
+      ...fields,
+    });
+    if (!newNode) { showToast("ノードの追加に失敗しました。もう一度お試しください。"); return null; }
+    setActiveTree(prev => addNode(prev, nodeRowToNode(newNode)));
+    setNodeCount(c => c + 1);
+    return newNode.id;
+  };
+
   // ── 分岐ノード作成の共通処理（DB作成＋ローカルマージ＋新ノードへ遷移）──
   // 「この局面で分岐」と「範囲切り出し」で共用する。差分は extraFields で渡す
   const createBranchNode = async (parentNodeId, extraFields) => {
@@ -679,7 +701,8 @@ export default function App() {
             canUndoReparent={reparentStack.length > 0} onUndoReparent={handleUndoReparent}
             onMemoSave={handleMemoSave}
             canEditTree={isOwnTree}
-            collabGuest={isCollabGuest} onReload={handleReloadTree}/>
+            collabGuest={isCollabGuest} onReload={handleReloadTree}
+            onQuickAdd={handleQuickAddNode} fontScale={fontScale}/>
         )}
         {screen==="node" && activeTree && activeNodeId && activeTree.nodes[activeNodeId] && (
           <NodeDetail tree={activeTree} trees={myTrees} nodeId={activeNodeId} userId={session.user.id}
@@ -741,7 +764,8 @@ export default function App() {
         {screen==="publicPreview" && activeTree && (
           <PublicTreePreview tree={activeTree}
             onBack={() => navigate("/public")}
-            onCopy={() => handleCopyTree(activeTree.id)}/>
+            onCopy={() => handleCopyTree(activeTree.id)}
+            fontScale={fontScale}/>
         )}
       </div>
     </div>

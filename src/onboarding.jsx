@@ -38,14 +38,9 @@ export const ONBOARD_MESSAGES = {
     <span>ノードを<b>タップ</b>で編集</span>,
     <span><b>ドラッグ</b>で分岐のつなぎ替え</span>,
     <span>つなぎ替えを間違えたら、左下に出る<b>「元に戻す」</b>で戻せます</span>,
-    <span>
-      <span style={{ display: "inline-flex", flexDirection: "column", gap: 2.5, verticalAlign: "middle", margin: "0 4px" }}>
-        {[0, 1, 2].map((i) => (
-          <span key={i} style={{ display: "block", width: 3.5, height: 3.5, borderRadius: "50%", background: "#c8a96e" }} />
-        ))}
-      </span>
-      　タップで目次を表示
-    </span>,
+    // 目次は「目次」と書いたボタンになったので、説明を1枚使わない。
+    // 空いた1枚を、いちばん回数の多い操作（枝を足す）に回す
+    <span><b>＋</b>　どのノードからでも分岐を足せます（ノード名だけで作れます）</span>,
   ],
   node: [
     <span><b>きほん</b>　相手の戦法と自分の戦法を入力</span>,
@@ -79,7 +74,7 @@ export const ONBOARD_TARGETS = {
   // 棋譜ライブラリは「棋譜を保存」「棋譜入力」を指さし、タグ・取り込みの説明は中央に出す
   kifus: ["kifu-save", "kifu-record", null, null],
   // つなぎ替えの「元に戻す」は付け替え後にしか出ないボタンなので指さし対象なし
-  map:  ["map-node", "map-node", null, "map-menu"],
+  map:  ["map-node", "map-node", null, "map-add"],
   // 後半2枚は特定のボタンの説明ではないので指さしせず、中央に出す
   node: ["kihon", "kifu-import", "tsuika", "children", null, null],
   board: ["board-tmpl", "board-hide", "board-undo", "board-delete", "board-move", "board-stamp", "board-erase", "board-kifu"],
@@ -89,6 +84,7 @@ export const ONBOARD_TARGETS = {
 const ONBOARD_TARGET_OPTS = {
   tsuika:   { block: "start" },           // 「ついか」を画面上部に出す
   children: { block: "center", dir: "down" }, // 「子ノード」は下にあるので下向きの指で指す
+  "map-add": { dir: "down" },                 // ＋は画面の右下。上から指す（下からだと画面の外）
 };
 
 // ── 表示ロジック ─────────────────────────────────

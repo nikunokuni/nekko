@@ -29,6 +29,54 @@ export const TRUNK_HEAD = 11;
 /** 畳み状態が空のときに使い回す集合（毎レンダリングで新しい Set を作らない） */
 export const NO_HIDDEN = new Set();
 
+/**
+ * ツリー全体が画面に収まる拡大率と原点を返す（収まらなければ縮める）。
+ *
+ * ここに置いてあるのは、これが「見えているかどうか」を決める座標計算だから。
+ * 画面の中に書くと、切れているかどうかを目で見るしかなくなる
+ * （切れていても画面は落ちず、端のノードが無いように見えるだけ）。
+ *
+ * @param positions layoutTree が返すノードIDごとの座標
+ * @param width/height  マップ領域の大きさ（px）
+ * @param maxScale  これ以上は拡大しない上限。利用者の文字サイズ設定を渡す。
+ *                  小さいツリーを画面いっぱいに引き伸ばしても読みやすくならないので、
+ *                  拡大は上限まで、縮小だけを必要なぶん行う
+ * @param minScale  これ以上は縮めない下限（縮めすぎると字が読めない）
+ * @param top       ツリーの上に空けておく余白。ルートの上には成長アイコンが乗るので、
+ *                  0 にするとそれが画面の外に出る
+ * @returns {{ scale, offset:{x,y}, raw }} ／ 計算できないときは null。
+ *          raw は下限で丸める前の「全部入れるのに必要な倍率」。
+ *          呼び側が「この倍率まで縮むなら全体表示はやめる」を判断するために返す
+ */
+export function fitView(positions, { width, height, padding = 20, top = 0, minScale = 0.4, maxScale = 1 } = {}) {
+  const list = Object.values(positions);
+  if (list.length === 0 || !width || !height) return null;
+
+  const minX = Math.min(...list.map((p) => p.x));
+  const maxX = Math.max(...list.map((p) => p.x)) + NODE_W;
+  const minY = Math.min(...list.map((p) => p.y)) - top;
+  const maxY = Math.max(...list.map((p) => p.y)) + NODE_H;
+  const w = maxX - minX;
+  const h = maxY - minY;
+
+  const raw   = Math.min((width - padding * 2) / w, (height - padding * 2) / h);
+  const scale = Math.max(minScale, Math.min(maxScale, raw));
+
+  // 横は中央。縦は「入るなら上に寄せる」。
+  // 木は上から下へ伸びるので、縦に余った分を上下へ均等に配ると
+  // ルートが画面の真ん中まで下がり、上半分が空いたまま下が詰まって見える。
+  // 入りきらないときだけ中央に寄せて、はみ出しを上下に均等にする（片側だけ切れるより探しやすい）
+  const fitsVertically = h * scale <= height - padding * 2;
+  return {
+    scale,
+    raw,
+    offset: {
+      x: (width  - w * scale) / 2 - minX * scale,
+      y: (fitsVertically ? padding : (height - h * scale) / 2) - minY * scale,
+    },
+  };
+}
+
 /** 志向ごとのエッジ色（攻め=赤 / 受け=青 / バランス=緑 / 不明=グレー） */
 const ORIENTATION_LINE_COLOR = {
   "攻め":     ORIENTATION_META["攻め"].color,

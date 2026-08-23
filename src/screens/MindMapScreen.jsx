@@ -4,11 +4,20 @@
 // ══════════════════════════════════════════════════════════════════
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { Accordion, SummaryList } from "../components";
+import { InputField, ModalActionButtons } from "../components/uiParts";
 import { STATUS_META, USAGE_META, ORIENTATION_META } from "../data";
 import { collapsedHiddenIds, visibleAnchor, subtreeCounts } from "../treeOps";
-import { layoutTree, findInboxId, NODE_W, NODE_H } from "../mapLayout";
+import { layoutTree, findInboxId, fitView, NODE_W, NODE_H } from "../mapLayout";
 import { readCollapsed, writeCollapsed } from "../mapView";
-import { T } from "../theme";
+import { T, MODAL_OVERLAY_STYLE, MODAL_SHEET_STYLE } from "../theme";
+
+/** SVGの中の文字の大きさ。
+    マップの文字はSVGの数値指定なので、rem で書いてある画面の文字と違って
+    文字サイズ設定（ルートの font-size）が効かない。設定を「特大」にしても
+    いちばん読みたいノード名だけが小さいまま、という状態になっていた。
+    枠の大きさは変えない（変えると枝の間隔まで動いてツリーの形が変わる）ので、
+    大きくした分だけ名前は早く「…」で切れる ―― 画面の他の場所と同じ取引にする。 */
+const svgFont = (px, fontScale) => px * fontScale;
 
 /** ステータス別のノード枠線・テキスト色 */
 const STATUS_NODE = {
@@ -40,7 +49,7 @@ function truncateLabel(label, maxWidth, fontSize) {
 // collabGuest : 他人の「みんなで編集」ツリーを開いている（＝自分の一覧には無い）
 // onReload    : 最新の内容を読み直す。みんなで編集ツリーは他の人の変更が
 //               自動では降ってこない（後から保存したほうが残る）ので、追いつく手段を出す
-export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparent, onUndoReparent, onMemoSave, readOnly = false, canEditTree = true, collabGuest = false, onReload }) {
+export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparent, onUndoReparent, onMemoSave, readOnly = false, canEditTree = true, collabGuest = false, onReload, onQuickAdd, fontScale = 1 }) {
   const [drawerOpen,   setDrawerOpen]   = useState(false);
   const [memoValue,    setMemoValue]    = useState(tree?.quickMemo || "");
   const [canvasOffset, setCanvasOffset] = useState({ x: 20, y: 20 });
@@ -50,6 +59,12 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
   const [nodeDrag,     setNodeDrag]     = useState(null); // 親付け替え中のノードID
   const [dropTarget,   setDropTarget]   = useState(null); // ドロップ先候補ノードID
   const [drawerTab,    setDrawerTab]    = useState("index"); // ドロワー: "index" | "summary"
+  // 分岐の追加：＋ を押す → 親をタップで選ぶ（addPicking）→ 名前を入れる（addParentId）
+  const [addPicking,   setAddPicking]   = useState(false);
+  const [addParentId,  setAddParentId]  = useState(null);
+  const [addLabel,     setAddLabel]     = useState("");
+  const [addWhenToUse, setAddWhenToUse] = useState("");
+  const [adding,       setAdding]       = useState(false);
   // 畳んでいるまとめノード。DBには持たず端末ローカル（mapView.js）に置く
   const [collapsed,    setCollapsed]    = useState(() => readCollapsed(tree?.id));
   const dragStart    = useRef(null);
@@ -59,9 +74,13 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
   const nodeDragRef  = useRef(null);  // window リスナーから最新値を読むため
   const dropTargetRef = useRef(null);
   const pendingJumpRef = useRef(null); // 畳みを開いてから飛ぶノード（座標が出るのを待つ）
+  const pendingFocusRef = useRef(null); // 足したばかりの枝（座標が出たら見えるところへ寄せる）
 
   const MIN_SCALE = 0.4;
   const MAX_SCALE = 2.5;
+  // 開いたときに全体表示へ切り替える下限。これより縮む＝字が読めないので、
+  // 全体を見せるより「ルートから辿れる」ほうを優先する（◎ を押せばいつでも全体に寄せられる）
+  const FIT_ON_OPEN_MIN = 0.62;
   const clampScale = (s) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, s));
 
   // ズームのアンカー計算用に最新の scale / offset を ref でも保持する
@@ -221,7 +240,10 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
   };
 
   const startNodeDrag = (id, clientX, clientY) => {
-    const noMove = readOnly || id === rootId; // 閲覧専用とルートは付け替え不可（クリック選択のみ）
+    // 追加モード中はタップの意味が変わる（＝どのノードにつけるかを選ぶ）。
+    // 付け替えのドラッグも止める。選んでいる最中に木が動くと、
+    // 何を選んだのか分からなくなる
+    const noMove = readOnly || addPicking || id === rootId; // 閲覧専用とルートは付け替え不可（クリック選択のみ）
     const dd = { id, exclude: noMove ? new Set() : descendantsOf(id), startX: clientX, startY: clientY, moved: false, noMove };
     nodeDragRef.current = dd;
     setNodeDrag(id);
@@ -241,7 +263,8 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
     const handleUp = () => {
       const target = dropTargetRef.current;
       if (!dd.moved) {
-        onNodeSelect(dd.id); // 動いていなければ通常の選択
+        if (addPicking) { setAddPicking(false); setAddParentId(dd.id); }
+        else onNodeSelect(dd.id); // 動いていなければ通常の選択
       } else if (!dd.noMove && target && target !== nodes[dd.id]?.parentId && typeof onReparent === "function") {
         onReparent(dd.id, target);
         // 畳んだ束へ入れたときは開く。入れたのに中が見えないと、
@@ -304,13 +327,35 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
     });
   }, [positions, rootId, viewCenterX]);
 
-  // 初回マウント時にルートを表示する
+  /** ツリー全体が入るように寄せる（座標計算は mapLayout.js の fitView）。
+      上限は文字サイズ設定。小さいツリーを画面いっぱいに引き伸ばしても読みやすくならない */
+  const fitToView = useCallback(({ minRaw = 0 } = {}) => {
+    const r = mapRef.current?.getBoundingClientRect();
+    const fit = fitView(positions, {
+      width: r?.width, height: r?.height,
+      minScale: MIN_SCALE, maxScale: 1,
+      top: 46,   // ルートの上に乗る成長アイコンのぶん
+    });
+    // minRaw を下回る＝字が読めない倍率まで縮めないと入らない。寄せずに呼び側へ返す
+    if (!fit || fit.raw < minRaw) return false;
+    setScale(fit.scale);
+    setCanvasOffset(fit.offset);
+    return true;
+  }, [positions]);
+
+  // 初回マウント時の表示。
+  //   以前はルートを上部中央に置くだけだったので、枝が3つを超えると
+  //   開いた瞬間に端が画面の外にあり、毎回指で探すことになっていた。
+  //   ただし「全部入れる」を突き詰めると、大きいツリーでは字が読めない倍率になる。
+  //   読める範囲（FIT_ON_OPEN_MIN）で収まるときだけ全体を見せ、
+  //   それより大きいツリーは今までどおりルートから始める（＝上から辿れる）。
   const didInitViewRef = useRef(false);
   useEffect(() => {
     if (didInitViewRef.current) return;
+    if (Object.keys(positions).length === 0) return;   // まだ座標が無い（読み込み中）
     didInitViewRef.current = true;
-    centerOnRoot(1);
-  }, [centerOnRoot]);
+    if (!fitToView({ minRaw: FIT_ON_OPEN_MIN })) centerOnRoot(1);
+  }, [positions, fitToView, centerOnRoot]);
 
   // ── ドラッグ操作（マウス） ──────────────────────
   const onMouseDown = useCallback((e) => {
@@ -408,6 +453,41 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
     });
   }, [positions, scale, nodes, expandAncestors, viewCenterX]);
 
+  // ── マップから分岐を足す ────────────────────────
+  // ここに無いと、枝を1本足すのに「ノードを開く → 下までスクロール →
+  // 分岐を追加 → 名前を直す」の4手がかかり、兄弟をもう1本足すには親まで戻ることになる。
+  // 木を育てるのがこのアプリの中心の動作なので、いちばん回数の多い操作を地図の上に置く。
+  const addParent = addParentId ? nodes[addParentId] : null;
+
+  const closeAdd = () => {
+    setAddPicking(false); setAddParentId(null);
+    setAddLabel(""); setAddWhenToUse("");
+  };
+
+  const handleCreateBranch = async () => {
+    const label = addLabel.trim();
+    if (!label || adding || typeof onQuickAdd !== "function") return;
+    setAdding(true);
+    const newId = await onQuickAdd(addParentId, { label, whenToUse: addWhenToUse.trim() });
+    setAdding(false);
+    closeAdd();
+    // 足した枝の座標が付くのは次の描画。付いてから見えるところへ寄せる
+    // （どこに増えたのか見えないと、足せたかどうか分からない）
+    if (newId) { expandAncestors(addParentId); pendingFocusRef.current = newId; }
+  };
+
+  // 足した枝の座標が付いたら、それが見えるようにする。
+  // 全体が入るツリーなら寄せ直さず全体表示のままにする（同じ絵に1本増えたと分かる）。
+  // 入りきらないときだけ、足した枝そのものへ飛ぶ
+  useEffect(() => {
+    const id = pendingFocusRef.current;
+    if (!id || !positions[id]) return;
+    pendingFocusRef.current = null;
+    setAnimate(true);
+    if (!fitToView({ minRaw: FIT_ON_OPEN_MIN })) jumpToNode(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [positions]);
+
   // 畳みを開いた結果あらためて座標が付いたら、待たせておいたジャンプを実行する
   useEffect(() => {
     const id = pendingJumpRef.current;
@@ -461,16 +541,24 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
             読み直す
           </button>
         )}
-        {/* 目次ドロワーを開く3点ドット */}
-        <div
+        {/* 目次ドロワーを開く。
+            以前は3点ドットだったが、あれは一般に「その他メニュー」の記号で、
+            目次だとは読まれない（読まれないので使い方トーストで説明していた）。
+            ドロワーの中のタブ名（目次／まとめ）と同じ言葉を出せば、
+            押す前と後で呼び名が一致し、記号の解釈をさせずに済む */}
+        <button
           data-onboard="map-menu"
           onClick={() => setDrawerOpen(true)}
-          style={{ display: "flex", flexDirection: "column", gap: 3.5, cursor: "pointer", padding: "6px 4px" }}
+          style={{
+            display: "flex", alignItems: "center", cursor: "pointer",
+            padding: "5px 12px", borderRadius: T.radius.md,
+            border: `0.5px solid ${T.inkLine}`, background: "transparent",
+            color: T.gold, fontFamily: T.fontSerif, fontSize: T.fontSize.md,
+            flexShrink: 0,
+          }}
         >
-          {[0, 1, 2].map((i) => (
-            <span key={i} style={{ display: "block", width: 3.5, height: 3.5, borderRadius: "50%", background: T.gold }} />
-          ))}
-        </div>
+          目次
+        </button>
       </div>
 
       {/* ── みんなで編集の帯 ──
@@ -538,7 +626,7 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
                     <text
                       x={tr.x + tick.dir * 12} y={tick.y - 3}
                       textAnchor={tick.dir < 0 ? "end" : "start"}
-                      fontSize={8} fill={T.inkMid} fontFamily={T.fontSerif}
+                      fontSize={svgFont(8, fontScale)} fill={T.inkMid} fontFamily={T.fontSerif}
                     >
                       {tick.label}
                     </text>
@@ -666,7 +754,7 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
                       })()}
                       <text
                         x={rx + 4} y={ry + h + 11}
-                        fontSize={9} fill={T.gold} fontFamily={T.fontSerif}
+                        fontSize={svgFont(9, fontScale)} fill={T.gold} fontFamily={T.fontSerif}
                       >
                         ＋{counts.total}
                       </text>
@@ -697,7 +785,7 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
                       <text
                         x={rx + w - 5} y={ry + h + 3.5}
                         textAnchor="middle" dominantBaseline="middle"
-                        fontSize={11} fill={T.gold} fontFamily={T.fontSerif}
+                        fontSize={svgFont(11, fontScale)} fill={T.gold} fontFamily={T.fontSerif}
                       >
                         {isCollapsed ? "＋" : "−"}
                       </text>
@@ -714,13 +802,13 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
                     x={cx}
                     y={isRoot ? cy - 5 : cy}
                     textAnchor="middle" dominantBaseline="middle"
-                    fontSize={isRoot ? 14 : 11 * usageScale}
+                    fontSize={svgFont(isRoot ? 14 : 11 * usageScale, fontScale)}
                     fontWeight={isRoot ? 600 : 500}
                     fill={isRoot ? "#3d2000" : s.text}
                     fontFamily={T.fontSerif}
                   >
                     {/* 枠に入る分だけ表示（はみ出す分は「…」に置き換え） */}
-                    {truncateLabel(node.label, w - 10, isRoot ? 14 : 11 * usageScale)}
+                    {truncateLabel(node.label, w - 10, svgFont(isRoot ? 14 : 11 * usageScale, fontScale))}
                   </text>
 
                   {/* ルートノードのサブラベル */}
@@ -728,7 +816,7 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
                     <text
                       x={cx} y={cy + 10}
                       textAnchor="middle" dominantBaseline="middle"
-                      fontSize={9} fill={T.gold} fontFamily={T.fontSerif}
+                      fontSize={svgFont(9, fontScale)} fill={T.gold} fontFamily={T.fontSerif}
                     >
                       おおもとの戦法
                     </text>
@@ -768,21 +856,24 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
         }}>
           {[
             // ＋/− は画面中央を基準にズームする（見ている場所が流れないように）
-            { icon: "ti-plus",  onClick: () => {
+            { icon: "ti-plus", label: "拡大", onClick: () => {
               const r = mapRef.current?.getBoundingClientRect();
               setAnimate(true);
               zoomAt(scaleRef.current + 0.2, (r?.width ?? 0) / 2, (r?.height ?? 0) / 2);
             } },
-            { icon: "ti-minus", onClick: () => {
+            { icon: "ti-minus", label: "縮小", onClick: () => {
               const r = mapRef.current?.getBoundingClientRect();
               setAnimate(true);
               zoomAt(scaleRef.current - 0.2, (r?.width ?? 0) / 2, (r?.height ?? 0) / 2);
             } },
-            { icon: "ti-focus-2", onClick: () => { setAnimate(true); setScale(1); centerOnRoot(1); } },
+            // 全体が入る倍率に寄せる。以前はルートに戻すだけで、
+            // 画面の外にある枝は結局ドラッグで探すしかなかった
+            { icon: "ti-focus-2", label: "全体を表示", onClick: () => { setAnimate(true); fitToView(); } },
           ].map((b, i) => (
             <button
               key={b.icon}
               onClick={b.onClick}
+              aria-label={b.label}
               style={{
                 width: 38, height: 38, border: "none",
                 borderTop: i > 0 ? `0.5px solid ${T.inkLine}` : "none",
@@ -795,6 +886,49 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
             </button>
           ))}
         </div>
+
+        {/* ── 分岐を追加（右下）── */}
+        {/* 押す → どのノードにつけるかをタップで選ぶ → 名前を入れる、の順。
+            ズームは左下なので、指の当たる場所を分けて誤爆を避ける */}
+        {!readOnly && typeof onQuickAdd === "function" && !addPicking && !addParentId && (
+          <button
+            data-onboard="map-add"
+            onClick={() => { setAddPicking(true); setDrawerOpen(false); }}
+            aria-label="分岐を追加"
+            style={{
+              position: "absolute", right: 18, bottom: 18, zIndex: 15,
+              width: 52, height: 52, borderRadius: "50%", border: "none",
+              background: T.gold, color: T.cream, cursor: "pointer",
+              fontSize: "1.375rem", display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 2px 10px rgba(26,15,0,0.2)",
+            }}
+          >
+            <i className="ti ti-plus" />
+          </button>
+        )}
+
+        {/* 選んでいる最中の帯。何を待たれているのかを画面に出しておかないと、
+            タップしても詳細が開かないのが不具合に見える */}
+        {addPicking && (
+          <div style={{
+            position: "absolute", left: 12, right: 12, top: 12, zIndex: 16,
+            display: "flex", alignItems: "center", gap: 10,
+            padding: "10px 14px", borderRadius: T.radius.md,
+            background: T.gold, color: T.cream,
+            fontFamily: T.fontSerif, fontSize: T.fontSize.md, lineHeight: 1.6,
+            boxShadow: "0 2px 10px rgba(26,15,0,0.2)",
+          }}>
+            <span style={{ flex: 1 }}>どのノードから分岐しますか（ノードをタップ）</span>
+            <button
+              onClick={() => setAddPicking(false)}
+              style={{
+                background: "transparent", border: `0.5px solid ${T.cream}`, borderRadius: T.radius.sm,
+                color: T.cream, padding: "4px 10px", cursor: "pointer",
+                fontFamily: T.fontSerif, fontSize: T.fontSize.sm, flexShrink: 0,
+              }}
+            >やめる</button>
+          </div>
+        )}
 
         {/* 親付け替えのUndoボタン（このマインドマップを開いてからの操作を1手ずつ戻せる） */}
         {canUndoReparent && (
@@ -852,7 +986,7 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
                 { key: "index",   label: "目次" },
                 { key: "summary", label: "まとめ" },
               ].map((t) => (
-                <span
+                <button
                   key={t.key}
                   onClick={() => setDrawerTab(t.key)}
                   style={{
@@ -861,12 +995,19 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
                     letterSpacing: "0.15em",
                     cursor:       "pointer",
                     color:        drawerTab === t.key ? T.ink : T.inkFaint,
+                    // 下線だけ残したいので、border の一括指定と borderBottom を混ぜない
+                    // （混ぜると React が「shorthand と longhand の同居」を警告する）
+                    borderTop:    "none",
+                    borderLeft:   "none",
+                    borderRight:  "none",
                     borderBottom: drawerTab === t.key ? `1.5px solid ${T.gold}` : "1.5px solid transparent",
-                    paddingBottom: 2,
+                    borderRadius: 0,
+                    background:   "transparent",
+                    padding:      "0 0 2px",
                   }}
                 >
                   {t.label}
-                </span>
+                </button>
               ))}
             </div>
             <button onClick={() => setDrawerOpen(false)} aria-label="閉じる" style={{ background: "none", border: "none", cursor: "pointer", color: T.gold, fontSize: "1rem" }}>
@@ -961,6 +1102,43 @@ export function MindMap({ tree, onNodeSelect, onBack, onReparent, canUndoReparen
           </div>
         ))}
       </div>
+
+      {/* ── 追加する枝の名前を入れる ──
+          必須はノード名だけ。「いつ使う」を一緒に聞くのは、後から書きに戻る人が
+          ほとんどいないため（作った瞬間がいちばん覚えている）。
+          残りの項目は今までどおりノード編集画面で足す */}
+      {addParent && (
+        <div style={MODAL_OVERLAY_STYLE} onClick={closeAdd}>
+          <div style={MODAL_SHEET_STYLE} onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontFamily: T.fontTitle, fontSize: T.fontSize.h, color: T.ink, marginBottom: 6 }}>
+              分岐を追加
+            </div>
+            <div style={{ fontSize: T.fontSize.sm, color: T.inkMid, fontFamily: T.fontSerif, marginBottom: 16 }}>
+              「{addParent.label}」の下に作ります
+            </div>
+
+            <InputField
+              label="ノード名"
+              value={addLabel}
+              onChange={setAddLabel}
+              placeholder="例：4六銀左急戦"
+            />
+            <InputField
+              label="いつ使う（任意）"
+              value={addWhenToUse}
+              onChange={setAddWhenToUse}
+              placeholder="例：相手が急戦できたとき"
+            />
+
+            <ModalActionButtons
+              onCancel={closeAdd}
+              onConfirm={handleCreateBranch}
+              confirmLabel={adding ? "追加中…" : "追加する"}
+              disabled={!addLabel.trim() || adding}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

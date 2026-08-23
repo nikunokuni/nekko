@@ -372,7 +372,7 @@ function NodeViewSheet({ node, onClose }) {
 // PublicTreePreview: 公開ツリーの中身（マップ＋ノード）を閲覧する画面
 //   編集操作は一切できない。気に入ったらそのままコピーできる
 // ──────────────────────────────────────────────────
-export function PublicTreePreview({ tree, onBack, onCopy }) {
+export function PublicTreePreview({ tree, onBack, onCopy, fontScale = 1 }) {
   const [viewNodeId, setViewNodeId] = useState(null);
   const [copying,    setCopying]    = useState(false);
   const [copied,     setCopied]     = useState(false);
@@ -391,7 +391,7 @@ export function PublicTreePreview({ tree, onBack, onCopy }) {
 
   return (
     <div style={{ height: "100%", position: "relative" }}>
-      <MindMap tree={tree} readOnly onNodeSelect={setViewNodeId} onBack={onBack} />
+      <MindMap tree={tree} readOnly onNodeSelect={setViewNodeId} onBack={onBack} fontScale={fontScale} />
 
       {/* コピー（右下フローティング）。凡例バーと重ならない位置に置く */}
       <button

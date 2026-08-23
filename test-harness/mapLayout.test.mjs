@@ -4,7 +4,7 @@
 // ここで押さえたいのは「絵として破綻しないこと」。とくに
 // **子は必ず親より下に来る**は、崩れても画面は落ちず矢印が上を向くだけなので、
 // 目で見つけるしかない類の壊れ方をする。
-import { layoutTree, findInboxId, NODE_W, NODE_H, BRANCH_STEP } from "../src/mapLayout.js";
+import { layoutTree, findInboxId, fitView, NODE_W, NODE_H, BRANCH_STEP } from "../src/mapLayout.js";
 
 let pass = 0, fail = 0;
 const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -187,6 +187,58 @@ function makeTrunk() {
     `a=${positions.a.y} box=${positions.box.y}`);
   check("ルートから置き場への線は引かない", edges.every((e) => e.to !== "box"));
   check("置き場の中身は描く", !!positions.k);
+}
+
+// ══════════════════════════════════════════════════
+// 全体が入る倍率（fitView）
+//   マップを開いた瞬間に端のノードが切れていても画面は落ちないので、
+//   「入っているか」は数字で押さえる。
+// ══════════════════════════════════════════════════
+{
+  // 葉4枚 ＝ 横 (110+16)*3 + 110 = 488px。幅412pxのスマホには入らない
+  const nodes = {
+    root: n("root", null, ["a", "b", "c", "d"], { isRoot: true }),
+    a: n("a", "root", []), b: n("b", "root", []),
+    c: n("c", "root", []), d: n("d", "root", []),
+  };
+  const { positions } = layoutTree(nodes, "root");
+  const view = { width: 412, height: 700, maxScale: 1 };
+
+  const fit = fitView(positions, view);
+  // 収まっているか＝全ノードの画面座標が枠の中にあるか、で確かめる
+  const inside = Object.values(positions).every((p) => {
+    const x0 = fit.offset.x + p.x * fit.scale;
+    const y0 = fit.offset.y + p.y * fit.scale;
+    return x0 >= 0 && y0 >= 0
+        && x0 + NODE_W * fit.scale <= view.width
+        && y0 + NODE_H * fit.scale <= view.height;
+  });
+  check("入りきらないツリーは縮めて全部入れる", fit.scale < 1 && inside,
+    `scale=${fit.scale}`);
+
+  // 小さいツリーを画面いっぱいに引き伸ばさない（上限＝利用者の文字サイズ）
+  const small = layoutTree({ root: n("root", null, [], { isRoot: true }) }, "root");
+  check("収まるツリーは拡大しない", fitView(small.positions, view).scale === 1);
+  check("拡大の上限は呼び側が決める（maxScale）",
+    fitView(small.positions, { ...view, maxScale: 1.3 }).scale === 1.3);
+
+  // 縦に余っても中央には置かない（木は上から下へ伸びるので、上に寄せる）
+  check("縦に余るときはルートを上に寄せる",
+    fit.offset.y + positions.root.y * fit.scale < view.height / 3,
+    `y=${fit.offset.y}`);
+
+  // ルートの上には成長アイコンが乗る。top を空けないと画面の外に出る
+  const withTop = fitView(positions, { ...view, top: 46 });
+  check("上の余白（成長アイコン）を空ける",
+    withTop.offset.y + (positions.root.y - 46) * withTop.scale >= 0);
+
+  // raw ＝ 下限で丸める前の必要倍率。呼び側の「ここまで縮むなら全体表示はやめる」判断に使う
+  check("raw は下限で丸める前の必要倍率を返す",
+    fitView(positions, { ...view, minScale: 0.9 }).scale === 0.9
+    && fitView(positions, { ...view, minScale: 0.9 }).raw < 0.9);
+
+  check("座標が無いときは null（呼び側が既定の表示に落とせる）",
+    fitView({}, view) === null && fitView(positions, { width: 0, height: 0 }) === null);
 }
 
 console.log(`\n=== ${pass}/${pass + fail} passed ===`);

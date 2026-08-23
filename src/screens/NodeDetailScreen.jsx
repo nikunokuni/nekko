@@ -1188,16 +1188,17 @@ export function NodeDetail({ tree, trees = [], nodeId, userId, collabGuest = fal
             <div style={{ padding: "0 16px 12px" }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {parent && (
-                  <div
+                  <button
+                    type="button"
                     onClick={() => saveAndNavigate(() => onNodeSelect(parent.id))}
-                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: T.radius.sm, border: `0.5px solid ${T.inkLine}`, background: T.cream, cursor: "pointer" }}
+                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: T.radius.sm, border: `0.5px solid ${T.inkLine}`, background: T.cream, cursor: "pointer", width: "100%", boxSizing: "border-box", textAlign: "left", font: "inherit" }}
                     onMouseEnter={(e) => (e.currentTarget.style.background = T.goldLight)}
                     onMouseLeave={(e) => (e.currentTarget.style.background = T.cream)}
                   >
                     <i className="ti ti-corner-left-up" style={{ fontSize: "0.875rem", color: T.gray }} />
                     <span style={{ fontSize: T.fontSize.base, color: T.ink, flex: 1 }}>{parent.label}</span>
                     <i className="ti ti-chevron-right" style={{ fontSize: "0.875rem", color: T.gray }} />
-                  </div>
+                  </button>
                 )}
                 {parent && node.branchFromMoveIndex != null && (
                   <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px" }}>
@@ -1772,10 +1773,11 @@ export function NodeDetail({ tree, trees = [], nodeId, userId, collabGuest = fal
               // マップでは幹の目盛りが同じことを示している
               const mv = (node.kifu || []).length > 0 ? child.branchFromMoveIndex : null;
               return (
-                <div
+                <button
                   key={child.id}
+                  type="button"
                   onClick={() => saveAndNavigate(() => onNodeSelect(child.id))}
-                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: T.radius.sm, border: `0.5px solid ${T.inkLine}`, background: T.cream, cursor: "pointer" }}
+                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: T.radius.sm, border: `0.5px solid ${T.inkLine}`, background: T.cream, cursor: "pointer", width: "100%", boxSizing: "border-box", textAlign: "left", font: "inherit" }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = T.goldLight)}
                   onMouseLeave={(e) => (e.currentTarget.style.background = T.cream)}
                 >
@@ -1799,19 +1801,20 @@ export function NodeDetail({ tree, trees = [], nodeId, userId, collabGuest = fal
                   {child.isMergeTarget && <MergeTag />}
                   <StatusChip status={child.status} />
                   <i className="ti ti-chevron-right" style={{ fontSize: "0.875rem", color: T.gray }} />
-                </div>
+                </button>
               );
             })}
 
            {/* 分岐追加ボタン */}
-            <div
+            <button
+              type="button"
               onClick={() => saveAndNavigate(() => onNewNode(nodeId))}
-              style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: T.radius.sm, border: `0.5px dashed ${T.inkLine}`, cursor: "pointer", color: T.gold, fontSize: T.fontSize.base }}
+              style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: T.radius.sm, border: `0.5px dashed ${T.inkLine}`, cursor: "pointer", color: T.gold, fontSize: T.fontSize.base, background: "transparent", width: "100%", boxSizing: "border-box", textAlign: "left", fontFamily: "inherit" }}
               onMouseEnter={(e) => (e.currentTarget.style.background = T.goldLight)}
               onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
             >
               <i className="ti ti-git-branch" style={{ fontSize: "0.875rem" }} />ここから分岐を追加
-            </div>
+            </button>
 
             {/* ── 「とりあえず」を作り直す ──
                 ルートにだけ出す。置き場を消してしまったときの復活手段 */}
