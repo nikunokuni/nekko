@@ -437,10 +437,36 @@ export function KifuInsight({ userId, trees = [], onBack, onGoSettings, onSendTo
               もう一度読む
             </button>
           </div>
+        ) : kifus.length === 0 ? (
+          /* 棋譜が0件のときにフィルタ・観点10個・「0%」まで並べると、
+             使える機能が揃っているのに全部空、という画面になる。
+             しかも「どちらが自分か判定できていません」まで出るが、
+             判定すべき棋譜がまだ無い（＝直しようのない指摘）。
+             ここでは次にやること1つだけを出す */
+          <div style={{ padding: "40px 0", textAlign: "center", color: T.inkFaint, fontSize: T.fontSize.lg, lineHeight: 1.8 }}>
+            <i className="ti ti-chart-histogram" style={{ fontSize: "2rem", display: "block", marginBottom: 10 }} />
+            棋譜がまだありません<br />
+            <span style={{ fontSize: T.fontSize.md }}>実戦の棋譜を保存すると、勝率と傾向がここに出ます</span>
+            <button
+              onClick={onBack}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                margin: "18px auto 0", padding: "9px 16px", borderRadius: T.radius.md,
+                border: `0.5px solid ${T.gold}`, background: "transparent",
+                color: T.gold, cursor: "pointer", fontSize: T.fontSize.base, fontFamily: T.fontSerif,
+              }}
+            >
+              <i className="ti ti-chess" style={{ fontSize: "0.875rem" }} />
+              棋譜ライブラリへ
+            </button>
+          </div>
         ) : (
           <>
-            {/* ── 自分の名前が未登録なら最初に案内する ── */}
-            {playerNames.length === 0 && (
+            {/* ── 自分の名前が未登録で、そのせいで集計に載っていない棋譜があるときだけ案内する ──
+                名前が未登録でも、取り込みのときに手で先後を答えていれば集計は出る。
+                その状態で「判定できていません」と出すと、直す必要のないものを
+                直させる案内になる */}
+            {playerNames.length === 0 && excluded.noSide > 0 && (
               <div style={{
                 marginBottom: 16, padding: "12px 14px", borderRadius: T.radius.md,
                 background: T.goldLight, fontSize: T.fontSize.base, color: T.ink,
@@ -517,7 +543,9 @@ export function KifuInsight({ userId, trees = [], onBack, onGoSettings, onSendTo
               background: T.goldBg, border: "0.5px solid rgba(200,169,110,0.35)",
             }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-                <span style={{ fontFamily: T.fontTitle, fontSize: "1.5rem", color: T.ink }}>{pct(overall.rate)}</span>
+                {/* 0局のときの「0%」は、勝率0ではなく「まだ数字が無い」。
+                    見出しの数字だけが断定的に見えるのを避ける */}
+                <span style={{ fontFamily: T.fontTitle, fontSize: "1.5rem", color: T.ink }}>{total > 0 ? pct(overall.rate) : "—"}</span>
                 <span style={{ fontSize: T.fontSize.base, color: T.inkMid, fontFamily: T.fontSerif }}>
                   {total}局中 {overall.wins}勝{overall.losses}敗{overall.draws ? `${overall.draws}分` : ""}
                 </span>

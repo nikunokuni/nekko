@@ -3,7 +3,7 @@
 //   棋譜ライブラリ（KifuListScreen）から開く。1画面で完結するので
 //   モーダル単位でファイルを分けてある。
 // ══════════════════════════════════════════════════════════════════
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { T, MODAL_OVERLAY_STYLE, MODAL_SHEET_STYLE, parseTags } from "../../theme";
 import { InputField, SectionLabel, ModalActionButtons, TagPickerField } from "../../components/uiParts";
 import { STRATEGY_GROUPS } from "../../data";
@@ -95,7 +95,12 @@ function SidePicker({ entry, onChoose, compact }) {
     <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
       {!compact && <span style={{ fontSize: T.fontSize.sm, color: T.grayText, fontFamily: T.fontSerif }}>あなたは</span>}
       {options.map(({ v, label }) => {
-        const selected = v === "none" ? side === null : side === v;
+        // 「分析しない」が選択色になるのは、利用者がそれを選んだときだけ。
+        // まだ答えていない状態（side === null）を選択色にすると、初回の一括取り込みは
+        // 登録名が無いので全行が「分析しない」に塗られた状態で始まり、
+        // そのまま保存すると全件が集計から外れる（傾向が空のまま）。
+        // 未回答は「どれも選ばれていない」として見せる
+        const selected = v === "none" ? entry.sideOverride === "none" : side === v;
         return (
           <button
             key={v}
@@ -159,6 +164,9 @@ export function ImportKifuModal({ onClose, onImportMany, customTags, onAddCustom
   const [singleName, setSingleName] = useState(""); // 1件だけのときに編集できる名前
   const [pasteText, setPasteText] = useState("");
   const [error,     setError]     = useState("");
+  // 失敗ではない知らせ（例：貼り付けを読み込んだが、先後をまだ聞いていない）。
+  // error と同じ赤で出すと、うまくいっているのに失敗したように見える
+  const [notice,    setNotice]    = useState("");
   const [saving,    setSaving]    = useState(false);
   const [progress,  setProgress]  = useState(0);
   // 覚えている対局者名。この場で新しく覚えたぶんも即座に反映する
@@ -180,6 +188,7 @@ export function ImportKifuModal({ onClose, onImportMany, customTags, onAddCustom
   };
 
   const handleFileChange = async (e) => {
+    setNotice("");
     const files = [...(e.target.files || [])];
     // 同じファイルをもう一度選んでも change が発火するよう value をリセットする
     e.target.value = "";
@@ -202,6 +211,7 @@ export function ImportKifuModal({ onClose, onImportMany, customTags, onAddCustom
 
   const handlePaste = () => {
     setError("");
+    setNotice("");
     const entry = makeEntry(pasteText, `貼り付けた棋譜${entries.length + 1}`, playerNames);
     if (entry.error) { setError(entry.error); return; }
     addEntries([entry]);
@@ -212,6 +222,7 @@ export function ImportKifuModal({ onClose, onImportMany, customTags, onAddCustom
   // 名前を覚えたうえで、まだ判定できていない他の棋譜もその場で解決する。
   // 副作用（名前の永続化）は StrictMode の二重実行を避けるため updater の外で行う。
   const handleChooseSide = (key, side) => {
+    setNotice("");
     const target = entries.find((e) => e.key === key);
     // 答えた棋譜は選択肢を出したままにする。答えた瞬間にボタンが消えると
     // 「押せたのか」「取り消せるのか」が分からなくなるため
@@ -235,15 +246,72 @@ export function ImportKifuModal({ onClose, onImportMany, customTags, onAddCustom
     }));
   };
 
+  // ── まとめて聞く用：未判定の棋譜に出てくる対局者名の候補 ──
+  // 初回の取り込みは登録名が無いので全件が未判定になる。行ごとに聞くと
+  // 「何十行も選ばせる画面」になり、そのまま保存されて全件が集計から外れていた。
+  // 自分の名前はどの棋譜にも出てくるので、多く出てくる順に数個出せば1回で片が付く。
+  const nameCandidates = useMemo(() => {
+    const count = new Map();
+    for (const e of entries) {
+      if (!e.analysis || e.sideOverride != null || e.analysis.mySide) continue;
+      for (const n of [e.analysis.senteName, e.analysis.goteName]) {
+        if (!n || playerNames.includes(n)) continue;
+        count.set(n, (count.get(n) || 0) + 1);
+      }
+    }
+    return [...count.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+  }, [entries, playerNames]);
+
+  /** 「これが自分の名前」を1回選ぶ。覚えたうえで未判定の棋譜をまとめて解決する */
+  const handleChooseName = (name) => {
+    setNotice("");
+    const names = addKifuPlayerName(name);
+    setPlayerNames(names);
+    setEntries((prev) => prev.map((e) => {
+      if (e.sideOverride != null || !e.analysis || e.analysis.mySide) return e;
+      const resolved = resolveMySide(e.analysis, names);
+      return resolved ? { ...e, analysis: { ...e.analysis, mySide: resolved } } : e;
+    }));
+  };
+
   const handleRemove = (key) => setEntries((prev) => prev.filter((e) => e.key !== key));
 
   const handleSave = async () => {
-    if (readable.length === 0 || saving) return;
+    if (saving) return;
+
+    // 貼ったまま「保存する」を押したときは、ここで読み込みまで済ませる。
+    // 「貼り付けた棋譜を読み込む」を先に押さないと保存できない形だと、
+    // 押せない「保存する」の前で行き止まりになる（ファイル選択のほうには
+    // この一手が無いので、同じモーダルの中で手順が食い違っていた）。
+    let list = entries;
+    let name = singleName;
+    if (pasteText.trim()) {
+      const entry = makeEntry(pasteText, `貼り付けた棋譜${entries.length + 1}`, playerNames);
+      if (entry.error) { setError(entry.error); return; }
+      list = [...entries, entry];
+      // 1件だけなら名前を編集できる欄が出る。空のままだと保存が押せなくなるので、
+      // addEntries と同じように既定の名前を入れておく（この場で保存する分は name で足りるが、
+      // 先後を聞くために一度止まったときは、欄が空のまま残ってしまう）
+      if (list.length === 1) { name = name || entry.name; setSingleName((n) => n || entry.name); }
+      setEntries(list);
+      setPasteText("");
+      setError("");
+      // どちらが自分か分からないまま黙って保存すると、その棋譜は集計に載らない。
+      // 読み込んだ結果を見せて、聞くべきことを聞いてから保存する
+      if (needsAsking(entry)) {
+        setNotice("読み込みました。あなたがどちらか選んでから、もう一度「保存する」を押してください。");
+        return;
+      }
+    }
+
+    const readableList = list.filter((e) => e.snapshots);
+    if (readableList.length === 0) return;
+    const isSingle = list.length === 1 && !list[0].error;
     setSaving(true);
     setProgress(0);
     const parsedTags = parseTags(tags);
-    const items = readable.map((e) => ({
-      name: (single ? singleName : e.name).trim() || e.name,
+    const items = readableList.map((e) => ({
+      name: (isSingle ? name : e.name).trim() || e.name,
       snapshots:  e.snapshots,
       sourceText: e.sourceText,
       tags:       parsedTags,
@@ -326,6 +394,12 @@ export function ImportKifuModal({ onClose, onImportMany, customTags, onAddCustom
           </div>
         )}
 
+        {notice && (
+          <div style={{ marginBottom: 14, fontSize: T.fontSize.sm, color: T.inkMid, fontFamily: T.fontSerif, lineHeight: 1.7 }}>
+            {notice}
+          </div>
+        )}
+
         {/* ── 1件だけのとき：対局情報を詳しく見せる ── */}
         {single && entries[0].analysis && (() => {
           const e = entries[0];
@@ -368,6 +442,27 @@ export function ImportKifuModal({ onClose, onImportMany, customTags, onAddCustom
             fontFamily: T.fontSerif, lineHeight: 1.7,
           }}>
             {unresolved}件であなたがどちらか分かりません。名前を一度選べば、次からは自動で判定します。
+
+            {/* ここで1回選べば残りも片付く道を、行ごとの選択より先に出す。
+                2件以上のときだけ出すのは、1件なら下の行に同じ選択肢が既に出ているため */}
+            {unresolved > 1 && nameCandidates.length > 0 && (
+              <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                <span style={{ color: T.inkMid }}>この中にあなたの名前は</span>
+                {nameCandidates.map(([name, count]) => (
+                  <button
+                    key={name}
+                    onClick={() => handleChooseName(name)}
+                    style={{
+                      padding: "3px 10px", borderRadius: T.radius.sm, cursor: "pointer",
+                      border: `0.5px solid ${T.gold}`, background: "transparent", color: T.gold,
+                      fontFamily: T.fontSerif, fontSize: T.fontSize.sm,
+                      maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    }}
+                  >{name}（{count}件）</button>
+                ))}
+              </div>
+            )}
+
             <div style={{ marginTop: 4, color: T.inkMid }}>
               将棋アプリごとに名前が違う場合は、
               {onGoSettings
@@ -432,7 +527,9 @@ export function ImportKifuModal({ onClose, onImportMany, customTags, onAddCustom
             : readable.length > 1 ? `${readable.length}件を保存する`
             : "保存する"
           }
-          disabled={readable.length === 0 || saving || (single && !singleName.trim())}
+          // 貼り付けたテキストが残っているときも押せる（押したら読み込みまでやる）。
+          // 押せないボタンは理由を説明できないので、行き止まりを作らない
+          disabled={saving || (readable.length === 0 && !pasteText.trim()) || (single && !singleName.trim())}
         />
       </div>
     </div>
