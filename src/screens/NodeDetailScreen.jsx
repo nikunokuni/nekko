@@ -394,7 +394,7 @@ function NodeRecallModal({ userId, trees = [], currentNodeId, currentLabel, onCl
                           {n.memo}
                         </div>
                       )}
-                      {/* 頻度・勝率・好き度。並べ替えの根拠を行にも出しておく ――
+                      {/* 頻度・手ごたえ・好き度。並べ替えの根拠を行にも出しておく ――
                           出さないと「頻度順」に並べ替えたとき、なぜこの順なのかが
                           画面から読み取れず、並びが正しいのか確かめようがない */}
                       {(n.usage_level != null || n.win_rate != null || n.like_level != null) && (
@@ -1667,7 +1667,7 @@ export function NodeDetail({ tree, trees = [], nodeId, userId, collabGuest = fal
           </div>
         )}
 
-        {/* 頻度（炎）／勝率（トロフィー）／好き度（ハート）
+        {/* 頻度（炎）／手ごたえ（トロフィー）／好き度（ハート）
             同じ形のラジオが3段並ぶと軸の違いが分かりにくいため、
             軸ごとにアイコンの形と色を変えて視覚で区別する */}
         {tsuikaShow.usage && (
@@ -1691,10 +1691,10 @@ export function NodeDetail({ tree, trees = [], nodeId, userId, collabGuest = fal
         <div style={{ padding: "0 16px 10px" }}>
           <SectionLabel style={{ marginBottom: 5 }}>
             <i className="ti ti-trophy" style={{ fontSize: "0.75rem", color: T.green, marginRight: 4 }} />
-            勝率
+            手ごたえ
           </SectionLabel>
           <IconRating
-            icon="ti-trophy" color={T.green} bg={T.greenBg} name="勝率"
+            icon="ti-trophy" color={T.green} bg={T.greenBg} name="手ごたえ"
             levels={WIN_RATE_LEVELS} value={winRate} clearable
             onChange={(lvl) => saveField({ winRate: lvl },
               () => setWinRate(lvl),
@@ -1956,8 +1956,18 @@ export function NodeDetail({ tree, trees = [], nodeId, userId, collabGuest = fal
                 </button>
               ) : (
                 <div>
+                  {/* 何件消えるのかを数字で出す。
+                      「と子ノードをすべて」だけだと、配下が1件でも30件でも同じ文になり、
+                      枝を1本消したつもりで研究を丸ごと消せてしまう（元に戻せない）。
+                      数える範囲は handleDeleteNode が実際に消す範囲と同じにする */}
                   <div style={{ fontSize: T.fontSize.md, color: T.red, marginBottom: 10, textAlign: "center", lineHeight: 1.6 }}>
-                    「{node.label}」と子ノードをすべて削除します。<br />元に戻せません。
+                    {(() => {
+                      const n = collectDescendantIds(nodeId).length;
+                      return n === 0
+                        ? <>「{node.label}」を削除します。</>
+                        : <>「{node.label}」と、その下の<b>{n}件</b>をすべて削除します。</>;
+                    })()}
+                    <br />元に戻せません。
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
                     <button

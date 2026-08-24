@@ -45,7 +45,11 @@ export const USAGE_META = {
 };
 export const USAGE_LEVELS = [1, 2, 3, 4, 5];
 
-// ── 勝率ラジオの選択肢（割単位）──
+// ── 手ごたえラジオの選択肢（割単位）──
+//   画面に出る名前は「手ごたえ」。キー・列名は歴史的経緯で winRate / win_rate のまま
+//   （表示名を変えるためだけに列を作り直さない。nextStudy と同じ扱い）。
+//   「勝率」の名前は棋譜から計算するほうに譲った ―― 手で入れた自己評価と、
+//   実戦から出した数字が同じ名前で並ぶと、どちらを見ているのか分からなくなる
 export const WIN_RATE_LEVELS = [1, 3, 5, 7, 9];
 
 // ── 一言コメントのプリセットグループ ────────────────
@@ -214,7 +218,7 @@ export const TSUIKA_ITEMS = [
   { key: "orientation",  label: "志向",         icon: "ti-compass" },
   { key: "openingFocus", label: "序盤の意識",   icon: "ti-flag" },
   { key: "usage",        label: "頻度",         icon: "ti-flame" },
-  { key: "winRate",      label: "勝率",         icon: "ti-trophy" },
+  { key: "winRate",      label: "手ごたえ",     icon: "ti-trophy" },
   { key: "likeLevel",    label: "好き度",       icon: "ti-heart" },
   { key: "studyMemo",    label: "研究メモ",     icon: "ti-notes" },
 ];

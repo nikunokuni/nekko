@@ -340,7 +340,7 @@ function NodeViewSheet({ node, onClose }) {
         {chips("自分の戦法", node.myApproach)}
         {orientMeta && row("志向", <span style={{ color: orientMeta.color }}>{node.orientation}</span>)}
         {node.usageLevel != null && USAGE_META[node.usageLevel] && row("頻度", USAGE_META[node.usageLevel].label)}
-        {node.winRate != null && row("勝率", `${node.winRate}割くらい勝てる`)}
+        {node.winRate != null && row("手ごたえ", `${node.winRate}割くらい勝てる`)}
         {row("メモ", (node.memo || "").trim())}
         {row("ここでの狙い", (node.aim || "").trim())}
         {row("気を付けること", (node.caution || "").trim())}

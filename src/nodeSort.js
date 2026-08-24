@@ -14,7 +14,7 @@
 // column を持たない
 export const NODE_SORTS = [
   { key: "recent",     label: "新しい順" },
-  { key: "winRate",    label: "勝率順",   icon: "ti-trophy", column: "win_rate" },
+  { key: "winRate",    label: "手ごたえ順", icon: "ti-trophy", column: "win_rate" },
   { key: "likeLevel",  label: "好き度順", icon: "ti-heart",  column: "like_level" },
   { key: "usageLevel", label: "頻度順",   icon: "ti-flame",  column: "usage_level" },
 ];
