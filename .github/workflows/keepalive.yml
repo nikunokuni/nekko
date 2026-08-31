@@ -38,6 +38,12 @@ jobs:
         env:
           SUPABASE_URL:      ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          # 叩く先（ねっこ本番）のプロジェクトID。秘密ではない
+          # ―― この値はフロントのバンドルに埋め込まれて配布されている。
+          # ここに直書きするのは、Secrets の中身は登録したあと誰にも見えず、
+          # 「本番とは別のプロジェクトを叩いて緑になり続ける」事故を
+          # 人間が見つけられないため。機械に突き合わせさせる。
+          EXPECTED_HOST:     twdfqzugcfonktmscwij.supabase.co
         run: |
           set -euo pipefail
 
@@ -49,6 +55,20 @@ jobs:
             echo "::error::SUPABASE_URL / SUPABASE_ANON_KEY が未設定です。リポジトリの Settings → Secrets and variables → Actions に登録してください（値は .env の VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY と同じ）。"
             exit 1
           fi
+
+          # 宛先が本番と同じプロジェクトかを確かめる。
+          # HTTP 200 が返ってきても、それは「どこかの Supabase に届いた」
+          # としか言っていない。本番の一時停止よけとして意味を持つのは
+          # 宛先が一致しているときだけなので、ここで確定させる。
+          # 値そのものは出さない（Secrets はログでマスクされて読めないため、
+          # 出しても「***」にしかならない）。一致・不一致だけを出す。
+          host="${SUPABASE_URL#*://}"
+          host="${host%%/*}"
+          if [ "${host}" != "${EXPECTED_HOST}" ]; then
+            echo "::error::SUPABASE_URL の宛先が想定（${EXPECTED_HOST}）と違います。Secrets の SUPABASE_URL を、Vercel の VITE_SUPABASE_URL と同じ値に直してください。別プロジェクトを叩いていると、この処理が緑でも本番は7日で止まります。"
+            exit 1
+          fi
+          echo "宛先OK: ${EXPECTED_HOST}"
 
           # 末尾の / があってもURLが壊れないようにしておく
           url="${SUPABASE_URL%/}/rest/v1/trees?select=id&limit=1"
