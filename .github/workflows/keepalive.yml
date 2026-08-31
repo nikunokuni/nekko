@@ -1,4 +1,4 @@
-# Supabase の一時停止よけ。1日1回、いちばん軽いクエリを1本だけ投げる。
+# Supabase の一時停止よけ。1日1回、いちばん軽いやり取りを2本だけ投げる。
 #
 #   無料プランは「7日間まったくリクエストが無い」とプロジェクトを一時停止する。
 #   止まると復帰はダッシュボードからの手動操作で、アプリ側からは何もできない
@@ -8,13 +8,20 @@
 #   profiles / trees / nodes / kifus に7本ほど読みに行く）。ただしそれは
 #   「誰かが必ず開く」ことに賭けている状態で、旅行や忙しい週で1回抜けると止まる。
 #   利用者の行動に依存させないために、ここで機械が代わりに叩く。
+#
+#   最初は trees を1行読むだけだった。それでも毎日 HTTP 200 は返っていたのに、
+#   Supabase からは「7日以上まともな活動が無く、近いうちに一時停止する予定」
+#   という予告メールが届いた（2026-08-31）。anon キーの読みは RLS に弾かれて
+#   空配列が返るので、向こうの数え方では「十分な活動」に入らないらしい。
+#   **届いていることと、活動と見なされることは別だった。**
+#   そこで読みに加えて、1行だけ書き換える ping() を呼ぶ（20260831_keepalive_ping.sql）。
 name: Keep-alive
 
 on:
   schedule:
     # 毎日 03:17 UTC（日本時間 12:17）。7日の猶予に対して3日おきでも計算は合うが、
     # GitHub の cron は混雑時に遅れる・丸ごと飛ぶことがあるので毎日にしてある。
-    # 1回あたりリクエスト1本・実行10秒ほどなので、頻度を上げても負担はほぼ無い。
+    # 1回あたりリクエスト2本・実行10秒ほどなので、頻度を上げても負担はほぼ無い。
     # 半端な分（:17）なのは、毎時0分がいちばん混んで遅延しやすいため。
     - cron: "17 3 * * *"
   # 止まりかけを手で確かめたいとき用（Actions タブから実行できる）
@@ -71,35 +78,59 @@ jobs:
           echo "宛先OK: ${EXPECTED_HOST}"
 
           # 末尾の / があってもURLが壊れないようにしておく
-          url="${SUPABASE_URL%/}/rest/v1/trees?select=id&limit=1"
+          base="${SUPABASE_URL%/}"
           body="$(mktemp)"
 
-          # trees を1行だけ読む。anon キーなので RLS に弾かれて中身は空で返るが、
-          # それでかまわない ―― 欲しいのはデータではなく「Postgres まで問い合わせが
-          # 届いた」という事実のほう。空配列が返る＝ちゃんと届いている。
-          for attempt in 1 2 3; do
-            status="$(curl -sS -m 30 -o "${body}" -w "%{http_code}" \
-              -H "apikey: ${SUPABASE_ANON_KEY}" \
-              -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
-              -H "Accept: application/json" \
-              "${url}")" || status="000"
+          # 3回試して、最後の応答を status に残す。
+          # 1回きりだと、たまたまの通信断で「止まりかけ」と区別が付かない
+          request() {
+            local method="$1" path="$2" data="${3-}"
+            local attempt
+            # 送るものが無いときに -d "" を渡すと空ボディのPOSTになってしまうので、
+            # 引数そのものを組み立てて分ける
+            local -a payload=()
+            if [ -n "${data}" ]; then payload=(-d "${data}"); fi
 
-            if [ "${status}" = "200" ]; then
-              echo "OK (HTTP 200) ―― Supabase に届きました"
-              exit 0
-            fi
+            for attempt in 1 2 3; do
+              status="$(curl -sS -m 30 -o "${body}" -w "%{http_code}" \
+                -X "${method}" \
+                -H "apikey: ${SUPABASE_ANON_KEY}" \
+                -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+                -H "Content-Type: application/json" \
+                -H "Accept: application/json" \
+                "${payload[@]}" \
+                "${base}${path}")" || status="000"
 
-            echo "attempt ${attempt}: HTTP ${status}"
-            head -c 500 "${body}" || true
-            echo
+              if [ "${status}" = "200" ]; then
+                return 0
+              fi
 
-            if [ "${attempt}" -lt 3 ]; then
-              sleep $((attempt * 15))
-            fi
-          done
+              echo "attempt ${attempt}: ${method} ${path} → HTTP ${status}"
+              head -c 500 "${body}" || true
+              echo
+              if [ "${attempt}" -lt 3 ]; then
+                sleep $((attempt * 15))
+              fi
+            done
+            return 1
+          }
 
-          # 3回とも駄目なら、届いていないか設定が違う。
-          # 応答本文には PostgREST の説明（permission denied 等）が入っているので、
-          # 上のログをそのまま読めば原因が分かる。
-          echo "::error::Supabase に届きませんでした（最後の応答: HTTP ${status}）。プロジェクトが既に一時停止していないか、キーが失効していないかを確認してください。"
-          exit 1
+          # ① まず読む。anon キーなので RLS に弾かれて中身は空で返るが、
+          #    問い合わせ自体は Postgres まで届いている。
+          #    書きより先に置くのは、②の migration がまだ本番に入っていない間も
+          #    「1本は必ず投げた」状態にしておくため。ここで落ちるのは
+          #    本当に届かないとき（既に停止済み・キー失効）だけになる。
+          if ! request GET "/rest/v1/trees?select=id&limit=1"; then
+            echo "::error::Supabase に届きませんでした（最後の応答: HTTP ${status}）。プロジェクトが既に一時停止していないか、キーが失効していないかを確認してください。"
+            exit 1
+          fi
+          echo "読みOK (HTTP 200)"
+
+          # ② 1行だけ書き換える。読みだけでは「十分な活動」と数えられず
+          #    停止予告が来たので、データが実際に変わる操作を足してある。
+          #    404 が返るのは migration 未適用のとき（＝停止よけは効いていない）。
+          if ! request POST "/rest/v1/rpc/ping" "{}"; then
+            echo "::error::ping() を呼べませんでした（最後の応答: HTTP ${status}）。404 なら supabase/migrations/20260831_keepalive_ping.sql を本番の SQL Editor で実行してください。読みは通っているので即停止はしませんが、この状態では読みだけの頃と同じで、また停止予告が来ます。"
+            exit 1
+          fi
+          echo "書きOK (HTTP 200) ―― 最終 ping: $(cat "${body}")"
