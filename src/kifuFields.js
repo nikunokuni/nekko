@@ -33,6 +33,16 @@ export const KIFU_FIELDS = [
   { key: "snapshots",  column: "snapshots",   def: () => [], heavy: true, noPatch: true },
   { key: "sourceText", column: "source_text", def: "",       heavy: true, noPatch: true },
 
+  // 局面検索用に、全手の盤面を1局面81文字へ詰めた文字列（kifuPosition.js）。
+  // 中身は snapshots と同じだが、JSONの約1/5.7（実測 464B → 81B／局面）なので
+  // 「全棋譜ぶんを一度に読んで端末の中だけで探す」ができる。
+  // これも重い列なので一覧・分析では読まない（検索画面だけが明示的に足して読む）。
+  //
+  // 作るのは db.js（snapshots から計算するので呼び出し側から受け取らない＝noInsert）。
+  // 更新できるようにしてあるのは、この列より前に取り込んだ棋譜を検索画面が
+  // あとから埋めるため（noPatch にすると埋められない）
+  { key: "boardsPacked", column: "boards_packed", def: "", heavy: true, noInsert: true },
+
   // 手数はスナップ数から決まる（createKifu が計算して入れる）ので、
   // 呼び出し側から受け取らない＝noInsert。あとから変わるものでもない
   { key: "moveCount",  column: "move_count",  def: 0, noInsert: true, noPatch: true },

@@ -21,6 +21,7 @@ import { outcomeLabel, formatDate } from "./kifu/shared";
 import { ImportKifuModal } from "./kifu/ImportKifuModal";
 import { RecordKifuModal } from "./kifu/RecordKifuModal";
 import { KifuPreviewModal } from "./kifu/KifuPreviewModal";
+import { PositionSearchModal } from "./kifu/PositionSearchModal";
 import { EditKifuModal } from "./kifu/EditKifuModal";
 import { showToast } from "../toast";
 
@@ -156,6 +157,14 @@ export function KifuList({ userId, trees = [], onBack, onInsight, onGoSettings, 
   const [showRecordModal, setShowRecordModal] = useState(false);
   const [previewTarget,   setPreviewTarget]   = useState(null); // snapshots込みの棋譜
   const [previewLoading,  setPreviewLoading]  = useState(false);
+  // 再生を始める手数（局面検索の一覧から開いたときだけ入る。null = 最終局面から）
+  const [previewStartPly, setPreviewStartPly] = useState(null);
+  // 局面検索に持ち込んだもの（null = 検索していない）。{ board, side }。
+  // side（持ち込んだ棋譜で自分がどちらだったか）を一緒に持つのは、盤を回さずに
+  // 出すぶん、反対側の棋譜へ条件をどう当てるかがこの値でしか決まらないため。
+  // プレビューの上に重ねるのではなく、プレビューを閉じてから開く
+  // ―― 検索結果から棋譜を開くと、その上にプレビューが重なるため
+  const [searchTarget,    setSearchTarget]    = useState(null);
   const [editTarget,      setEditTarget]      = useState(null);
   const [deleteTarget,    setDeleteTarget]    = useState(null);
   // 一覧を読めなかった。空とは別物として扱う（下の描き分けを参照）
@@ -298,8 +307,9 @@ export function KifuList({ userId, trees = [], onBack, onInsight, onGoSettings, 
     setPreviewTarget((t) => (t && t.id === kifu.id ? { ...t, ...patch } : t));
   };
 
-  // カードタップ → snapshots込みで取得して再生プレビューを開く
-  const handleOpen = async (kifu) => {
+  // カードタップ → snapshots込みで取得して再生プレビューを開く。
+  // startPly を渡すと、その手から再生を始めた状態で開く（局面検索の一覧から使う）
+  const handleOpen = async (kifu, startPly = null) => {
     if (previewLoading) return;
     setPreviewLoading(true);
     const { data, error } = await fetchKifu(kifu.id);
@@ -308,9 +318,10 @@ export function KifuList({ userId, trees = [], onBack, onInsight, onGoSettings, 
       // 読み込みの失敗は、押した棋譜が開かないまま何も起きないように見える。
       // その場でやり直せる手段を添える
       showToast("棋譜の読み込みに失敗しました。通信環境を確認してください。",
-        { action: { label: "もう一度読む", onClick: () => handleOpen(kifu) } });
+        { action: { label: "もう一度読む", onClick: () => handleOpen(kifu, startPly) } });
       return;
     }
+    setPreviewStartPly(startPly);
     setPreviewTarget(kifuRowToKifu(data));
   };
 
@@ -472,10 +483,30 @@ export function KifuList({ userId, trees = [], onBack, onInsight, onGoSettings, 
           onAddCustomTag={handleAddCustomTag}
         />
       )}
+      {/* 局面検索。プレビューより先に置くことで、検索結果から棋譜を開いたときに
+          プレビューが上に重なる（閉じると検索結果に戻れる） */}
+      {searchTarget && (
+        <PositionSearchModal
+          userId={userId}
+          startBoard={searchTarget.board}
+          startSide={searchTarget.side}
+          onClose={() => setSearchTarget(null)}
+          // 一覧の1件 → その手数から再生を開く。しおりはそこで既存の機能から付ける
+          onOpenKifu={(kifuId, ply) => handleOpen({ id: kifuId }, ply)}
+        />
+      )}
       {previewTarget && (
         <KifuPreviewModal
           kifu={previewTarget}
+          startPly={previewStartPly}
           onClose={() => setPreviewTarget(null)}
+          // いま見ている局面を持ち込んで局面検索へ。プレビューは閉じる
+          // （検索結果から棋譜を開くと、この同じプレビューを使い回すため）
+          onSearchPosition={(board, side) => {
+            if (!board || !side) return;
+            setPreviewTarget(null);
+            setSearchTarget({ board, side });
+          }}
           // onSetSide / trees / onSendToInbox を渡し忘れると、モーダル側は
           // 「ツリーへ送る」を丸ごと出さず（onSendToInbox && trees.length > 0 で判定）、
           // 先後の選択ボタンも onSetSide?.() が no-op になって黙って効かなくなる。

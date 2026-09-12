@@ -200,7 +200,9 @@ export function ConfirmDeleteModal({ title, message, onClose, onConfirm }) {
 // bookmarks / onToggleBookmark: しおり。保存先（kifus 行）を知っているのは
 //   呼び出し元なので、盤には受け渡すだけ。渡し忘れるとUIごと消えるので、
 //   プレビューを開くE2E（kifu-bookmark.spec.js）が見張っている
-export function KifuPreviewBoard({ snapshots, onPlaybackIdxChange, bookmarks, onToggleBookmark }) {
+// initialPlaybackIdx: 開いた直後に再生を始める手数（局面検索の一覧から
+//   「第38手」を押して開いたときに使う）。渡さなければ最終局面から始まる
+export function KifuPreviewBoard({ snapshots, onPlaybackIdxChange, bookmarks, onToggleBookmark, initialPlaybackIdx = null }) {
   const snaps = snapshots || [];
   const last  = snaps.length > 0 ? snaps[snaps.length - 1] : null;
   if (!last) {
@@ -219,6 +221,7 @@ export function KifuPreviewBoard({ snapshots, onPlaybackIdxChange, bookmarks, on
       onPlaybackIdxChange={onPlaybackIdxChange}
       bookmarks={bookmarks}
       onToggleBookmark={onToggleBookmark}
+      initialPlaybackIdx={initialPlaybackIdx}
       readOnly
     />
   );

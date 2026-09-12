@@ -125,7 +125,14 @@ function CancelButton({ onClick }) {
   );
 }
 
-export function KifuPreviewModal({ kifu, onClose, onSetSide, trees = [], onSendToInbox, onBookmarksChange }) {
+// startPly … 開いた直後に見せる手数（局面検索の一覧から開いたときに渡る）。
+//   null なら今までどおり最終局面から。
+// onSearchPosition … (board, mySide) => void 「似た将棋を探す」を押したときに、
+//   そのとき見ている盤面と自分の側を渡す。渡されなければボタンごと出さない
+export function KifuPreviewModal({
+  kifu, onClose, onSetSide, trees = [], onSendToInbox, onBookmarksChange,
+  startPly = null, onSearchPosition,
+}) {
   // ツリーへ送るまでの段階。null=未着手 / "range"=どこまでかを聞いている / "tree"=送り先を選んでいる。
   // 範囲→ツリーの順にしているのは、範囲の始点が「ボタンを押した時に見ていた局面」で決まるため。
   // 先にツリーを選ばせると、選んでいる間に盤を触られて始点が動いてしまう
@@ -133,7 +140,7 @@ export function KifuPreviewModal({ kifu, onClose, onSetSide, trees = [], onSendT
   const [range,   setRange]   = useState(null);  // { start, end } 確定した切り取り範囲
   const [sending, setSending] = useState(false);
   // 盤がいま映している手数（null = 再生していない＝最終局面を表示中）
-  const [viewPly, setViewPly] = useState(null);
+  const [viewPly, setViewPly] = useState(startPly);
   // しおり。保存は呼び出し元（DBを触るのは画面側）だが、押した瞬間に
   // 見た目が変わらないと「効いていない」と読まれるので、ここでも持つ
   const [marks, setMarks] = useState(() => normalizeBookmarks(kifu.bookmarks));
@@ -322,6 +329,30 @@ export function KifuPreviewModal({ kifu, onClose, onSetSide, trees = [], onSendT
           </div>
         )}
 
+        {/* ── この局面で探す ──
+            いま見ている局面を持ち込んで、ためた棋譜から同じ形を探す。
+            入口をここに置くのは、「この形、前にもあった気がする」と思うのが
+            棋譜を再生している最中だから。盤に並べ直させる入口は作らない
+            （スマホで駒を並べるのは、やってみると続かない）。
+
+            先後が決まっていない棋譜からは探せない ―― 盤は向きを変えずに使うので、
+            自分がどちら側だったかが決まらないと、反対側の棋譜へどう当てるかも
+            決まらない。未確定のときは上の「あなた」で選んでもらう */}
+        {onSearchPosition && kifu.mySide && snaps.length > 0 && (
+          <button
+            onClick={() => onSearchPosition(snaps[viewPly ?? moveCount]?.board, kifu.mySide)}
+            style={{
+              display: "flex", alignItems: "center", gap: 6, width: "100%",
+              padding: "9px 12px", borderRadius: T.radius.md, marginBottom: 14,
+              border: `0.5px dashed ${T.gold}`, background: "transparent",
+              color: T.gold, cursor: "pointer", fontSize: T.fontSize.base, fontFamily: T.fontSerif,
+            }}
+          >
+            <i className="ti ti-search" style={{ fontSize: "0.875rem" }} />
+            この局面（{plyLabel(viewPly ?? moveCount)}）に似た将棋を探す
+          </button>
+        )}
+
         {/* しおりの残り。盤のしおり列は再生を始めないと目に入らないので、
             「まだいくつ残っているか」は盤の外に出しておく。
             棋譜を開き直したとき、続きがあること自体を思い出せるようにする */}
@@ -338,6 +369,7 @@ export function KifuPreviewModal({ kifu, onClose, onSetSide, trees = [], onSendT
         <KifuPreviewBoard
           snapshots={kifu.snapshots}
           onPlaybackIdxChange={handlePlaybackIdxChange}
+          initialPlaybackIdx={startPly}
           bookmarks={marks}
           // 保存する手段が無いときはしおりのUIごと出さない（押せても残らないため）
           onToggleBookmark={onBookmarksChange ? (ply) => {

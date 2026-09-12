@@ -552,6 +552,12 @@ export default function ShogiBoard({
   //     しおりは棋譜ライブラリの棋譜に付くもので、盤はどこに保存するかを知らない
   bookmarks = [],
   onToggleBookmark,
+  // 開いた直後に再生を始める手数（null = 最終局面を出す通常表示）。
+  //   局面検索の一覧から「第38手」を押して開く、のように**どの手を見たいかが
+  //   決まっている**ときだけ渡す。渡さなければ今までどおり。
+  //   再生位置そのものを props で持たせない方針（上の onPlaybackIdxChange 参照）は
+  //   変えていない ―― ここで決めるのは出発点だけで、以降の操作は盤の中で完結する
+  initialPlaybackIdx = null,
 }) {
   const canvasRef = useRef(null);
   // 貼り付けを始める目印。この行（持ち駒＋盤）の上端が画面から出たら貼り付ける
@@ -604,11 +610,16 @@ export default function ShogiBoard({
   // 手数(length)ではなく配列の同一性で判定する：同じ手数の別棋譜への差し替えでも
   // リセットが必要なため。空棋譜は毎レンダー新しい [] が渡り得るので定数キーに正規化する。
   const kifuIdentity = kifuProp.length === 0 ? "empty" : kifuProp;
+  // 出発点は棋譜の中へ収めてから使う。範囲外の手数をそのまま持つと、
+  // 再生中なのに局面が取れない（kifuProp[idx] が undefined）状態になる
+  const startIdx = initialPlaybackIdx == null || kifuProp.length === 0
+    ? null
+    : Math.max(0, Math.min(initialPlaybackIdx, kifuProp.length - 1));
   useEffect(() => {
-    setPlaybackIdx(null);
+    setPlaybackIdx(startIdx);
     setRangeStart(null);
     setRangeEnd(null);
-  }, [kifuIdentity]);
+  }, [kifuIdentity, startIdx]);
 
   // 持ち駒も board / stamps と同様に、親から渡される prop の変化を内部 state へ反映する。
   // （ノード切替・テンプレート読込・棋譜削除・盤面の元に戻す 等で駒台だけ古いまま残るのを防ぐ）

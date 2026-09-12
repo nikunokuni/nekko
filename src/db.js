@@ -6,6 +6,8 @@ import { createClient } from "@supabase/supabase-js";
 import { nodeToInsertRow, nodePatchToRow, nodeRowToNode } from "./nodeFields";
 // 棋譜の台帳。一覧で読む列（KIFU_META_COLUMNS）もここから生成される
 import { kifuToInsertRow, kifuPatchToRow, kifuRowToKifu, KIFU_META_COLUMNS } from "./kifuFields";
+// 盤面を詰めた文字列（局面検索用）の作り方。詰め方の唯一の出どころ
+import { packBoards } from "./kifuPosition";
 
 const SUPABASE_URL      = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -273,6 +275,22 @@ export async function fetchKifusForAnalysis(userId, limit = ANALYSIS_GAME_LIMIT)
   return result;
 }
 
+/** 局面検索用。軽い列に加えて、詰めた盤面（boards_packed）まで読む。
+ *  ここだけは全件を一度に読む ―― 検索は「昔の将棋も含めて探したい」ものなので、
+ *  傾向分析の300局（ANALYSIS_GAME_LIMIT）とは上限の意味が違う。
+ *  詰めた盤面は1局面81バイトなので、300局・120手でも3MB弱に収まる
+ *  （snapshots のままなら16MB で、そもそも読めない）。
+ *  列を絞らず KIFU_META_COLUMNS を使い回すのは fetchKifusForAnalysis と同じ理由。 */
+export async function fetchKifusForPositionSearch(userId) {
+  const result = await supabase
+    .from("kifus")
+    .select(`${KIFU_META_COLUMNS}, boards_packed`)
+    .eq("user_id", userId)
+    .order("played_at", { ascending: false });
+  if (result.error) console.error("fetchKifusForPositionSearch error:", result.error);
+  return result;
+}
+
 /** 対局情報が未解析の棋譜を、原文つきで少しずつ取得する（取り込み済み棋譜の後追い解析用）。
  *  source_text と snapshots は重いため、一度に全件は取らずバッチで回す。 */
 export async function fetchKifusNeedingMeta(userId, limit = 20) {
@@ -364,6 +382,9 @@ export async function createKifu({ userId, snapshots, ...fields }) {
       ...kifuToInsertRow({ ...fields, snapshots }),
       // 手数 = スナップ数 - 1（先頭は初期局面）。渡された値ではなく必ず数え直す
       move_count: Math.max(0, (snapshots?.length ?? 0) - 1),
+      // 局面検索用の詰めた盤面。手数と同じで snapshots から決まる値なので、
+      // 呼び出し側から受け取らずここで作る（台帳では noInsert）
+      boards_packed: packBoards(snapshots),
     })
     .select(KIFU_META_COLUMNS)
     .single();
